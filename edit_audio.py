@@ -109,8 +109,8 @@ def wav_to_shortwav(wav_path, max_duration=10.0):  # max_duration[s] を最大�
 # 音声をテキストに変換
 def wav_to_txt(wav_path):
     r = speech_recognition.Recognizer()
-    r.energy_threshold = 2000
-    r.dynamic_energy_threshold = False
+    # r.energy_threshold = 2000
+    # r.dynamic_energy_threshold = False
     # with speech_recognition.AudioFile('audio/200225_Haga_22.wav') as src:
     #     r.adjust_for_ambient_noise(src)
     with speech_recognition.AudioFile(wav_path) as src:
@@ -227,8 +227,8 @@ def silence_based_wav_to_txt(wav_path):
 
 
 if __name__ == "__main__":
-    pass
-    # naive_split_wav_to_txt("test/split_wave/0_SpeakerName2.wav")
+    # pass
+    # naive_split_wav_to_txt("test/split_wave/seg_test.wav")
     # naive_split_wav_to_txt("test/split_wave/38_SpeakerName2.wav")
 
     # audio_path = 'test/split_wave/'
@@ -240,3 +240,6 @@ if __name__ == "__main__":
     #     input = "audio/" + audio + ".wav"
     #     output = "audio/" + audio + "_trim.wav"
     #     trim_audio(input, output, [0, 180000])
+    wav_to_txt('test/split_wave/0_SpeakerName2.wav')
+    wav_to_txt('segmentation/0_SpeakerName2/segment00.wav')
+    wav_to_txt('segmentation/0_SpeakerName2/segment00.wav')

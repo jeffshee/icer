@@ -23,10 +23,10 @@ from overlay_video import overlay_all_results
 from run_speaker_diarization_v2 import run_speaker_diarization
 
 if __name__ == '__main__':
-
-    config = tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))
-    session = tf.Session(config=config)
-    set_session(session)
+    # tf v2
+    # config = tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))
+    # session = tf.Session(config=config)
+    # set_session(session)
     implement_mode = {
         "detect_face": 0,  # 動画から顔領域の切り出し
         "emotional_recognition": 0,  # 切り出した顔画像の表情・頷き・口の開閉認識
