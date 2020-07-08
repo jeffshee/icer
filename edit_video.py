@@ -2,11 +2,11 @@
 import datetime
 import os
 import subprocess
-
+import time
 import math
+from tqdm import tqdm
 
-
-def calibrate_video(original_video_path, output_video_path, k_resolution, capture_image_num=50, model='hog' use_gpu=False):
+def calibrate_video(original_video_path, output_video_path, k_resolution, capture_image_num=50, model="hog", use_gpu=False):
     input_movie = cv2.VideoCapture(original_video_path)  # 動画を読み込む
     original_w = int(input_movie.get(cv2.CAP_PROP_FRAME_WIDTH))  # 動画の幅を測る
     original_h = int(input_movie.get(cv2.CAP_PROP_FRAME_HEIGHT))  # 動画の高さを測る
@@ -14,57 +14,65 @@ def calibrate_video(original_video_path, output_video_path, k_resolution, captur
     w = int(original_w * resize_rate)
     h = int(original_h * resize_rate)
     length = int(input_movie.get(cv2.CAP_PROP_FRAME_COUNT))  # 動画の長さを測る
+    print('length: {}'.format(length))
     max_face_detection_num = 0
     calibrate_num = 0
     capture_image_num = min(capture_image_num, length)
 
-    for i, frame_number in enumerate(range(0, length, length // capture_image_num)):
-        print("frame_number:", frame_number)
-        input_movie.set(cv2.CAP_PROP_POS_FRAMES, frame_number)  # 動画の開始フレームを設定
+    start = time.time()
+    with tqdm(range(0, length, length // capture_image_num)) as pbar:
+        for i, frame_number in enumerate(pbar):
+        # for i, frame_number in enumerate(range(0, length, length // capture_image_num)):
 
-        # 動画を読み込む
-        ret, frame = input_movie.read()
-    
-        # フレームのサイズを調整する
-        frame = cv2.resize(frame, (w, h))
+            # print("frame_number:", frame_number)
+            input_movie.set(cv2.CAP_PROP_POS_FRAMES, frame_number)  # 動画の開始フレームを設定
 
-        # 動画が読み取れない場合は終了
-        if not ret:
-            break
+            # 動画を読み込む
+            ret, frame = input_movie.read()
+        
+            # フレームのサイズを調整する
+            frame = cv2.resize(frame, (w, h))
 
-        # openCVのBGRをRGBに変更
-        rgb_frame = frame[:, :, ::-1]
+            # 動画が読み取れない場合は終了
+            if not ret:
+                break
 
-        # 顔検出が最多になる動画の横方向のシフト数を算出
-        face_location_list = face_recognition.face_locations(rgb_frame, model=model)  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
-        if i == 0: max_face_detection_num = len(face_location_list)
-        base_face_detection_num_in_frame = len(face_location_list)
+            # openCVのBGRをRGBに変更
+            rgb_frame = frame[:, :, ::-1]
 
-        for dw in range(w//5, w, w//5):
-            face_location_list = face_recognition.face_locations(np.append(rgb_frame[:, dw:, :], rgb_frame[:, :dw, :], axis=1), model="hog")  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
-            face_detection_num_in_frame = len(face_location_list)
-            if (face_detection_num_in_frame - base_face_detection_num_in_frame) > 0 and (max_face_detection_num < len(face_location_list)):
-                max_face_detection_num = max(max_face_detection_num, len(face_location_list))
-                calibrate_num = dw//k_resolution
-            print('MAX: {}'.format(max_face_detection_num))
-        print('calibrate_num: {}'.format(calibrate_num))
+            # 顔検出が最多になる動画の横方向のシフト数を算出
+            face_location_list = face_recognition.face_locations(rgb_frame, model=model)  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
+            if i == 0: max_face_detection_num = len(face_location_list)
+            base_face_detection_num_in_frame = len(face_location_list)
+
+            for dw in range(w//5, w, w//5):
+                # face_location_list = face_recognition.face_locations(np.append(rgb_frame[:, dw:, :], rgb_frame[:, :dw, :], axis=1), model="hog")  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
+                face_location_list = face_recognition.face_locations(np.roll(rgb_frame, -dw, axis=1), model=model)  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
+                face_detection_num_in_frame = len(face_location_list)
+                if (face_detection_num_in_frame >= base_face_detection_num_in_frame) and (max_face_detection_num < face_detection_num_in_frame):
+                    max_face_detection_num = face_detection_num_in_frame
+                    calibrate_num = dw//k_resolution
 
     if calibrate_num != 0:
-        if use_gpu: cmd = "ffmpeg -i {} -vcodec h264_nvenc -vf crop={}:{}:{}:{} {}_right.mp4".format(original_video_path, original_w-calibrate_num, original_h, calibrate_num, 0, output_video_path)
-        else: cmd = "ffmpeg -i {} -vf crop={}:{}:{}:{} {}_right.mp4".format(original_video_path, original_w-calibrate_num, original_h, calibrate_num, 0, output_video_path)
+        if use_gpu: cmd = "ffmpeg -y -i {} -vcodec h264_nvenc -vf crop={}:{}:{}:{} {}_right.mp4".format(original_video_path, original_w-calibrate_num, original_h, calibrate_num, 0, output_video_path)
+        else: cmd = "ffmpeg -y -i {} -vf crop={}:{}:{}:{} {}_right.mp4".format(original_video_path, original_w-calibrate_num, original_h, calibrate_num, 0, output_video_path)
         proc = subprocess.Popen(cmd, shell=True)
         time.sleep(5)
-        if use_gpu: cmd = "ffmpeg -i {} -vcodec h264_nvenc -vf crop={}:{}:{}:{} {}_left.mp4".format(original_video_path, calibrate_num, original_h, 0, 0, output_video_path)
-        # if use_gpu: cmd = "ffmpeg -i {} -vcodec h264_nvenc -vf crop={}:{}:{}:{} {}_left.mp4".format(original_video_path, original_w-calibrate_num, original_h, calibrate_num, 0, output_video_path)
-        else: cmd = "ffmpeg -i {} -vf crop={}:{}:{}:{} {}_left.mp4".format(original_video_path, calibrate_num, original_h, 0, 0, output_video_path)
+        if use_gpu: cmd = "ffmpeg -y -i {} -vcodec h264_nvenc -vf crop={}:{}:{}:{} {}_left.mp4".format(original_video_path, calibrate_num, original_h, 0, 0, output_video_path)
+        else: cmd = "ffmpeg -y -i {} -vf crop={}:{}:{}:{} {}_left.mp4".format(original_video_path, calibrate_num, original_h, 0, 0, output_video_path)
         proc = subprocess.Popen(cmd, shell=True)
         proc.wait()  # 一番最後の動画のトリミングが終了するまで待つ
-        input_video_list = ["{}_left.mp4".format(output_video_path), "{}_right.mp4".format(output_video_path)]
-        concat_video_path = "{}_calibrated.mp4".format(output_video_path)
-        if use_gpu: cmd = " ffmpeg -i {} -i {} -vcodec h264_nvenc -filter_complex hstack {}".format(input_video_list[0], input_video_list[1], concat_video_path)
-        else: cmd = " ffmpeg -i {} -i {} -filter_complex hstack {}".format(input_video_list[0], input_video_list[1], concat_video_path)
+        input_video_list = ["{}_right.mp4".format(output_video_path), "{}_left.mp4".format(output_video_path)]
+        concat_video_path = "{}_caliblated.mp4".format(output_video_path)
+        # concat_video(input_video_list, concat_video_path)
+        # for cat_input_video_list in input_video_list:
+        #     os.remove(cat_input_video_list)
+        if use_gpu: cmd = " ffmpeg -y -i {} -i {} -vcodec h264_nvenc -filter_complex hstack {}".format(input_video_list[0], input_video_list[1], concat_video_path)
+        else: cmd = " ffmpeg -y -i {} -i {} -filter_complex hstack {}".format(input_video_list[0], input_video_list[1], concat_video_path)
         proc = subprocess.Popen(cmd, shell=True)
         proc.wait()  # 一番最後の動画のトリミングが終了するまで待つ
+    e_time = time.time() - start
+    print(e_time)
 
 
 def split_video(original_video_path, split_num):  # ms単位で正確には分割できないので，結局使ってない
@@ -73,7 +81,7 @@ def split_video(original_video_path, split_num):  # ms単位で正確には分�
                                         minutes=int(video_length_format[1]),
                                         seconds=int(video_length_format[2].split(".")[0]),
                                         milliseconds=math.modf(float(video_length_format[2]))[
-                                                           0] * 1000).total_seconds()
+                                                            0] * 1000).total_seconds()
     time_duration_sec = video_length_sec // split_num
     time_duration_format = str(datetime.timedelta(seconds=time_duration_sec)) + ".00000"
     for i in range(split_num):
