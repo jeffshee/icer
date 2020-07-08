@@ -22,8 +22,8 @@ def split_wave_per_sentence(df_diarization, split_ms_list, wave_file_path, resul
         speaker_index = df_diarization[df_diarization["time(ms)"] == split_ms_list[i]]["speaker class"].values.tolist()[
             0]
         trim_audio(input_audio=wave_file_path,
-                   output_audio=result_path + "{}_SpeakerName{}.wav".format(i, speaker_index),
-                   trim_ms_range=trim_ms_range)
+                    output_audio=result_path + "{}_SpeakerName{}.wav".format(i, speaker_index),
+                    trim_ms_range=trim_ms_range)
 
 
 # 複数音声ファイルを混ぜた音声を出力
@@ -75,8 +75,8 @@ def wav_to_transcript(wav_path, split_ms_list, output_path=None):
                 txt = None
                 print("Error")
         txt_list.append([int(wav_name.split("_")[0]), wav_name.split("SpeakerName")[1].split(".")[0], txt,
-                         split_ms_list[int(wav_name.split("_")[0])],
-                         split_ms_list[int(wav_name.split("_")[0]) + 1] - 1])
+                        split_ms_list[int(wav_name.split("_")[0])],
+                        split_ms_list[int(wav_name.split("_")[0]) + 1] - 1])
 
     if output_path:
         df = pd.DataFrame(txt_list, columns=["Order", "Speaker", "Text", "Start time(ms)", "End time(ms)"])
@@ -100,8 +100,7 @@ def wav_to_shortwav(wav_path, max_duration=10.0):  # max_duration[s] を最大�
                         trim_ms_range = (i * 1000 * max_duration, 1000 * src.DURATION)
                     else:
                         trim_ms_range = (i * 1000 * max_duration, (i + 1) * 1000 * max_duration)
-                    trim_audio(wav_path + wav_name, short_wave_path + wav_name.replace(".wav", "_{}.wav".format(i)),
-                               trim_ms_range)
+                    trim_audio(wav_path + wav_name, short_wave_path + wav_name.replace(".wav", "_{}.wav".format(i)), trim_ms_range)
             else:
                 shutil.copy(wav_path + wav_name, short_wave_path + wav_name)
 
@@ -136,8 +135,8 @@ def naive_split_wav_to_transcript(wav_path, split_ms_list, output_path=None):
     for i, wav_name in enumerate(wav_name_list):
         txt = naive_split_wav_to_txt(wav_path + wav_name)
         txt_list.append([int(wav_name.split("_")[0]), wav_name.split("SpeakerName")[1].split(".")[0], txt,
-                         split_ms_list[int(wav_name.split("_")[0])],
-                         split_ms_list[int(wav_name.split("_")[0]) + 1] - 1])
+                        split_ms_list[int(wav_name.split("_")[0])],
+                        split_ms_list[int(wav_name.split("_")[0]) + 1] - 1])
 
     if output_path:
         df = pd.DataFrame(txt_list, columns=["Order", "Speaker", "Text", "Start time(ms)", "End time(ms)"])

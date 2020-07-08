@@ -12,7 +12,7 @@ from sklearn.metrics import pairwise_distances_argmin_min
 from emotion_recognition import cleanup_directory
 
 
-def detect_face(target_video_path, output_path, k_resolution, capture_image_num=50):
+def detect_face(target_video_path, output_path, k_resolution, capture_image_num=50, model='hog'):
     cleanup_directory(output_path)
 
     input_movie = cv2.VideoCapture(target_video_path)  # 動画を読み込む
@@ -26,32 +26,66 @@ def detect_face(target_video_path, output_path, k_resolution, capture_image_num=
     max_face_detection_num = 0
     capture_image_num = min(capture_image_num, length)
 
-    for i, frame_number in enumerate(range(0, length, length // capture_image_num)):
-        print("frame_number:", frame_number)
-        input_movie.set(cv2.CAP_PROP_POS_FRAMES, frame_number)  # 動画の開始フレームを設定
+    if model == 'cnn':
+        rgb_frames = []
+        print('CNN detect face')
+        for i, frame_number in enumerate(range(0, length, length // capture_image_num)):
+            print("frame_number:", frame_number)
+            input_movie.set(cv2.CAP_PROP_POS_FRAMES, frame_number)  # 動画の開始フレームを設定
 
-        # 動画を読み込む
-        ret, frame = input_movie.read()
+            # 動画を読み込む
+            ret, frame = input_movie.read()
 
-        # 動画が読み取れない場合は終了
-        if not ret:
-            break
+            # 動画が読み取れない場合は終了
+            if not ret:
+                break
 
-        # フレームのサイズを調整する
-        frame = cv2.resize(frame, (w, h))
+            # フレームのサイズを調整する
+            frame = cv2.resize(frame, (w, h))
 
-        # openCVのBGRをRGBに変更
-        rgb_frame = frame[:, :, ::-1]
+            # openCVのBGRをRGBに変更
+            rgb_frames.append(frame[:, :, ::-1])
+        
+        # rgb_frames = np.asarray(rgb_frames)
+        print(len(rgb_frames))
+        face_location_lists = face_recognition.batch_face_locations(rgb_frames, number_of_times_to_upsample=1, batch_size=1)  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
+        print(face_location_lists)
+        max_face_detection_num = max(max_face_detection_num, max([len(f_list) for f_list in face_location_lists]))
+        for i, (face_location_list, rgb_frame) in enumerate(zip(face_location_lists, rgb_frames)):
+            for j, (top, right, bottom, left) in enumerate(face_location_list):
+                # 顔領域を切り取る
+                dst = frame[top:bottom, left:right]
+                rgb_dst = rgb_frame[top:bottom, left:right]
+                if face_recognition.face_encodings(rgb_dst):
+                    cv2.imwrite('{}{}_{}.PNG'.format(output_path, j, i), dst)
+    
+    else:
+        for i, frame_number in enumerate(range(0, length, length // capture_image_num)):
+            print("frame_number:", frame_number)
+            input_movie.set(cv2.CAP_PROP_POS_FRAMES, frame_number)  # 動画の開始フレームを設定
 
-        # 顔領域の検出
-        face_location_list = face_recognition.face_locations(rgb_frame, model="hog")  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
-        max_face_detection_num = max(max_face_detection_num, len(face_location_list))
-        for j, (top, right, bottom, left) in enumerate(face_location_list):
-            # 顔領域を切り取る
-            dst = frame[top:bottom, left:right]
-            rgb_dst = rgb_frame[top:bottom, left:right]
-            if face_recognition.face_encodings(rgb_dst):
-                cv2.imwrite('{}{}_{}.PNG'.format(output_path, j, i), dst)
+            # 動画を読み込む
+            ret, frame = input_movie.read()
+
+            # 動画が読み取れない場合は終了
+            if not ret:
+                break
+
+            # フレームのサイズを調整する
+            frame = cv2.resize(frame, (w, h))
+
+            # openCVのBGRをRGBに変更
+            rgb_frame = frame[:, :, ::-1]
+
+            # 顔領域の検出
+            face_location_list = face_recognition.face_locations(rgb_frame, model="hog")  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
+            max_face_detection_num = max(max_face_detection_num, len(face_location_list))
+            for j, (top, right, bottom, left) in enumerate(face_location_list):
+                # 顔領域を切り取る
+                dst = frame[top:bottom, left:right]
+                rgb_dst = rgb_frame[top:bottom, left:right]
+                if face_recognition.face_encodings(rgb_dst):
+                    cv2.imwrite('{}{}_{}.PNG'.format(output_path, j, i), dst)
 
     return max_face_detection_num
 
