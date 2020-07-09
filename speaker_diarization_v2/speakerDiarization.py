@@ -144,7 +144,7 @@ def load_data(path, win_length=400, sr=16000, hop_length=160, n_fft=512, embeddi
 
 def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1, max_clusters=100):
     # gpu configuration
-    toolkits.initialize_GPU(args)
+    # toolkits.initialize_GPU(args)
 
     params = {'dim': (257, None, 1),
               'nfft': 512,
