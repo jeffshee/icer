@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image, ImageOps, ImageFont, ImageDraw
 
-from edit_audio import wav_to_transcript, split_wave_per_sentence, naive_split_wav_to_transcript
+from edit_audio import wav_to_transcript, split_wave_per_sentence
 from edit_video import concat_video
 from main_util import cleanup_directory, csv_to_text
 
@@ -543,6 +543,3 @@ if __name__ == "__main__":
 
     split_wave_per_sentence(df_diarization_sorted, df_split_ms["time(ms)"].values.tolist(),
                             "audio/200225_Haga_22.wav", "test/split_wave/")
-    naive_split_wav_to_transcript("test/split_wave/", split_ms_list=df_split_ms["time(ms)"].values.tolist() + [
-        (video_length * 1000) // video_frame_rate],
-                      output_path="test/transcript.csv")
