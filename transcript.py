@@ -6,8 +6,7 @@ import tensorflow as tf
 tf.get_logger().setLevel('INFO')
 
 import os
-import shutil
-from os.path import join, dirname, basename
+from os.path import join, basename
 import pandas as pd
 import speech_recognition
 from pydub import AudioSegment
@@ -30,13 +29,13 @@ from main_util import cleanup_directory
 
 """
 
-# TODO
-#  1. 短くなった音声を統合してみる
-#  2. Google Speech Recognitionが認識不能の場合でも、他のAPIによる結果で補完することも考えられる
-
-retry_num = 3  # 音声認識が成功するまで試す回数
-use_loudness_based_diarization = True
-allow_overlapping = False
+option = {
+    'retry_num': 3,  # 音声認識が成功するまで試す回数
+    'use_run_speaker_diarization': False,  # run_speaker_diarizationを実行するか、loudness-basedの手法を使用するか
+    'use_spectral_cluster': False,  # run_speaker_diarizationを実行する際、SpectralClustringを使用するか、UIS-RNNを使用するか、
+    'allow_overlapping': False,  # 話者間の対話で音声のOverlapping（重なり）が存在すると想定するか、しないか
+    'use_mixed_audio_during_s2t': True  # S2Tを実行する際、Mix音声を使うか、Pinmic音声を使うか
+}
 
 
 def transcript(output_dir, audio_path_list, people_num=None):
@@ -66,29 +65,29 @@ def transcript(output_dir, audio_path_list, people_num=None):
     cleanup_directory(segment_audio_dir)
     cleanup_directory(diarization_dir)
 
+    mix_audio(audio_path_list, mixed_audio_path)
+
     """ 1. Diarization """
-    if use_loudness_based_diarization:
-        if allow_overlapping:
-            df_diarization_compact = loudness_based_diarization_overlap(audio_path_list, diarization_dir)
-        else:
-            df_diarization_compact = loudness_based_diarization_v2(audio_path_list, diarization_dir)
-    else:
-        mix_audio(audio_path_list, mixed_audio_path)
+    if option['use_run_speaker_diarization']:
         from run_speaker_diarization_v2 import run_speaker_diarization
-        run_speaker_diarization(output_dir + os.sep, mixed_audio_name, diarization_dir + os.sep,
-                                people_num=people_num, overlap_rate=0.5)
-        df_diarization_compact = diarization_compact_v2(join(diarization_dir, 'result.csv'), diarization_dir)
+        run_speaker_diarization(output_dir + os.sep, mixed_audio_name, diarization_dir + os.sep, people_num=people_num,
+                                overlap_rate=0.5, use_spectral_cluster=option['use_spectral_cluster'])
+        df_diarization_compact = diarization_compact(join(diarization_dir, 'result.csv'), diarization_dir)
+    else:
+        if option['allow_overlapping']:
+            df_diarization_compact = speech_segmenter_only_v2(audio_path_list, diarization_dir)
+        else:
+            df_diarization_compact = loudness_after_speech_segmenter(audio_path_list, diarization_dir)
 
     """ 2. Split audio after Diarization """
-    if use_loudness_based_diarization:
-        split_path_list, start_time_list, end_time_list = split_audio_after_diarization_v2(df_diarization_compact,
-                                                                                           audio_path_list,
-                                                                                           split_audio_dir)
+    if option['use_mixed_audio_during_s2t']:
+        split_path_list, start_time_list, end_time_list = split_audio_after_diarization(df_diarization_compact,
+                                                                                        [mixed_audio_path],
+                                                                                        split_audio_dir)
     else:
-        split_path_list, start_time_list, end_time_list = split_audio_after_diarization_v2(df_diarization_compact,
-                                                                                           [mixed_audio_path],
-                                                                                           split_audio_dir)
-
+        split_path_list, start_time_list, end_time_list = split_audio_after_diarization(df_diarization_compact,
+                                                                                        audio_path_list,
+                                                                                        split_audio_dir)
     """ 3. Segmentation -> Speech2Text """
     output_csv = []
     for i, split_path in enumerate(sorted(split_path_list)):
@@ -114,7 +113,7 @@ def transcript(output_dir, audio_path_list, people_num=None):
             else:
                 with speech_recognition.AudioFile(segment_path) as src:
                     audio = r.record(src)
-                    while (not is_success) and (attempt < retry_num):
+                    while (not is_success) and (attempt < option['retry_num']):
                         if attempt > 0:
                             print('=== Attempt #{} ==='.format(attempt + 1))
                         try:
@@ -122,11 +121,11 @@ def transcript(output_dir, audio_path_list, people_num=None):
                             is_success = True
                             print(split_progress, segment_progress, segment_path, segment_transcript_list[-1])
                         except speech_recognition.UnknownValueError:
-                            if attempt == retry_num - 1:
+                            if attempt == option['retry_num'] - 1:
                                 segment_transcript_list.append('')
                             print(split_progress, segment_progress, segment_path, 'Could not understand audio')
                         except speech_recognition.RequestError as e:
-                            if attempt == retry_num - 1:
+                            if attempt == option['retry_num'] - 1:
                                 segment_transcript_list.append('')
                             print(split_progress, segment_progress, segment_path, 'RequestError: {}'.format(e))
                         attempt += 1
@@ -167,7 +166,7 @@ def transcript_split_on_silence(input_path, output_dir):
         is_success = False
         r = speech_recognition.Recognizer()
         with speech_recognition.AudioFile(output_path) as source:
-            while (not is_success) and (attempt < retry_num):
+            while (not is_success) and (attempt < option['retry_num']):
                 audio = r.record(source)
                 try:
                     transcript_list.append(r.recognize_google(audio, language='ja-JP'))
@@ -181,7 +180,7 @@ def transcript_split_on_silence(input_path, output_dir):
     return ' '.join(transcript_list)
 
 
-def diarization_compact_v2(csv_path, output_dir=None):
+def diarization_compact(csv_path, output_dir=None):
     df_diarization = pd.read_csv(csv_path, encoding='shift_jis', header=0, usecols=['time(ms)', 'speaker class'])
     df_diarization.sort_values(by=['time(ms)'], ascending=True, inplace=True)
     time_list = df_diarization[df_diarization['speaker class'].diff() != 0].append(df_diarization.tail(1))[
@@ -195,7 +194,7 @@ def diarization_compact_v2(csv_path, output_dir=None):
     return df_diarization_compact
 
 
-def split_audio_after_diarization_v2(df_diarization_compact, audio_path_list, output_dir, min_range=1000):
+def split_audio_after_diarization(df_diarization_compact, audio_path_list, output_dir, min_range=1000):
     speaker_class_list, start_time_list, end_time_list = df_diarization_compact['Speaker'], df_diarization_compact[
         'Start time(ms)'], df_diarization_compact['End time(ms)']
     output_path_list = []
@@ -234,6 +233,50 @@ def segment_audio(input_path, output_dir):
     return output_path_list
 
 
+# def segment_audio_v2(input_path, output_dir):
+#     # TODO:
+#     max_duration = 60
+#     if AudioSegment.from_file(input_path, format="wav").duration_seconds <= max_duration:
+#         # The audio is short enough, not need to perform segment audio
+#         return [input_path]
+#     else:
+#         from inaSpeechSegmenter import Segmenter
+#         seg = Segmenter(vad_engine='smn', detect_gender=False)
+#         segmentation = seg(input_path)
+#         output_path_list = []
+#         origin_filename = basename(input_path)[:-4]  # remove extension
+#         i = 0
+#         cur_start = 0
+#         for segment in segmentation:
+#             if segment[2] > cur_start + max_duration:
+#                 if (segment[2] - segment[1]) <= max_duration:
+#                     output_path = join(output_dir, '{}_seg_{:03d}.wav'.format(origin_filename, i))
+#                     output_path_list.append(output_path)
+#                     trim_audio(input_path, output_path, (cur_start * 1000, segment[1] * 1000))
+#                     cur_start = segment[1]
+#                     i += 1
+#                 else:
+#                     if segment[0] == 'speech':
+#                         output_path = join(output_dir, '{}_seg_{:03d}.wav'.format(origin_filename, i))
+#                         output_path_list.append(output_path)
+#                         trim_audio(input_path, output_path, (cur_start * 1000, segment[1] * 1000))
+#
+#                         output_path = join(output_dir, '{}_seg_{:03d}.wav'.format(origin_filename, i + 1))
+#                         output_path_list.append(output_path)
+#                         trim_audio(input_path, output_path, (segment[1] * 1000, segment[2] * 1000))
+#                         cur_start = segment[2]
+#                         i += 2
+#
+#                     else:
+#                         output_path = join(output_dir, '{}_seg_{:03d}.wav'.format(origin_filename, i))
+#                         output_path_list.append(output_path)
+#                         trim_audio(input_path, output_path, (cur_start * 1000, segment[1] * 1000))
+#                         cur_start = segment[2]
+#                         i += 1
+#
+#     return output_path_list
+
+
 def audio_segment_of_speaker_class(audio_segment, df_diarization_compact, speaker_class):
     import copy
     df = copy.deepcopy(df_diarization_compact)[:-1]
@@ -243,7 +286,15 @@ def audio_segment_of_speaker_class(audio_segment, df_diarization_compact, speake
     return sum([audio_segment[start:end] for start, end in zip(start_list, end_list)])
 
 
-def loudness_based_diarization_v2(audio_path_list, output_dir=None):
+def loudness_after_speech_segmenter(audio_path_list, output_dir=None):
+    """
+    Speecj SegmenterでSpeech領域を抽出後、重なる領域があれば、各Pinmic音声のLoudnessでどの領域を採用するかを判定する。
+    つまり、もし同じTimeframeで複数のPinmic音声にSpeech領域が存在する場合、平均音量の小さい方はノイズであろうと仮定している。
+    また、これは話者間の対話で音声のOverlapping（重なり）が存在しないと想定した手法である。
+    :param audio_path_list:
+    :param output_dir:
+    :return:
+    """
     import numpy as np
     from inaSpeechSegmenter import Segmenter
     audio_list = [AudioSegment.from_file(path, format='wav') for path in audio_path_list]
@@ -288,7 +339,49 @@ def loudness_based_diarization_v2(audio_path_list, output_dir=None):
     return df_compact
 
 
-def loudness_based_diarization_overlap(audio_path_list, output_dir=None):
+def get_hms(ms):
+    import datetime
+    td = datetime.timedelta(milliseconds=ms)
+    m, s = divmod(td.seconds, 60)
+    h, m = divmod(m, 60)
+    return '{:02d}:{:02d}:{:02d}'.format(h, m, s)
+
+
+"""
+Archived
+"""
+
+
+def noise_cancel_test():
+    """
+    何とかしてPinmicのノイズを取り除こうとしたけど、やはりうまくいかない。元の音声も削られてしまう。
+    :return:
+    """
+    from pydub.silence import detect_silence
+    audio = AudioSegment.from_file("test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice2_short.wav")
+    dbfs = audio.dBFS
+    print(dbfs)
+    silence = detect_silence(audio, silence_thresh=dbfs)
+    for start, end in silence:
+        audio = audio[:start] + AudioSegment.silent(duration=end - start) + audio[end:]
+    audio.export("noise_cancel.wav", format='wav')
+
+
+def speech_segmenter_only(audio_path_list, output_dir=None):
+    """
+    DiarizationしなくてもそれぞれのPinmic音声のSpeech領域を抽出して、そのままS2Tすればいいはずだけど、
+    実際の実験データは周りの人の音声も少し混ざっている。そのままS2Tすると、こういう問題が起きる。例えば、
+    ======================================================================================
+    話者2	受け入れられるように感じるので それだったらそれに対応してよ 嫌いと言うか分かりそうで 20台よりもさらに 若い世代とかファミリーで行けるような分かりやすさを重視した
+    話者0	受け入れられるようにも感じるので それだったら; それに対応してより雷 塗装
+    話者3	外に出られるようにも感じるので それだったらそれに対応してより 意外とそうと言うか分かりそうで逃げたよりもさらに 若い 9代とかファミリーで受け入れられてもらえるような分かりやすさを重視した結果
+    話者0	20代よりもさらに若い十代とか; ファミリーで受け入れられてもらえるようなそのわかりやすさを重視したっていうか
+    ======================================================================================
+    本当は誰が喋っているか分からなくなってしまう。
+    :param audio_path_list:
+    :param output_dir:
+    :return:
+    """
     from inaSpeechSegmenter import Segmenter
     seg = Segmenter(vad_engine='smn', detect_gender=False)
 
@@ -306,25 +399,99 @@ def loudness_based_diarization_overlap(audio_path_list, output_dir=None):
     return df_compact
 
 
-def get_hms(ms):
-    import datetime
-    td = datetime.timedelta(milliseconds=ms)
-    m, s = divmod(td.seconds, 60)
-    h, m = divmod(m, 60)
-    return '{:02d}:{:02d}:{:02d}'.format(h, m, s)
+def speech_segmenter_only_v2(audio_path_list, output_dir=None):
+    """
+    上記speech_segmenter_onlyの改良版。各Pinmic音声から抽出されたSpeech領域で完全に重なる領域があれば、それを除去するように改良した。
+    それでも、完全に除去できないことがある。例えば、
+    ======================================================================================
+    話者３　0:07:13	0:07:33	自分も大丈夫三宅 考えた時にどこを狙うかるって考えたらま 20台とかその辺のお金持ってる人を狙うのだとしたらやっぱり 深夜枠のアニメ
+    話者４　0:07:14	0:08:12	自分も最初 売上 考えた時にどこを狙うかって考えたら; 20代とかその辺の; お金持ってる層を狙うのだとしたらやっぱり; 深夜枠のアニメ; かなって思ったんですけど; ; それよりはやっぱり その; まさきアニメが; なんとなく; 受け入れられてるようにも感じるので それだったら; それに対応して寄りたい; 早々と言うか; 若いそうで 20台よりもさらに若い10代とか; ファミリーで受け入れられてもらえるようなその; わかりやすさを重視したっていうか; なるべく 万人に受けるようなもの の方が; いいのかな と思います
+    ======================================================================================
+    この場合、Timeframeが完全に重なっていないため、今回の除去対象外になっている。
+    また、これは話者間の対話で音声のOverlapping（重なり）が存在すると想定した手法である。
+    :param audio_path_list:
+    :param output_dir:
+    :return:
+    """
+    from inaSpeechSegmenter import Segmenter
+    seg = Segmenter(vad_engine='smn', detect_gender=False)
+
+    speech_segment_list = []
+    for speaker_class, path in enumerate(audio_path_list):
+        speech_segment = list(filter(lambda x: x[0] == 'speech', seg(path)))
+        for interval in speech_segment:
+            speech_segment_list.append((speaker_class, interval[1] * 1000, interval[2] * 1000))
+
+    speech_segment_list = sorted(speech_segment_list, key=lambda x: x[1])
+    remove_list = []
+    for interval in speech_segment_list:
+        remove_list += list(
+            filter(lambda x: x != interval and is_fully_overlap(x[1:], interval[1:]), speech_segment_list))
+    speech_segment_list = list(filter(lambda x: x not in remove_list, speech_segment_list))
+
+    df_compact = pd.DataFrame(speech_segment_list, columns=['Speaker', 'Start time(ms)', 'End time(ms)'])
+    if output_dir is not None:
+        df_compact.to_csv(join(output_dir, 'result_compact.csv'), index=False, header=True)
+    return df_compact
+
+
+def is_fully_overlap(range_a, range_b):
+    """ Check if range_a is inside of range_b """
+    start_a, end_a = range_a
+    start_b, end_b = range_b
+    return start_b <= start_a and end_a <= end_b
+
+
+def loudness_after_diarization(audio_path_list, output_dir=None):
+    """
+    Diarization（UIS-RNN）を使えば、話者の入れ替わりのtimeframeが分かる。そこから、各PinmicのLoudnessで話者を判別する？
+    :param audio_path_list:
+    :param output_dir:
+    :return:
+    """
+    import numpy as np
+    audio_list = [AudioSegment.from_file(path, format='wav') for path in audio_path_list]
+
+    df_raw = diarization_compact('df_raw.csv')
+    start_time_list, end_time_list = df_raw['Start time(ms)'].values.tolist(), df_raw['End time(ms)'].values.tolist()
+
+    checkpoint = sorted(
+        list(zip(['start'] * len(start_time_list), start_time_list)) + list(
+            zip(['end'] * len(end_time_list), end_time_list)),
+        key=lambda x: x[1])
+
+    output_csv = []
+    output_csv_compact = []
+    count = 0
+    for i, (c1, c2) in enumerate(zip(checkpoint, checkpoint[1:])):
+        count += 1 if c1[0] == 'start' else -1
+        if count == 0:
+            continue
+        start_time, end_time = c1[1], c2[1]
+        dBFS_list = [audio[start_time:end_time].dBFS for audio in audio_list]
+        speaker_class = np.argmax(dBFS_list)
+        if len(output_csv_compact) > 0 and speaker_class == output_csv_compact[-1][0]:
+            # Combine with previous checkpoint
+            output_csv_compact[-1][2] = end_time
+        else:
+            output_csv_compact.append([speaker_class, start_time, end_time])
+        for t in range(int(start_time), int(end_time)):
+            output_csv.append([t, speaker_class])
+    df = pd.DataFrame(output_csv, columns=['time(ms)', 'speaker class'])
+    df_compact = pd.DataFrame(output_csv_compact, columns=['Speaker', 'Start time(ms)', 'End time(ms)'])
+    if output_dir is not None:
+        df_compact.to_csv(join(output_dir, 'result_compact.csv'), index=False, header=True)
+        # Output 'result.csv' similar to diarization for backward compatibility, can be removed if not longer needed
+        df.to_csv(join(output_dir, 'result.csv'), index=False, header=True)
+    return df_compact
 
 
 if __name__ == "__main__":
     # Prepare short ver. for testing
     # for path in ["test/wave/200225_芳賀先生_実験23/200225_芳賀先生_実験23voice{}.wav".format(i) for i in range(1, 7)]:
     #     trim_audio(path, path[:-4] + '_short.wav', [0, 300000])
-    transcript('output_test',
-               ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}_short.wav".format(i) for i in range(1, 6)])
-
-    # transcript('output_exp22_loudness_2',
-    #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)])
-    # transcript('output_exp23_loudness_2',
-    #            ["test/wave/200225_芳賀先生_実験23/200225_芳賀先生_実験23voice{}.wav".format(i) for i in range(1, 7)])
-
-    # transcript('output_exp22_loudness_overlap',
-    #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)])
+    variant = '_{}'.format(str(option))
+    transcript('output_exp22' + variant,
+               ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)])
+    transcript('output_exp23' + variant,
+               ["test/wave/200225_芳賀先生_実験23/200225_芳賀先生_実験23voice{}.wav".format(i) for i in range(1, 7)])
