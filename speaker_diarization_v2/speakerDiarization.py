@@ -141,6 +141,24 @@ def load_data(path, win_length=400, sr=16000, hop_length=160, n_fft=512, embeddi
 
     return utterances_spec, intervals
 
+def vrew_based_diarization(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1, max_clusters=100):
+    df = pd.read_table('./200225_expt22_video.txt', header=None, names=('time', 'txt'))
+    wav_fname = './expt22.wav'
+    wav, sr = librosa.load(wav_fname, sr=None)
+    prev_start = 0
+    txt_list = []
+    for start, end, txt in zip(df.time[:-1], df.time[1:], df.txt[:-1]):
+        start_h, start_m, start_s = start.split(':')
+        end_h, end_m, end_s = end.split(':')
+        start_idx = (int(start_h)*60**2 + int(start_m)*60 + int(start_s)) * sr
+        end_idx = (int(end_h)*60**2 + int(end_m)*60 + int(end_s)) * sr
+        if end_idx == start_idx:
+            prev_txt = txt
+            continue
+        else:
+            txts = [txt]
+        txt_list.append(txts)
+        cat_wav = wav[start_idx:end_idx]
 
 def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1, max_clusters=100):
     # gpu configuration
