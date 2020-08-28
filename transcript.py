@@ -184,76 +184,7 @@ def split_audio_after_diarization(df_diarization_compact, audio_path_list, outpu
     return output_path_list, output_start_time_list, output_end_time_list
 
 
-# def segment_audio(input_path, output_dir):
-#     from inaSpeechSegmenter import Segmenter
-#     seg = Segmenter(vad_engine='smn', detect_gender=False)
-#     segmentation = seg(input_path)
-#     output_path_list = []
-#     i = 0
-#     for segment in segmentation:
-#         if segment[0] == 'speech':  # 音声区間
-#             trim_ms_range = (segment[1] * 1000, segment[2] * 1000)
-#             origin_filename = basename(input_path)[:-4]  # remove extension
-#             output_path = join(output_dir, '{}_seg_{:03d}.wav'.format(origin_filename, i))
-#             output_path_list.append(output_path)
-#             trim_audio(input_path, output_path, trim_ms_range)
-#             i += 1
-#     return output_path_list
 
-
-# def optimized_segment_audio(input_path, output_dir):
-#     def check_overflow(split_list):
-#         count = 0
-#         total_overflow = 0
-#         max_duration = 60
-#         for start, end in split_list:
-#             if end - start > max_duration:
-#                 count += 1
-#                 total_overflow += (end - start) - max_duration
-#         return count, total_overflow
-#
-#     def get_init_split(segmentation):
-#         split_list = []
-#         prev_point = 0
-#         for result, start, end in segmentation:
-#             if result != 'speech':
-#                 mid_point = start + (end - start) / 2
-#                 split_list += [(prev_point, mid_point)]
-#                 prev_point = mid_point
-#         split_list += [(prev_point, segmentation[-1][2])]
-#         return split_list
-#
-#     def remove_split_at(split_list, index):
-#         front = split_list[:index] if index > 0 else []
-#         back = split_list[index + 2:] if index + 2 < len(split_list) else []
-#         new_split = front + [(split_list[index][0], split_list[index + 1][1])] + back
-#         return new_split
-#
-#     def optimized_split(segmentation):
-#         split = get_init_split(segmentation)
-#         init_count, init_total_overflow = check_overflow(split)
-#         i = 0
-#         while i < len(split) - 1:
-#             new_split = remove_split_at(split, i)
-#             new_count, new_total_overflow = check_overflow(new_split)
-#             if new_count == init_count and not new_total_overflow > init_total_overflow:
-#                 split = new_split
-#                 i = 0
-#             i += 1
-#         return split
-#
-#     from inaSpeechSegmenter import Segmenter
-#     seg = Segmenter(vad_engine='smn', detect_gender=False)
-#     segmentation = seg(input_path)
-#     output_path_list = []
-#     origin_filename = basename(input_path)[:-4]  # remove extension
-#     for i, (start, end) in enumerate(optimized_split(segmentation)):
-#         trim_ms_range = (start * 1000, end * 1000)
-#         output_path = join(output_dir, '{}_seg_{:03d}.wav'.format(origin_filename, i))
-#         output_path_list.append(output_path)
-#         trim_audio(input_path, output_path, trim_ms_range)
-#         i += 1
-#     return output_path_list
 
 
 def audio_segment_of_speaker_class(audio_segment, df_diarization_compact, speaker_class):
@@ -330,6 +261,22 @@ def get_hms(ms):
 Archived
 """
 
+
+def segment_audio(input_path, output_dir):
+    from inaSpeechSegmenter import Segmenter
+    seg = Segmenter(vad_engine='smn', detect_gender=False)
+    segmentation = seg(input_path)
+    output_path_list = []
+    i = 0
+    for segment in segmentation:
+        if segment[0] == 'speech':  # 音声区間
+            trim_ms_range = (segment[1] * 1000, segment[2] * 1000)
+            origin_filename = basename(input_path)[:-4]  # remove extension
+            output_path = join(output_dir, '{}_seg_{:03d}.wav'.format(origin_filename, i))
+            output_path_list.append(output_path)
+            trim_audio(input_path, output_path, trim_ms_range)
+            i += 1
+    return output_path_list
 
 def noise_cancel_test():
     """
