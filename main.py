@@ -28,21 +28,22 @@ if __name__ == '__main__':
     # session = tf.Session(config=config)
     # set_session(session)
     implement_mode = {
-        "detect_face": 0,  # 動画から顔領域の切り出し
-        "emotional_recognition": 0,  # 切り出した顔画像の表情・頷き・口の開閉認識
+        "detect_face": 1,  # 動画から顔領域の切り出し
+        "emotional_recognition": 1,  # 切り出した顔画像の表情・頷き・口の開閉認識
         "diarization": 1,  # 音声から話者識別
-        "overlay": 0  # 表情・頷き・発話情報を動画にまとめて可視化
+        "overlay": 1  # 表情・頷き・発話情報を動画にまとめて可視化
     }
 
     # video_name_list = [["191031_Haga_Trim"], ["Take02"], ["Take01_copycopy"]][2]
     # 処理する動画のリスト
     # video_name_list = ["200225_Haga_22", "200225_Haga_23"]
-    video_name_list = ["200225_Haga_22_trim"]
+    video_name_list = ["expt22"]
     # 処理する音声のリスト（use_mix_audioがTrueの場合）
     # audio_name_list = [["200225_Haga_22_voice1", "200225_Haga_22_voice2", "200225_Haga_22_voice3",
     #                     "200225_Haga_22_voice4", "200225_Haga_22_voice5"],
     #                    ["200225_Haga_23_voice1", "200225_Haga_23_voice2", "200225_Haga_23_voice3",
     #                     "200225_Haga_23_voice4", "200225_Haga_23_voice5", "200225_Haga_23_voice6"]]
+    # audio_name_list = [["200225_Haga_22_voice1_trim", "200225_Haga_22_voice2_trim", "200225_Haga_22_voice3_trim", "200225_Haga_22_voice4_trim", "200225_Haga_22_voice5_trim"]]
     audio_name_list = [["200225_Haga_22_voice1_trim", "200225_Haga_22_voice2_trim", "200225_Haga_22_voice3_trim", "200225_Haga_22_voice4_trim", "200225_Haga_22_voice5_trim"]]
     # audio_name_listの音声の拡張子
     audio_format = ".wav"
