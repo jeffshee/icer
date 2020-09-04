@@ -1,3 +1,7 @@
 ./audio
 ./video
 ./vrew
+__pycache__
+face_image
+result
+diarization
