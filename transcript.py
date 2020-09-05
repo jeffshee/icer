@@ -30,16 +30,13 @@ from main_util import cleanup_directory
 
 """
 
-# TODO:
-# (1) UIS-RNN causes CUDA OOM, while it's working fine with the source code I had clone from github manually.
-
 config = {
-    'use_run_speaker_diarization': True,  # run_speaker_diarizationを実行するか、loudness-basedの手法を使用するか (False)
+    'use_run_speaker_diarization': False,  # run_speaker_diarizationを実行するか、loudness-basedの手法を使用するか (False)
     'use_spectral_cluster': False,  # run_speaker_diarizationを実行する際、SpectralClustringを使用するか、UIS-RNNを使用するか (False)
 
     'allow_overlapping': False,  # 話者間の対話で音声のOverlapping（重なり）が存在すると想定するか、しないか (False)
 
-    'max_split_duration_sec': 60,  # 音声を分割する際、最大何秒まで許せるか（これより短い音声は統合される） (60)
+    'max_split_duration_sec': 30,  # 音声を分割する際、最大何秒まで許せるか（これより短い音声は統合される） (30)
     's2t_retry_num': 3,  # 音声認識が成功するまで試す回数 (3)
     's2t_use_mixed_audio': True,  # 音声認識する際、Mix音声を使うか、Pinmic音声を使うか (True)
 }
@@ -54,9 +51,6 @@ def transcript(output_dir, audio_path_list, people_num=None):
     :param people_num: people_num for Diarization.
     :return:
     """
-
-    with open(join(output_dir, 'config.txt'), 'w') as f:
-        print(config, file=f)
 
     if people_num is None:
         assert len(audio_path_list) > 1
@@ -74,6 +68,9 @@ def transcript(output_dir, audio_path_list, people_num=None):
     cleanup_directory(split_audio_dir)
     cleanup_directory(segment_audio_dir)
     cleanup_directory(diarization_dir)
+
+    with open(join(output_dir, 'config.txt'), 'w') as f:
+        print(config, file=f)
 
     mix_audio(audio_path_list, mixed_audio_path)
 
@@ -102,7 +99,8 @@ def transcript(output_dir, audio_path_list, people_num=None):
     """ 3. Segmentation -> Speech2Text """
     output_csv = []
     for i, split_path in enumerate(sorted(split_path_list)):
-        segment_path_list = optimized_segment_audio(split_path, segment_audio_dir)
+        segment_path_list = optimized_segment_audio(input_path=split_path, output_dir=segment_audio_dir,
+                                                    max_duration_sec=config['max_split_duration_sec'])
         if len(segment_path_list) == 0:
             continue
         segment_transcript_list = []
@@ -182,9 +180,6 @@ def split_audio_after_diarization(df_diarization_compact, audio_path_list, outpu
         else:
             trim_audio(input_audio=audio_path_list[0], output_audio=output_path, trim_ms_range=[start_time, end_time])
     return output_path_list, output_start_time_list, output_end_time_list
-
-
-
 
 
 def audio_segment_of_speaker_class(audio_segment, df_diarization_compact, speaker_class):
@@ -277,6 +272,7 @@ def segment_audio(input_path, output_dir):
             trim_audio(input_path, output_path, trim_ms_range)
             i += 1
     return output_path_list
+
 
 def noise_cancel_test():
     """
@@ -416,9 +412,11 @@ if __name__ == "__main__":
     # Prepare short ver. for testing
     # for path in ["test/wave/200225_芳賀先生_実験23/200225_芳賀先生_実験23voice{}.wav".format(i) for i in range(1, 7)]:
     #     trim_audio(path, path[:-4] + '_short.wav', [0, 300000])
-    # variant = '_split_optimized'
-    variant = '_uis_rnn'
+    # variant = '_loudness_30sec'
+    # variant = '_uis_rnn_30sec'
+    # variant = '_spectral_30sec'
+    variant = ''
     transcript('output_exp22' + variant,
                ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)])
-    # transcript('output_exp23' + variant,
-    #            ["test/wave/200225_芳賀先生_実験23/200225_芳賀先生_実験23voice{}.wav".format(i) for i in range(1, 7)])
+    transcript('output_exp23' + variant,
+               ["test/wave/200225_芳賀先生_実験23/200225_芳賀先生_実験23voice{}.wav".format(i) for i in range(1, 7)])
