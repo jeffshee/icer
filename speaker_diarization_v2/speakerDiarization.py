@@ -1,25 +1,18 @@
 """A demo script showing how to DIARIZATION ON WAV USING UIS-RNN."""
+# ===========================================
+#        Parse the argument
+# ===========================================
+import argparse
 import csv
-import datetime
 import os
-import sys
 
 import librosa
 import numpy as np
 from spectralcluster import SpectralClusterer
 
-sys.path.append('speaker_diarization_v2/ghostvlad')
-sys.path.append('speaker_diarization_v2/visualization')
-sys.path.append('speaker_diarization_v2/uisrnn')
-
 import speaker_diarization_v2.ghostvlad.model as spkModel
-from speaker_diarization_v2.visualization.viewer import PlotDiar
 from speaker_diarization_v2.uisrnn import uisrnn, parse_arguments
-
-# ===========================================
-#        Parse the argument
-# ===========================================
-import argparse
+from speaker_diarization_v2.visualization.viewer import PlotDiar
 
 parser = argparse.ArgumentParser()
 # set up training configuration.
@@ -39,7 +32,7 @@ parser.add_argument('--test_type', default='normal', choices=['normal', 'hard', 
 global args
 args = parser.parse_args()
 
-SAVED_MODEL_NAME = 'pretrained/saved_model.uisrnn_benchmark'
+SAVED_MODEL_NAME = 'speaker_diarization_v2/pretrained/saved_model.uisrnn_benchmark'
 
 
 def append2dict(speakerSlice, spk_period):
@@ -222,109 +215,6 @@ def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_
 
     # 結果を画像として保存
     p = PlotDiar(map=speakerSlice, wav=wav_path, gui=False, size=(25, 6))
-    p.draw()
-    p.plot.savefig("{}result.png".format(path_result))
-
-    # 結果をCSVファイルに保存
-    with open("{}result.csv".format(path_result), "w", encoding="Shift_jis") as f:
-        writer = csv.writer(f, lineterminator="\n")  # writerオブジェクトの作成 改行記号で行を区切る
-        writer.writerow(["time(ms)", "speaker class"])
-        for spk, timeDicts in speakerSlice.items():
-            for timeDict in timeDicts:
-                for frame_ms in range(timeDict['start'], timeDict['stop']):
-                    writer.writerow([frame_ms, spk])
-
-
-"""
-Archived
-"""
-
-
-def main_mod(pinmic_wav_list, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1, max_clusters=100):
-    params = {'dim': (257, None, 1),
-              'nfft': 512,
-              'spec_len': 250,
-              'win_length': 400,
-              'hop_length': 160,
-              'n_classes': 5994,
-              'sampling_rate': 16000,
-              'normalize': True,
-              }
-
-    network_eval = spkModel.vggvox_resnet2d_icassp(input_dim=params['dim'],
-                                                   num_class=params['n_classes'],
-                                                   mode='eval', args=args)
-    network_eval.load_weights(args.resume, by_name=True)
-
-    specs_list = []
-    intervals_list = []
-    mapTable_list = []
-    keys_list = []
-    feats_list = []
-    all_feats = []
-
-    for wav_path in pinmic_wav_list:
-        specs, intervals = load_data(wav_path, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate)
-        mapTable, keys = genMap(intervals)
-        specs_list.append(specs)
-        intervals_list.append(intervals)
-        mapTable_list.append(mapTable)
-        keys_list.append(keys)
-
-        feats = []
-        for spec in specs:
-            spec = np.expand_dims(np.expand_dims(spec, 0), -1)
-            v = network_eval.predict(spec)
-            feats += [v]
-            all_feats += [v]
-
-        feats = np.array(feats)[:, 0, :].astype(float)  # [splits, embedding dim]
-        feats_list.append(feats)
-
-    all_mapTable, all_keys = genMap(np.concatenate(intervals_list))
-    all_feats = np.array(all_feats)[:, 0, :].astype(float)  # [splits, embedding dim]
-
-    clusterer = SpectralClusterer(
-        min_clusters=min_clusters,
-        max_clusters=max_clusters,
-        p_percentile=0.95,
-        gaussian_blur_sigma=1)
-    predicted_label = clusterer.predict(all_feats)
-    time_spec_rate = 1000 * (1.0 / embedding_per_second) * (
-            1.0 - overlap_rate)  # speaker embedding every time_spec_rate ms
-
-    speakerSlice = arrangeResult(predicted_label, time_spec_rate)
-    for spk, timeDicts in speakerSlice.items():  # time map to orgin wav(contains mute)
-        for tid, timeDict in enumerate(timeDicts):
-            s = 0
-            e = 0
-            for i, key in enumerate(all_keys):
-                if (s != 0 and e != 0):
-                    break
-                if (s == 0 and key > timeDict['start']):
-                    offset = timeDict['start'] - all_keys[i - 1]
-                    s = all_mapTable[all_keys[i - 1]] + offset
-                if (e == 0 and key > timeDict['stop']):
-                    offset = timeDict['stop'] - all_keys[i - 1]
-                    e = all_mapTable[all_keys[i - 1]] + offset
-
-            speakerSlice[spk][tid]['start'] = s
-            speakerSlice[spk][tid]['stop'] = e
-
-    for spk, timeDicts in speakerSlice.items():
-        print('========= ' + str(spk) + ' =========')
-        for timeDict in timeDicts:
-            s = timeDict['start']
-            e = timeDict['stop']
-            s = fmtTime(s)  # change point moves to the center of the slice
-            e = fmtTime(e)
-            print(s + ' ==> ' + e)
-
-    path_result = "test-test"
-    os.makedirs(path_result, exist_ok=True)
-
-    # 結果を画像として保存
-    p = PlotDiar(map=speakerSlice, wav=pinmic_wav_list[0], gui=False, size=(25, 6))
     p.draw()
     p.plot.savefig("{}result.png".format(path_result))
 

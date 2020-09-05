@@ -1,7 +1,7 @@
 import matplotlib
 import matplotlib.pyplot as plot
 from matplotlib.patches import Rectangle
-from player import AudioPlayer
+from speaker_diarization_v2.visualization.player import AudioPlayer
 
 
 class PlotDiar:

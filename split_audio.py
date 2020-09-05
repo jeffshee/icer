@@ -16,7 +16,7 @@ def optimized_segment_audio(input_path, output_dir, max_duration_sec=60):
     from pydub.silence import detect_silence
     max_duration = max_duration_sec * 1000
 
-    def silence_based_split(audio_segment, min_silence_len=1000, silence_thresh=-16, seek_step=1, result_offset=0):
+    def silence_based_split(audio_segment, min_silence_len=500, silence_thresh=-16, seek_step=1, result_offset=0):
         # slightly drop the threshold until silence is detected
         silent_ranges = detect_silence(audio_segment, min_silence_len, silence_thresh, seek_step)
         delta = 0
@@ -28,11 +28,11 @@ def optimized_segment_audio(input_path, output_dir, max_duration_sec=60):
 
         # if there is no silence, the whole thing is nonsilent
         if not silent_ranges:
-            return [[0, len_seg]]
+            return [('nonsilence', result_offset, result_offset + len_seg)]
 
         # short circuit when the whole audio segment is silent
         if silent_ranges[0][0] == 0 and silent_ranges[0][1] == len_seg:
-            return []
+            return [('silence', result_offset, result_offset + len_seg)]
 
         prev_end_i = 0
         nonsilent_ranges = []
