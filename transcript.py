@@ -30,31 +30,46 @@ from main_util import cleanup_directory
 
 """
 
-config = {
-    'use_run_speaker_diarization': False,  # run_speaker_diarizationを実行するか、loudness-basedの手法を使用するか (False)
-    'use_spectral_cluster': False,  # run_speaker_diarizationを実行する際、SpectralClustringを使用するか、UIS-RNNを使用するか (False)
+config_template = {
+    # NOTE:（　）の中はデフォルト
+    'use_run_speaker_diarization': True,  # run_speaker_diarizationを実行するか、loudness-basedの手法を使用するか (False)
 
+    # run_speaker_diarization関連設定
+    'use_spectral_cluster': False,  # run_speaker_diarizationを実行する際、SpectralClusteringを使用するか、UIS-RNNを使用するか (False)
+    'people_num': None,  # run_speaker_diarizationのパラメータ
+    'embedding_per_second': 0.5,  # run_speaker_diarizationのパラメータ
+    'overlap_rate': 0.5,  # run_speaker_diarizationのパラメータ
+    'use_loudness_after_diarization': True,  # SpectralClusteringやUIS-RNNを行った後、話者判別の結果だけをloudness-basedで差し替える (True)
+
+    # Loudness-based設定
     'allow_overlapping': False,  # 話者間の対話で音声のOverlapping（重なり）が存在すると想定するか、しないか (False)
 
+    # S2T関連設定
     'max_split_duration_sec': 30,  # 音声を分割する際、最大何秒まで許せるか（これより短い音声は統合される） (30)
     's2t_retry_num': 3,  # 音声認識が成功するまで試す回数 (3)
     's2t_use_mixed_audio': True,  # 音声認識する際、Mix音声を使うか、Pinmic音声を使うか (True)
+
+    # Debug関連設定
+    'no_clean': False,  # (Debug) Use old result (False)
+    'skip_run_speaker_diarization': False,  # (Debug) Skip run_speaker_diarization (False)
+    'skip_split': False,  # (Debug) Skip split (False)
+    'skip_transcript': False,  # (Debug) Skip transcript (False)
 }
 
 
-def transcript(output_dir, audio_path_list, people_num=None):
+def transcript(output_dir, audio_path_list, config):
     """
     The main routine to transcript the audio file
     :param output_dir: The directory that contains all outputted files
     :param audio_path_list: A list of path to the audio files, these audio files will be mixed into one.
         It can be only one audio file, for example: ['/foo/bar/audio.wav'], in this case you must specify people_num.
-    :param people_num: people_num for Diarization.
+    :param config: Configuration.
     :return:
     """
 
-    if people_num is None:
+    if config['people_num'] is None:
         assert len(audio_path_list) > 1
-        people_num = len(audio_path_list)
+        config['people_num'] = len(audio_path_list)
 
     diarization_dir = join(output_dir, 'diarization')
     split_audio_dir = join(output_dir, 'split')
@@ -64,10 +79,11 @@ def transcript(output_dir, audio_path_list, people_num=None):
     mixed_audio_path = join(output_dir, mixed_audio_name + '.wav')
     transcript_path = join(output_dir, 'transcript.csv')
 
-    cleanup_directory(output_dir)
-    cleanup_directory(split_audio_dir)
-    cleanup_directory(segment_audio_dir)
-    cleanup_directory(diarization_dir)
+    if not config['no_clean']:
+        cleanup_directory(output_dir)
+        cleanup_directory(split_audio_dir)
+        cleanup_directory(segment_audio_dir)
+        cleanup_directory(diarization_dir)
 
     with open(join(output_dir, 'config.txt'), 'w') as f:
         print(config, file=f)
@@ -76,10 +92,17 @@ def transcript(output_dir, audio_path_list, people_num=None):
 
     """ 1. Diarization """
     if config['use_run_speaker_diarization']:
-        from run_speaker_diarization_v2 import run_speaker_diarization
-        run_speaker_diarization(output_dir + os.sep, mixed_audio_name, diarization_dir + os.sep, people_num=people_num,
-                                overlap_rate=0.5, use_spectral_cluster=config['use_spectral_cluster'])
+        if not config['skip_run_speaker_diarization']:
+            from run_speaker_diarization_v2 import run_speaker_diarization
+            run_speaker_diarization(output_dir + os.sep, mixed_audio_name, diarization_dir + os.sep,
+                                    people_num=config['people_num'],
+                                    embedding_per_second=config['embedding_per_second'],
+                                    overlap_rate=config['overlap_rate'],
+                                    use_spectral_cluster=config['use_spectral_cluster'])
         df_diarization_compact = diarization_compact(join(diarization_dir, 'result.csv'), diarization_dir)
+        if config['use_loudness_after_diarization']:
+            df_diarization_compact = loudness_after_diarization(audio_path_list, df_diarization_compact,
+                                                                diarization_dir)
     else:
         if config['allow_overlapping']:
             # 現在の実験データでは、まだノイズが酷かったため、この方法はうまくいきません。
@@ -88,6 +111,8 @@ def transcript(output_dir, audio_path_list, people_num=None):
             df_diarization_compact = loudness_after_speech_segmenter(audio_path_list, diarization_dir)
 
     """ 2. Split audio after Diarization """
+    if config['skip_split']:
+        return
     if config['s2t_use_mixed_audio']:
         split_path_list, start_time_list, end_time_list = split_audio_after_diarization(df_diarization_compact,
                                                                                         [mixed_audio_path],
@@ -97,6 +122,8 @@ def transcript(output_dir, audio_path_list, people_num=None):
                                                                                         audio_path_list,
                                                                                         split_audio_dir)
     """ 3. Segmentation -> Speech2Text """
+    if config['skip_transcript']:
+        return
     output_csv = []
     for i, split_path in enumerate(sorted(split_path_list)):
         segment_path_list = optimized_segment_audio(input_path=split_path, output_dir=segment_audio_dir,
@@ -153,8 +180,11 @@ def diarization_compact(csv_path, output_dir=None):
         'time(ms)'].tolist()
     start_time_list, end_time_list = time_list[:-1], time_list[1:]
     speaker_class_list = df_diarization[df_diarization['speaker class'].diff() != 0]['speaker class'].tolist()
-    df_diarization_compact = pd.DataFrame(list(zip(*[speaker_class_list, start_time_list, end_time_list])),
-                                          columns=['Speaker', 'Start time(ms)', 'End time(ms)'])
+    df_diarization_compact = pd.DataFrame(list(zip(
+        *[speaker_class_list, start_time_list, end_time_list, [get_hms(t) for t in start_time_list],
+          [get_hms(t) for t in end_time_list]])),
+        columns=['Speaker', 'Start time(ms)', 'End time(ms)', 'Start time(HH:MM:SS)',
+                 'End time(HH:MM:SS)'])
     if output_dir is not None:
         df_diarization_compact.to_csv(join(output_dir, 'result_compact.csv'), index=False, header=True)
     return df_diarization_compact
@@ -200,8 +230,8 @@ def loudness_after_speech_segmenter(audio_path_list, output_dir=None):
     :param output_dir:
     :return:
     """
-    import numpy as np
     from inaSpeechSegmenter import Segmenter
+    import numpy as np
     audio_list = [AudioSegment.from_file(path, format='wav') for path in audio_path_list]
     seg = Segmenter(vad_engine='smn', detect_gender=False)
 
@@ -231,16 +261,55 @@ def loudness_after_speech_segmenter(audio_path_list, output_dir=None):
         if len(output_csv_compact) > 0 and speaker_class == output_csv_compact[-1][0]:
             # Combine with previous checkpoint
             output_csv_compact[-1][2] = end_time
+            output_csv_compact[-1][4] = get_hms(end_time)
         else:
-            output_csv_compact.append([speaker_class, start_time, end_time])
+            output_csv_compact.append([speaker_class, start_time, end_time, get_hms(start_time), get_hms(end_time)])
         for t in range(int(start_time), int(end_time)):
             output_csv.append([t, speaker_class])
     df = pd.DataFrame(output_csv, columns=['time(ms)', 'speaker class'])
-    df_compact = pd.DataFrame(output_csv_compact, columns=['Speaker', 'Start time(ms)', 'End time(ms)'])
+    df_compact = pd.DataFrame(output_csv_compact,
+                              columns=['Speaker', 'Start time(ms)', 'End time(ms)', 'Start time(HH:MM:SS)',
+                                       'End time(HH:MM:SS)'])
     if output_dir is not None:
         df_compact.to_csv(join(output_dir, 'result_compact.csv'), index=False, header=True)
         # Output 'result.csv' similar to diarization for backward compatibility, can be removed if not longer needed
         df.to_csv(join(output_dir, 'result.csv'), index=False, header=True)
+    return df_compact
+
+
+def loudness_after_diarization(audio_path_list, df_diarization_compact, output_dir=None):
+    """
+    Diarization（UIS-RNN）を使えば、話者の入れ替わりのtimeframeが分かる。そこから、各PinmicのLoudnessで話者を判別する？
+    :param df_diarization_compact: diarizationの結果
+    :param audio_path_list:
+    :param output_dir:
+    :return:
+    """
+    import numpy as np
+    audio_list = [AudioSegment.from_file(path, format='wav') for path in audio_path_list]
+    start_time_list, end_time_list = df_diarization_compact['Start time(ms)'].values.tolist(), df_diarization_compact[
+        'End time(ms)'].values.tolist()
+
+    output_csv = []
+    output_csv_compact = []
+    for i, (start_time, end_time) in enumerate(zip(start_time_list, end_time_list)):
+        dBFS_list = [audio[start_time:end_time].dBFS for audio in audio_list]
+        speaker_class = np.argmax(dBFS_list)
+        if len(output_csv_compact) > 0 and speaker_class == output_csv_compact[-1][0]:
+            output_csv_compact[-1][2] = end_time
+            output_csv_compact[-1][4] = get_hms(end_time)
+        else:
+            output_csv_compact.append([speaker_class, start_time, end_time, get_hms(start_time), get_hms(end_time)])
+        for t in range(int(start_time), int(end_time)):
+            output_csv.append([t, speaker_class])
+    df = pd.DataFrame(output_csv, columns=['time(ms)', 'speaker class'])
+    df_compact = pd.DataFrame(output_csv_compact,
+                              columns=['Speaker', 'Start time(ms)', 'End time(ms)', 'Start time(HH:MM:SS)',
+                                       'End time(HH:MM:SS)'])
+    if output_dir is not None:
+        df_compact.to_csv(join(output_dir, 'result_compact_loudness.csv'), index=False, header=True)
+        # Output 'result.csv' similar to diarization for backward compatibility, can be removed if not longer needed
+        df.to_csv(join(output_dir, 'result_loudness.csv'), index=False, header=True)
     return df_compact
 
 
@@ -311,11 +380,15 @@ def speech_segmenter_only(audio_path_list, output_dir=None):
     for speaker_class, path in enumerate(audio_path_list):
         speech_segment = list(filter(lambda x: x[0] == 'speech', seg(path)))
         for interval in speech_segment:
-            speech_segment_list.append([speaker_class, interval[1] * 1000, interval[2] * 1000])
+            speech_segment_list.append(
+                [speaker_class, interval[1] * 1000, interval[2] * 1000, get_hms(interval[1] * 1000),
+                 get_hms(interval[2] * 1000)])
 
     speech_segment_list = sorted(speech_segment_list, key=lambda x: x[1])
 
-    df_compact = pd.DataFrame(speech_segment_list, columns=['Speaker', 'Start time(ms)', 'End time(ms)'])
+    df_compact = pd.DataFrame(speech_segment_list,
+                              columns=['Speaker', 'Start time(ms)', 'End time(ms)', 'Start time(HH:MM:SS)',
+                                       'End time(HH:MM:SS)'])
     if output_dir is not None:
         df_compact.to_csv(join(output_dir, 'result_compact.csv'), index=False, header=True)
     return df_compact
@@ -342,7 +415,8 @@ def speech_segmenter_only_v2(audio_path_list, output_dir=None):
     for speaker_class, path in enumerate(audio_path_list):
         speech_segment = list(filter(lambda x: x[0] == 'speech', seg(path)))
         for interval in speech_segment:
-            speech_segment_list.append((speaker_class, interval[1] * 1000, interval[2] * 1000))
+            speech_segment_list.append((speaker_class, interval[1] * 1000, interval[2] * 1000,
+                                        get_hms(interval[1] * 1000), get_hms(interval[2] * 1000)))
 
     speech_segment_list = sorted(speech_segment_list, key=lambda x: x[1])
     remove_list = []
@@ -351,7 +425,9 @@ def speech_segmenter_only_v2(audio_path_list, output_dir=None):
             filter(lambda x: x != interval and is_fully_overlap(x[1:], interval[1:]), speech_segment_list))
     speech_segment_list = list(filter(lambda x: x not in remove_list, speech_segment_list))
 
-    df_compact = pd.DataFrame(speech_segment_list, columns=['Speaker', 'Start time(ms)', 'End time(ms)'])
+    df_compact = pd.DataFrame(speech_segment_list,
+                              columns=['Speaker', 'Start time(ms)', 'End time(ms)', 'Start time(HH:MM:SS)',
+                                       'End time(HH:MM:SS)'])
     if output_dir is not None:
         df_compact.to_csv(join(output_dir, 'result_compact.csv'), index=False, header=True)
     return df_compact
@@ -364,50 +440,6 @@ def is_fully_overlap(range_a, range_b):
     return start_b <= start_a and end_a <= end_b
 
 
-def loudness_after_diarization(audio_path_list, output_dir=None):
-    """
-    Diarization（UIS-RNN）を使えば、話者の入れ替わりのtimeframeが分かる。そこから、各PinmicのLoudnessで話者を判別する？
-    :param audio_path_list:
-    :param output_dir:
-    :return:
-    """
-    import numpy as np
-    audio_list = [AudioSegment.from_file(path, format='wav') for path in audio_path_list]
-
-    df_raw = diarization_compact('df_raw.csv')
-    start_time_list, end_time_list = df_raw['Start time(ms)'].values.tolist(), df_raw['End time(ms)'].values.tolist()
-
-    checkpoint = sorted(
-        list(zip(['start'] * len(start_time_list), start_time_list)) + list(
-            zip(['end'] * len(end_time_list), end_time_list)),
-        key=lambda x: x[1])
-
-    output_csv = []
-    output_csv_compact = []
-    count = 0
-    for i, (c1, c2) in enumerate(zip(checkpoint, checkpoint[1:])):
-        count += 1 if c1[0] == 'start' else -1
-        if count == 0:
-            continue
-        start_time, end_time = c1[1], c2[1]
-        dBFS_list = [audio[start_time:end_time].dBFS for audio in audio_list]
-        speaker_class = np.argmax(dBFS_list)
-        if len(output_csv_compact) > 0 and speaker_class == output_csv_compact[-1][0]:
-            # Combine with previous checkpoint
-            output_csv_compact[-1][2] = end_time
-        else:
-            output_csv_compact.append([speaker_class, start_time, end_time])
-        for t in range(int(start_time), int(end_time)):
-            output_csv.append([t, speaker_class])
-    df = pd.DataFrame(output_csv, columns=['time(ms)', 'speaker class'])
-    df_compact = pd.DataFrame(output_csv_compact, columns=['Speaker', 'Start time(ms)', 'End time(ms)'])
-    if output_dir is not None:
-        df_compact.to_csv(join(output_dir, 'result_compact.csv'), index=False, header=True)
-        # Output 'result.csv' similar to diarization for backward compatibility, can be removed if not longer needed
-        df.to_csv(join(output_dir, 'result.csv'), index=False, header=True)
-    return df_compact
-
-
 if __name__ == "__main__":
     # Prepare short ver. for testing
     # for path in ["test/wave/200225_芳賀先生_実験23/200225_芳賀先生_実験23voice{}.wav".format(i) for i in range(1, 7)]:
@@ -415,8 +447,30 @@ if __name__ == "__main__":
     # variant = '_loudness_30sec'
     # variant = '_uis_rnn_30sec'
     # variant = '_spectral_30sec'
-    variant = ''
+    # variant = ''
+    # variant = '_uis_rnn_30sec_loudness'
+    # transcript('output_exp22' + variant,
+    #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
+    #            config_template)
+    # transcript('output_exp23' + variant,
+    #            ["test/wave/200225_芳賀先生_実験23/200225_芳賀先生_実験23voice{}.wav".format(i) for i in range(1, 7)],
+    #            config_template)
+
+    # variant = '_uis_rnn_30sec_loudness_0.5_0.5'
+    # transcript('output_exp22' + variant,
+    #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
+    #            config_template)
+    #
+    config_template['embedding_per_second'] = 1.0
+    config_template['overlap_rate'] = 0.5
+    variant = '_uis_rnn_30sec_loudness_1.0_0.5'
     transcript('output_exp22' + variant,
-               ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)])
-    transcript('output_exp23' + variant,
-               ["test/wave/200225_芳賀先生_実験23/200225_芳賀先生_実験23voice{}.wav".format(i) for i in range(1, 7)])
+               ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
+               config_template)
+
+    # config_template['embedding_per_second'] = 0.5
+    # config_template['overlap_rate'] = 0.7
+    # variant = '_uis_rnn_30sec_loudness_0.5_0.7'
+    # transcript('output_exp22' + variant,
+    #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
+    #            config_template)
