@@ -3,28 +3,26 @@
 #        Parse the argument
 # ===========================================
 import argparse
-import datetime
 import csv
 import os
-import sys
 
 import librosa
 import numpy as np
 import pandas as pd
 from spectralcluster import SpectralClusterer
 
-## Conflicted
+# Modified
+import speaker_diarization_v2.ghostvlad.model as spkModel
+from speaker_diarization_v2.ghostvlad import toolkits
+from speaker_diarization_v2.uisrnn import uisrnn, parse_arguments
+from speaker_diarization_v2.visualization.viewer import PlotDiar
+
+# Conflicted
 # sys.path.append('speaker_diarization_v2/ghostvlad')
 # sys.path.append('speaker_diarization_v2/visualization')
-
 # from ghostvlad import toolkits
 # import ghostvlad.model as spkModel
 # from visualization.viewer import PlotDiar
-
-## Modified
-import speaker_diarization_v2.ghostvlad.model as spkModel
-from speaker_diarization_v2.uisrnn import uisrnn, parse_arguments
-from speaker_diarization_v2.visualization.viewer import PlotDiar
 
 parser = argparse.ArgumentParser()
 # set up training configuration.
@@ -41,10 +39,9 @@ parser.add_argument('--aggregation_mode', default='gvlad', choices=['avg', 'vlad
 parser.add_argument('--loss', default='softmax', choices=['softmax', 'amsoftmax'], type=str)
 parser.add_argument('--test_type', default='normal', choices=['normal', 'hard', 'extend'], type=str)
 
-global args
 args = parser.parse_args()
 
-## Modified
+# Modified
 SAVED_MODEL_NAME = 'speaker_diarization_v2/pretrained/saved_model.uisrnn_benchmark'
 
 
@@ -62,8 +59,8 @@ def append2dict(speakerSlice, spk_period):
     return speakerSlice
 
 
-def arrangeResult(labels,
-                  time_spec_rate):  # {'1': [{'start':10, 'stop':20}, {'start':30, 'stop':40}], '2': [{'start':90, 'stop':100}]}
+def arrangeResult(labels, time_spec_rate):
+    # {'1': [{'start':10, 'stop':20}, {'start':30, 'stop':40}], '2': [{'start':90, 'stop':100}]}
     lastLabel = labels[0]
     speakerSlice = {}
     j = 0
@@ -98,8 +95,8 @@ def fmtTime(timeInMillisecond):
     time = '{}:{:02d}.{}'.format(minute, second, millisecond)
     return time
 
-  
-## Modified  
+
+# Modified
 def load_wav(vid_path, sr, specific_intervals=None):
     wav, _ = librosa.load(vid_path, sr=sr)
     if specific_intervals is None:
@@ -123,8 +120,9 @@ def lin_spectogram_from_wav(wav, hop_length, win_length, n_fft=1024):
 #           |-------------------|
 #                     |-------------------|
 #                               |-------------------|
-## Modified
-def load_data(path, win_length=400, sr=16000, hop_length=160, n_fft=512, embedding_per_second=0.5, overlap_rate=0.5, specific_intervals=None):
+# Modified
+def load_data(path, win_length=400, sr=16000, hop_length=160, n_fft=512, embedding_per_second=0.5, overlap_rate=0.5,
+              specific_intervals=None):
     wav, intervals = load_wav(path, sr=sr, specific_intervals=specific_intervals)
     linear_spect = lin_spectogram_from_wav(wav, hop_length, win_length, n_fft)
     mag, _ = librosa.magphase(linear_spect)  # magnitude
@@ -154,8 +152,9 @@ def load_data(path, win_length=400, sr=16000, hop_length=160, n_fft=512, embeddi
     return utterances_spec, intervals
 
 
-## Merged from master
-def vrew_based_diarization(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1, max_clusters=100):
+# Merged from master
+def vrew_based_diarization(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1,
+                           max_clusters=100):
     df = pd.read_table('./vrew/200225_expt22_video.txt', header=None, names=('time', 'txt'))
     wav_fname = './audio/expt22.wav'
     wav, sr = librosa.load(wav_fname, sr=None)
@@ -163,31 +162,34 @@ def vrew_based_diarization(wav_path, path_result, embedding_per_second=1.0, over
     dup_df = df.duplicated(subset=['time'])
     for i, d in enumerate(dup_df):
         if d:
-            df.iloc[i-1]['txt'] += df.iloc[i]['txt']
+            df.iloc[i - 1]['txt'] += df.iloc[i]['txt']
     df = df.drop_duplicates(subset=['time'])
     txt_list = []
     slice_idx = []
     for start, end, txt in zip(df.time[:-1], df.time[1:], df.txt[:-1]):
         start_h, start_m, start_s = start.split(':')
         end_h, end_m, end_s = end.split(':')
-        start_idx = (int(start_h)*60**2 + int(start_m)*60 + int(start_s)) * sr
-        end_idx = (int(end_h)*60**2 + int(end_m)*60 + int(end_s)) * sr
+        start_idx = (int(start_h) * 60 ** 2 + int(start_m) * 60 + int(start_s)) * sr
+        end_idx = (int(end_h) * 60 ** 2 + int(end_m) * 60 + int(end_s)) * sr
         txt_list.append(txt)
         slice_idx.append([start_idx, end_idx])
         # cat_wav = wav[start_idx:end_idx]
 
 
-## Merged from master
-def multi_audio_diarization(wav_dpath,wav_base_fpath, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1, max_clusters=100):
+# Merged from master
+def multi_audio_diarization(wav_dpath, wav_base_fpath, path_result, embedding_per_second=1.0, overlap_rate=0.5,
+                            min_clusters=1, max_clusters=100):
     # gpu configuration
     toolkits.initialize_GPU(args)
 
-    wav_path_list = [os.path.join(wav_dpath, d) for d in os.listdir(wav_dpath) if os.path.isfile(os.path.join(wav_dpath, d))]
+    wav_path_list = [os.path.join(wav_dpath, d) for d in os.listdir(wav_dpath) if
+                     os.path.isfile(os.path.join(wav_dpath, d))]
     specs_list = []
     _, intervals = load_data(wav_base_fpath, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate)
     mapTable, keys = genMap(intervals)
     for wav_path in wav_path_list:
-        specs, _ = load_data(wav_path, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate, specific_intervals=intervals)
+        specs, _ = load_data(wav_path, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate,
+                             specific_intervals=intervals)
         specs_list.append(specs)
 
     params = {'dim': (257, None, 1),
@@ -284,8 +286,8 @@ def multi_audio_diarization(wav_dpath,wav_base_fpath, path_result, embedding_per
 
 def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_spectral_cluster=False, min_clusters=1,
          max_clusters=100):
-    # gpu configuration (deprecated on recent TF)
-    # toolkits.initialize_GPU(args)
+    # gpu configuration
+    toolkits.initialize_GPU(args)
 
     params = {'dim': (257, None, 1),
               'nfft': 512,
@@ -374,7 +376,7 @@ def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_
                     writer.writerow([frame_ms, spk])
 
 
-## Merged from master
+# Merged from master
 if __name__ == '__main__':
     # vrew_based_diarization('', '')
     multi_audio_diarization('./audio/expt22', './audio/expt22.wav', '')
