@@ -1,6 +1,10 @@
 """A demo script showing how to DIARIZATION ON WAV USING UIS-RNN."""
-import csv
+# ===========================================
+#        Parse the argument
+# ===========================================
+import argparse
 import datetime
+import csv
 import os
 import sys
 
@@ -9,20 +13,18 @@ import numpy as np
 import pandas as pd
 from spectralcluster import SpectralClusterer
 
-sys.path.append('speaker_diarization_v2/ghostvlad')
-sys.path.append('speaker_diarization_v2/visualization')
+## Conflicted
+# sys.path.append('speaker_diarization_v2/ghostvlad')
+# sys.path.append('speaker_diarization_v2/visualization')
 
-# from speaker_diarization_v2.ghostvlad import toolkits
-# import speaker_diarization_v2.ghostvlad.model as spkModel
-# from speaker_diarization_v2.visualization.viewer import PlotDiar
-from ghostvlad import toolkits
-import ghostvlad.model as spkModel
-from visualization.viewer import PlotDiar
+# from ghostvlad import toolkits
+# import ghostvlad.model as spkModel
+# from visualization.viewer import PlotDiar
 
-# ===========================================
-#        Parse the argument
-# ===========================================
-import argparse
+## Modified
+import speaker_diarization_v2.ghostvlad.model as spkModel
+from speaker_diarization_v2.uisrnn import uisrnn, parse_arguments
+from speaker_diarization_v2.visualization.viewer import PlotDiar
 
 parser = argparse.ArgumentParser()
 # set up training configuration.
@@ -42,7 +44,8 @@ parser.add_argument('--test_type', default='normal', choices=['normal', 'hard', 
 global args
 args = parser.parse_args()
 
-SAVED_MODEL_NAME = 'pretrained/saved_model.uisrnn_benchmark'
+## Modified
+SAVED_MODEL_NAME = 'speaker_diarization_v2/pretrained/saved_model.uisrnn_benchmark'
 
 
 def append2dict(speakerSlice, spk_period):
@@ -95,7 +98,8 @@ def fmtTime(timeInMillisecond):
     time = '{}:{:02d}.{}'.format(minute, second, millisecond)
     return time
 
-
+  
+## Modified  
 def load_wav(vid_path, sr, specific_intervals=None):
     wav, _ = librosa.load(vid_path, sr=sr)
     if specific_intervals is None:
@@ -106,7 +110,6 @@ def load_wav(vid_path, sr, specific_intervals=None):
     for sliced in intervals:
         wav_output.extend(wav[sliced[0]:sliced[1]])
     return np.array(wav_output), (intervals / sr * 1000).astype(int)
-    # return np.array(wav), (intervals / sr * 1000).astype(int)
 
 
 def lin_spectogram_from_wav(wav, hop_length, win_length, n_fft=1024):
@@ -120,6 +123,7 @@ def lin_spectogram_from_wav(wav, hop_length, win_length, n_fft=1024):
 #           |-------------------|
 #                     |-------------------|
 #                               |-------------------|
+## Modified
 def load_data(path, win_length=400, sr=16000, hop_length=160, n_fft=512, embedding_per_second=0.5, overlap_rate=0.5, specific_intervals=None):
     wav, intervals = load_wav(path, sr=sr, specific_intervals=specific_intervals)
     linear_spect = lin_spectogram_from_wav(wav, hop_length, win_length, n_fft)
@@ -149,6 +153,8 @@ def load_data(path, win_length=400, sr=16000, hop_length=160, n_fft=512, embeddi
 
     return utterances_spec, intervals
 
+
+## Merged from master
 def vrew_based_diarization(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1, max_clusters=100):
     df = pd.read_table('./vrew/200225_expt22_video.txt', header=None, names=('time', 'txt'))
     wav_fname = './audio/expt22.wav'
@@ -171,6 +177,7 @@ def vrew_based_diarization(wav_path, path_result, embedding_per_second=1.0, over
         # cat_wav = wav[start_idx:end_idx]
 
 
+## Merged from master
 def multi_audio_diarization(wav_dpath,wav_base_fpath, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1, max_clusters=100):
     # gpu configuration
     toolkits.initialize_GPU(args)
@@ -275,9 +282,10 @@ def multi_audio_diarization(wav_dpath,wav_base_fpath, path_result, embedding_per
                     writer.writerow([frame_ms, spk])
 
 
-def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1, max_clusters=100):
-    # gpu configuration
-    toolkits.initialize_GPU(args)
+def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_spectral_cluster=False, min_clusters=1,
+         max_clusters=100):
+    # gpu configuration (deprecated on recent TF)
+    # toolkits.initialize_GPU(args)
 
     params = {'dim': (257, None, 1),
               'nfft': 512,
@@ -294,11 +302,6 @@ def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_
                                                    mode='eval', args=args)
     network_eval.load_weights(args.resume, by_name=True)
 
-    # model_args, _, inference_args = uisrnn.parse_arguments()
-    # model_args.observation_dim = 512
-    # uisrnnModel = uisrnn.UISRNN(model_args)
-    # uisrnnModel.load(SAVED_MODEL_NAME)
-
     specs, intervals = load_data(wav_path, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate)
     mapTable, keys = genMap(intervals)
 
@@ -309,13 +312,20 @@ def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_
         feats += [v]
 
     feats = np.array(feats)[:, 0, :].astype(float)  # [splits, embedding dim]
-    clusterer = SpectralClusterer(
-        min_clusters=min_clusters,
-        max_clusters=max_clusters,
-        p_percentile=0.95,
-        gaussian_blur_sigma=1)
-    predicted_label = clusterer.predict(feats)
-    # predicted_label = uisrnnModel.predict(feats, inference_args)
+
+    if use_spectral_cluster:
+        clusterer = SpectralClusterer(
+            min_clusters=min_clusters,
+            max_clusters=max_clusters,
+            p_percentile=0.95,
+            gaussian_blur_sigma=1)
+        predicted_label = clusterer.predict(feats)
+    else:
+        model_args, _, inference_args = parse_arguments()
+        model_args.observation_dim = 512
+        uisrnnModel = uisrnn.UISRNN(model_args)
+        uisrnnModel.load(SAVED_MODEL_NAME)
+        predicted_label = uisrnnModel.predict(feats, inference_args)
 
     time_spec_rate = 1000 * (1.0 / embedding_per_second) * (
             1.0 - overlap_rate)  # speaker embedding every time_spec_rate ms
@@ -363,6 +373,8 @@ def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_
                 for frame_ms in range(timeDict['start'], timeDict['stop']):
                     writer.writerow([frame_ms, spk])
 
+
+## Merged from master
 if __name__ == '__main__':
     # vrew_based_diarization('', '')
     multi_audio_diarization('./audio/expt22', './audio/expt22.wav', '')

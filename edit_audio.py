@@ -6,10 +6,8 @@ import subprocess
 import pandas as pd
 import speech_recognition
 from pydub import AudioSegment
-from pydub.silence import split_on_silence
 
 from main_util import cleanup_directory
-import math
 
 
 def split_wave_per_sentence(df_diarization, split_ms_list, wave_file_path, result_path):
@@ -71,9 +69,9 @@ def wav_to_transcript(wav_path, split_ms_list, output_path=None):
             try:
                 txt = r.recognize_google(audio, language='ja-JP')
                 print(txt)
-            except speech_recognition.UnknownValueError or TimeoutError:  # 何も聞き取れないとき
+            except Exception as e:
                 txt = None
-                print("Error")
+                print(e.args)
         txt_list.append([int(wav_name.split("_")[0]), wav_name.split("SpeakerName")[1].split(".")[0], txt,
                         split_ms_list[int(wav_name.split("_")[0])],
                         split_ms_list[int(wav_name.split("_")[0]) + 1] - 1])
@@ -127,118 +125,5 @@ def m4a_to_wav(m4a_path):
     subprocess.call(cmd, shell=True)
 
 
-def naive_split_wav_to_transcript(wav_path, split_ms_list, output_path=None):
-    wav_name_list = os.listdir(wav_path)
-    wav_name_list.sort()
-    txt_list = []
-
-    for i, wav_name in enumerate(wav_name_list):
-        txt = naive_split_wav_to_txt(wav_path + wav_name)
-        txt_list.append([int(wav_name.split("_")[0]), wav_name.split("SpeakerName")[1].split(".")[0], txt,
-                        split_ms_list[int(wav_name.split("_")[0])],
-                        split_ms_list[int(wav_name.split("_")[0]) + 1] - 1])
-
-    if output_path:
-        df = pd.DataFrame(txt_list, columns=["Order", "Speaker", "Text", "Start time(ms)", "End time(ms)"])
-        df = df.sort_values("Order")
-        df.to_csv(output_path, index=False, encoding="utf_8_sig", header=True)
-
-
-def naive_split_wav_to_txt(wav_path):
-    chunks_path = 'chunks'
-    cleanup_directory(chunks_path)
-    transcript_l = []
-    full_audio = AudioSegment.from_wav(wav_path)
-    split_msec = 60 * 1000
-    split_num = math.ceil(len(full_audio) / split_msec)
-
-    chunks = []
-    for i in range(split_num):
-        if i == split_num - 1:  # if last chunks
-            chunks.append(full_audio[split_msec * i:-1])
-        else:
-            chunks.append(full_audio[split_msec * i:split_msec * (i + 1)])
-
-    for i, chunk in enumerate(chunks):
-        # Create 0.5 seconds silence chunk
-        chunk_silent = AudioSegment.silent(duration=10)
-        # add 0.5 sec silence to beginning and
-        # end of audio chunk. This is done so that
-        # it doesn't seem abruptly sliced.
-        audio_chunk = chunk_silent + chunk + chunk_silent
-
-        filename = chunks_path + '/chunk{}.wav'.format(i)
-        audio_chunk.export(filename, bitrate='192k', format="wav")
-
-        r = speech_recognition.Recognizer()
-
-        # recognize the chunk
-        with speech_recognition.AudioFile(filename) as source:
-            audio = r.record(source)
-            try:
-                txt = r.recognize_google(audio, language='ja_JP')
-                # print(i, txt)
-                transcript_l.append(txt)
-            except speech_recognition.UnknownValueError:
-                print("Google Speech Recognition could not understand audio")
-            except speech_recognition.RequestError as e:
-                print("Could not request results from Google Speech Recognition service; {0}".format(e))
-
-    result = ' '.join(transcript_l)
-    print(result)
-    return result
-
-
-def silence_based_wav_to_txt(wav_path):
-    chunks_path = 'chunks'
-    cleanup_directory(chunks_path)
-    transcript_l = []
-    full_audio = AudioSegment.from_wav(wav_path)
-    print('Average dBFS:', full_audio.dBFS)
-    chunks = split_on_silence(full_audio, min_silence_len=500, silence_thresh=-35)
-
-    for i, chunk in enumerate(chunks):
-        # Create 0.5 seconds silence chunk
-        chunk_silent = AudioSegment.silent(duration=10)
-        # add 0.5 sec silence to beginning and
-        # end of audio chunk. This is done so that
-        # it doesn't seem abruptly sliced.
-        audio_chunk = chunk_silent + chunk + chunk_silent
-
-        filename = chunks_path + '/chunk{}.wav'.format(i)
-        audio_chunk.export(filename, bitrate='192k', format="wav")
-
-        r = speech_recognition.Recognizer()
-
-        # recognize the chunk
-        with speech_recognition.AudioFile(filename) as source:
-            audio = r.record(source)
-            try:
-                txt = r.recognize_google(audio, language='ja_JP')
-                print(txt)
-                transcript_l.append(txt)
-            except speech_recognition.UnknownValueError:
-                print("Google Speech Recognition could not understand audio")
-            except speech_recognition.RequestError as e:
-                print("Could not request results from Google Speech Recognition service; {0}".format(e))
-
-    print(' '.join(transcript_l))
-
-
 if __name__ == "__main__":
-    # pass
-    # naive_split_wav_to_txt("test/split_wave/seg_test.wav")
-    # naive_split_wav_to_txt("test/split_wave/38_SpeakerName2.wav")
-
-    # audio_path = 'test/split_wave/'
-    # wav_to_shortwav(audio_path)
-    # wav_to_transcript('test/split_short_wave/', None)
-    # audio_name_list = ["200225_Haga_22_voice1", "200225_Haga_22_voice2", "200225_Haga_22_voice3",
-    #                     "200225_Haga_22_voice4", "200225_Haga_22_voice5"]
-    # for audio in audio_name_list:
-    #     input = "audio/" + audio + ".wav"
-    #     output = "audio/" + audio + "_trim.wav"
-    #     trim_audio(input, output, [0, 180000])
-    wav_to_txt('test/split_wave/0_SpeakerName2.wav')
-    wav_to_txt('segmentation/0_SpeakerName2/segment00.wav')
-    wav_to_txt('segmentation/0_SpeakerName2/segment00.wav')
+    pass

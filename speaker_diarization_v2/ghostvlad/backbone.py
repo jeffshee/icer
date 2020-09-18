@@ -220,5 +220,3 @@ def resnet_2D_v2(input_dim, mode='train'):
     x5 = identity_block_2D(x5, 3, [512, 512, 2048], stage=5, block='c', trainable=True)
     y = MaxPooling2D((3, 1), strides=(2, 1), name='mpool2')(x5)
     return inputs, y
-
-

@@ -15,7 +15,7 @@
 
 import numpy as np
 
-import uisrnn
+from speaker_diarization_v2 import uisrnn
 
 SAVED_MODEL_NAME = 'pretrained/saved_model.uisrnn_benchmark'
 
