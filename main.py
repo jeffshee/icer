@@ -28,23 +28,24 @@ if __name__ == '__main__':
     # session = tf.Session(config=config)
     # set_session(session)
     implement_mode = {
-        "detect_face": 0,  # 動画から顔領域の切り出し
-        "emotional_recognition": 0,  # 切り出した顔画像の表情・頷き・口の開閉認識
+        "detect_face": 1,  # 動画から顔領域の切り出し
+        "emotional_recognition": 1,  # 切り出した顔画像の表情・頷き・口の開閉認識
         "diarization": 1,  # 音声から話者識別
-        "overlay": 0  # 表情・頷き・発話情報を動画にまとめて可視化
+        "overlay": 1  # 表情・頷き・発話情報を動画にまとめて可視化
     }
 
     # video_name_list = [["191031_Haga_Trim"], ["Take02"], ["Take01_copycopy"]][2]
     # 処理する動画のリスト
     # video_name_list = ["200225_Haga_22", "200225_Haga_23"]
-    video_name_list = ["200225_Haga_22_trim"]
+    video_name_list = ["expt23", "expt22"]
     # 処理する音声のリスト（use_mix_audioがTrueの場合）
     # audio_name_list = [["200225_Haga_22_voice1", "200225_Haga_22_voice2", "200225_Haga_22_voice3",
     #                     "200225_Haga_22_voice4", "200225_Haga_22_voice5"],
     #                    ["200225_Haga_23_voice1", "200225_Haga_23_voice2", "200225_Haga_23_voice3",
     #                     "200225_Haga_23_voice4", "200225_Haga_23_voice5", "200225_Haga_23_voice6"]]
-    audio_name_list = [["200225_Haga_22_voice1_trim", "200225_Haga_22_voice2_trim", "200225_Haga_22_voice3_trim",
-                        "200225_Haga_22_voice4_trim", "200225_Haga_22_voice5_trim"]]
+    # audio_name_list = [["200225_Haga_22_voice1_trim", "200225_Haga_22_voice2_trim", "200225_Haga_22_voice3_trim", "200225_Haga_22_voice4_trim", "200225_Haga_22_voice5_trim"]]
+    audio_name_list = [["expt23", "expt22"]]
+    # audio_name_list = [["200225_Haga_22_voice1_trim", "200225_Haga_22_voice2_trim", "200225_Haga_22_voice3_trim", "200225_Haga_22_voice4_trim", "200225_Haga_22_voice5_trim"]]
     # audio_name_listの音声の拡張子
     audio_format = ".wav"
 
@@ -72,11 +73,10 @@ if __name__ == '__main__':
         # 顔画像切り出し
         if implement_mode["detect_face"]:
             cluster_num = detect_face(target_video_path, clustered_face_path, k_resolution,
-                                      capture_image_num)  # 顔画像を切り出す
+                                    capture_image_num)  # 顔画像を切り出す
             cluster_face(clustered_face_path, clustered_face_path + "cluster/",
-                         cluster_num=cluster_num)  # 顔画像をcluster_numクラスタにクラスタリングする
-            print("顔画像切り出し完了．\nPath:{} を確認して，対象外人物のフォルダを削除してください．\n完了した場合，何か入力してください．".format(
-                clustered_face_path + "cluster/"))
+                        cluster_num=cluster_num)  # 顔画像をcluster_numクラスタにクラスタリングする
+            print("顔画像切り出し完了．\nPath:{} を確認して，対象外人物のフォルダを削除してください．\n完了した場合，何か入力してください．".format(clustered_face_path + "cluster/"))
             input_str = input()  # 入力待ち
             print(input_str)
 
@@ -124,7 +124,7 @@ if __name__ == '__main__':
             concat_video(input_video_list, result_path + "output.avi")
             for j in range(len(target_image_path_list)):
                 input_csv_list = ["{}split_video_{}/result{}.csv".format(result_path, i, j) for i in
-                                  range(split_video_num)]
+                                range(split_video_num)]
                 concat_csv(input_csv_list, result_path + "result{}.csv".format(j))
 
         # 話者分離 (Diarization)
@@ -152,7 +152,7 @@ if __name__ == '__main__':
             index_to_name_dict = {-1: "unknown"}
             index_to_name_dict.update({i: val for i, val in enumerate(clustered_face_list)})
             faces_path = ["{}{}/{}/{}".format(clustered_face_path, "cluster", name, "closest.PNG") for name in
-                          clustered_face_list]
+                        clustered_face_list]
 
             # Path等の設定
             input_movie_path = "{}output.avi".format(result_path)
