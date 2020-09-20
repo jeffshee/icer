@@ -11,7 +11,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 import face_recognition
 from keras.models import model_from_json
-from keras.backend.tensorflow_backend import set_session
 
 from capture_face import detect_face, cluster_face
 from edit_audio import extract_audio, set_audio, mix_audio
@@ -23,10 +22,13 @@ from overlay_video import overlay_all_results
 from run_speaker_diarization_v2 import run_speaker_diarization
 
 if __name__ == '__main__':
-    # tf v2
-    # config = tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))
-    # session = tf.Session(config=config)
-    # set_session(session)
+    if tf.__version__.startswith('1'):
+        from keras.backend import set_session
+
+        config = tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))
+        session = tf.Session(config=config)
+        set_session(session)
+
     implement_mode = {
         "detect_face": 1,  # 動画から顔領域の切り出し
         "emotional_recognition": 1,  # 切り出した顔画像の表情・頷き・口の開閉認識
@@ -73,10 +75,11 @@ if __name__ == '__main__':
         # 顔画像切り出し
         if implement_mode["detect_face"]:
             cluster_num = detect_face(target_video_path, clustered_face_path, k_resolution,
-                                    capture_image_num)  # 顔画像を切り出す
+                                      capture_image_num)  # 顔画像を切り出す
             cluster_face(clustered_face_path, clustered_face_path + "cluster/",
-                        cluster_num=cluster_num)  # 顔画像をcluster_numクラスタにクラスタリングする
-            print("顔画像切り出し完了．\nPath:{} を確認して，対象外人物のフォルダを削除してください．\n完了した場合，何か入力してください．".format(clustered_face_path + "cluster/"))
+                         cluster_num=cluster_num)  # 顔画像をcluster_numクラスタにクラスタリングする
+            print("顔画像切り出し完了．\nPath:{} を確認して，対象外人物のフォルダを削除してください．\n完了した場合，何か入力してください．".format(
+                clustered_face_path + "cluster/"))
             input_str = input()  # 入力待ち
             print(input_str)
 
@@ -124,7 +127,7 @@ if __name__ == '__main__':
             concat_video(input_video_list, result_path + "output.avi")
             for j in range(len(target_image_path_list)):
                 input_csv_list = ["{}split_video_{}/result{}.csv".format(result_path, i, j) for i in
-                                range(split_video_num)]
+                                  range(split_video_num)]
                 concat_csv(input_csv_list, result_path + "result{}.csv".format(j))
 
         # 話者分離 (Diarization)
@@ -152,7 +155,7 @@ if __name__ == '__main__':
             index_to_name_dict = {-1: "unknown"}
             index_to_name_dict.update({i: val for i, val in enumerate(clustered_face_list)})
             faces_path = ["{}{}/{}/{}".format(clustered_face_path, "cluster", name, "closest.PNG") for name in
-                        clustered_face_list]
+                          clustered_face_list]
 
             # Path等の設定
             input_movie_path = "{}output.avi".format(result_path)
