@@ -30,7 +30,7 @@ from main_util import cleanup_directory
 
 """
 
-config_template = {
+config = {
     # NOTE:（　）の中はデフォルト
     'use_run_speaker_diarization': True,  # run_speaker_diarizationを実行するか、loudness-basedの手法を使用するか (False)
 
@@ -57,23 +57,23 @@ config_template = {
 }
 
 
-def get_config_template():
-    return config_template
+def get_config():
+    return config
 
 
-def transcript(output_dir, audio_path_list, config):
+def transcript(output_dir, audio_path_list, transcript_config):
     """
     The main routine to transcript the audio file
     :param output_dir: The directory that contains all outputted files
     :param audio_path_list: A list of path to the audio files, these audio files will be mixed into one.
         It can be only one audio file, for example: ['/foo/bar/audio.wav'], in this case you must specify people_num.
-    :param config: Configuration.
+    :param transcript_config: Configuration.
     :return:
     """
 
-    if config['people_num'] is None:
+    if transcript_config['people_num'] is None:
         assert len(audio_path_list) > 1
-        config['people_num'] = len(audio_path_list)
+        transcript_config['people_num'] = len(audio_path_list)
 
     diarization_dir = join(output_dir, 'diarization')
     split_audio_dir = join(output_dir, 'split')
@@ -83,41 +83,41 @@ def transcript(output_dir, audio_path_list, config):
     mixed_audio_path = join(output_dir, mixed_audio_name + '.wav')
     transcript_path = join(output_dir, 'transcript.csv')
 
-    if not config['no_clean']:
+    if not transcript_config['no_clean']:
         cleanup_directory(output_dir)
         cleanup_directory(split_audio_dir)
         cleanup_directory(segment_audio_dir)
         cleanup_directory(diarization_dir)
 
-    with open(join(output_dir, 'config.txt'), 'w') as f:
-        print(config, file=f)
+    with open(join(output_dir, 'transcript_config.txt'), 'w') as f:
+        print(transcript_config, file=f)
 
     mix_audio(audio_path_list, mixed_audio_path)
 
     """ 1. Diarization """
-    if config['use_run_speaker_diarization']:
-        if not config['skip_run_speaker_diarization']:
+    if transcript_config['use_run_speaker_diarization']:
+        if not transcript_config['skip_run_speaker_diarization']:
             from run_speaker_diarization_v2 import run_speaker_diarization
             run_speaker_diarization(output_dir + os.sep, mixed_audio_name, diarization_dir + os.sep,
-                                    people_num=config['people_num'],
-                                    embedding_per_second=config['embedding_per_second'],
-                                    overlap_rate=config['overlap_rate'],
-                                    use_spectral_cluster=config['use_spectral_cluster'])
+                                    people_num=transcript_config['people_num'],
+                                    embedding_per_second=transcript_config['embedding_per_second'],
+                                    overlap_rate=transcript_config['overlap_rate'],
+                                    use_spectral_cluster=transcript_config['use_spectral_cluster'])
         df_diarization_compact = diarization_compact(join(diarization_dir, 'result.csv'), diarization_dir)
-        if config['use_loudness_after_diarization']:
+        if transcript_config['use_loudness_after_diarization']:
             df_diarization_compact = loudness_after_diarization(audio_path_list, df_diarization_compact,
                                                                 diarization_dir)
     else:
-        if config['allow_overlapping']:
+        if transcript_config['allow_overlapping']:
             # 現在の実験データでは、まだノイズが酷かったため、この方法はうまくいきません。
             df_diarization_compact = speech_segmenter_only_v2(audio_path_list, diarization_dir)
         else:
             df_diarization_compact = loudness_after_speech_segmenter(audio_path_list, diarization_dir)
 
     """ 2. Split audio after Diarization """
-    if config['skip_split']:
+    if transcript_config['skip_split']:
         return
-    if config['s2t_use_mixed_audio']:
+    if transcript_config['s2t_use_mixed_audio']:
         split_path_list, start_time_list, end_time_list = split_audio_after_diarization(df_diarization_compact,
                                                                                         [mixed_audio_path],
                                                                                         split_audio_dir)
@@ -126,12 +126,12 @@ def transcript(output_dir, audio_path_list, config):
                                                                                         audio_path_list,
                                                                                         split_audio_dir)
     """ 3. Segmentation -> Speech2Text """
-    if config['skip_transcript']:
+    if transcript_config['skip_transcript']:
         return
     output_csv = []
     for i, split_path in enumerate(sorted(split_path_list)):
         segment_path_list = optimized_segment_audio(input_path=split_path, output_dir=segment_audio_dir,
-                                                    max_duration_sec=config['max_split_duration_sec'])
+                                                    max_duration_sec=transcript_config['max_split_duration_sec'])
         if len(segment_path_list) == 0:
             continue
         segment_transcript_list = []
@@ -145,7 +145,7 @@ def transcript(output_dir, audio_path_list, config):
 
             with speech_recognition.AudioFile(segment_path) as src:
                 audio = r.record(src)
-                while (not is_success) and (attempt < config['s2t_retry_num']):
+                while (not is_success) and (attempt < transcript_config['s2t_retry_num']):
                     if attempt > 0:
                         print('=== Attempt #{} ==='.format(attempt + 1))
                     try:
@@ -153,11 +153,11 @@ def transcript(output_dir, audio_path_list, config):
                         is_success = True
                         print(split_progress, segment_progress, segment_path, segment_transcript_list[-1])
                     except speech_recognition.UnknownValueError:
-                        if attempt == config['s2t_retry_num'] - 1:
+                        if attempt == transcript_config['s2t_retry_num'] - 1:
                             segment_transcript_list.append('')
                         print(split_progress, segment_progress, segment_path, 'Could not understand audio')
                     except speech_recognition.RequestError as e:
-                        if attempt == config['s2t_retry_num'] - 1:
+                        if attempt == transcript_config['s2t_retry_num'] - 1:
                             segment_transcript_list.append('')
                         print(split_progress, segment_progress, segment_path, 'RequestError: {}'.format(e))
                     attempt += 1
@@ -455,27 +455,27 @@ if __name__ == "__main__":
     # variant = '_uis_rnn_30sec_loudness'
     # transcript('output_exp22' + variant,
     #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
-    #            config_template)
+    #            config)
     # transcript('output_exp23' + variant,
     #            ["test/wave/200225_芳賀先生_実験23/200225_芳賀先生_実験23voice{}.wav".format(i) for i in range(1, 7)],
-    #            config_template)
-
+    #            config)
+    #
     # variant = '_uis_rnn_30sec_loudness_0.5_0.5'
     # transcript('output_exp22' + variant,
     #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
-    #            config_template)
+    #            config)
     #
-    # config_template['embedding_per_second'] = 1.0
-    # config_template['overlap_rate'] = 0.5
+    # config['embedding_per_second'] = 1.0
+    # config['overlap_rate'] = 0.5
     # variant = '_uis_rnn_30sec_loudness_1.0_0.5'
     # transcript('output_exp22' + variant,
     #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
-    #            config_template)
-
-    # config_template['embedding_per_second'] = 0.5
-    # config_template['overlap_rate'] = 0.7
+    #            config)
+    #
+    # config['embedding_per_second'] = 0.5
+    # config['overlap_rate'] = 0.7
     # variant = '_uis_rnn_30sec_loudness_0.5_0.7'
     # transcript('output_exp22' + variant,
     #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
-    #            config_template)
+    #            config)
     pass
