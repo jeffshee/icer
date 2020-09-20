@@ -37,7 +37,7 @@ config_template = {
     # run_speaker_diarization関連設定
     'use_spectral_cluster': False,  # run_speaker_diarizationを実行する際、SpectralClusteringを使用するか、UIS-RNNを使用するか (False)
     'people_num': None,  # run_speaker_diarizationのパラメータ
-    'embedding_per_second': 0.5,  # run_speaker_diarizationのパラメータ
+    'embedding_per_second': 1.0,  # run_speaker_diarizationのパラメータ
     'overlap_rate': 0.5,  # run_speaker_diarizationのパラメータ
     'use_loudness_after_diarization': True,  # SpectralClusteringやUIS-RNNを行った後、話者判別の結果だけをloudness-basedで差し替える (True)
 
@@ -55,6 +55,10 @@ config_template = {
     'skip_split': False,  # (Debug) Skip split (False)
     'skip_transcript': False,  # (Debug) Skip transcript (False)
 }
+
+
+def get_config_template():
+    return config_template
 
 
 def transcript(output_dir, audio_path_list, config):
@@ -461,12 +465,12 @@ if __name__ == "__main__":
     #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
     #            config_template)
     #
-    config_template['embedding_per_second'] = 1.0
-    config_template['overlap_rate'] = 0.5
-    variant = '_uis_rnn_30sec_loudness_1.0_0.5'
-    transcript('output_exp22' + variant,
-               ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
-               config_template)
+    # config_template['embedding_per_second'] = 1.0
+    # config_template['overlap_rate'] = 0.5
+    # variant = '_uis_rnn_30sec_loudness_1.0_0.5'
+    # transcript('output_exp22' + variant,
+    #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
+    #            config_template)
 
     # config_template['embedding_per_second'] = 0.5
     # config_template['overlap_rate'] = 0.7
@@ -474,3 +478,4 @@ if __name__ == "__main__":
     # transcript('output_exp22' + variant,
     #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
     #            config_template)
+    pass
