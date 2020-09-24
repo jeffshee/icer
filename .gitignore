@@ -5,3 +5,8 @@ __pycache__
 face_image
 result
 diarization
+./pinmic_to_transcript*
+./reports
+./co_occurrence
+./diarization
+./model
