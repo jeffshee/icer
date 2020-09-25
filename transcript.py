@@ -3,7 +3,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 import tensorflow as tf
 
-tf.get_logger().setLevel('INFO')
+# tf.get_logger().setLevel('INFO')
 
 import os
 from os.path import join, basename
@@ -464,9 +464,15 @@ if __name__ == "__main__":
     config_template['embedding_per_second'] = 1.0
     config_template['overlap_rate'] = 0.5
     variant = '_uis_rnn_30sec_loudness_1.0_0.5'
-    transcript('output_exp22' + variant,
-               ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
-               config_template)
+    # transcript('output_exp12' + variant,
+    #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
+    #            config_template)
+    # transcript('output_exp12' + variant,
+    #            ["audio/expt12/200221_expt12_voice{}.wav".format(i) for i in range(1, 4)],
+    #            config_template)
+    transcript('output_exp58' + variant,
+                ["audio/expt58/200309_expt58_voice{}.wav".format(i) for i in range(1, 4)],
+                config_template)
 
     # config_template['embedding_per_second'] = 0.5
     # config_template['overlap_rate'] = 0.7
