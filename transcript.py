@@ -57,11 +57,7 @@ config = {
 }
 
 
-def get_config():
-    return config
-
-
-def transcript(output_dir, audio_path_list, transcript_config):
+def transcript(output_dir, audio_path_list, transcript_config=None):
     """
     The main routine to transcript the audio file
     :param output_dir: The directory that contains all outputted files
@@ -70,6 +66,9 @@ def transcript(output_dir, audio_path_list, transcript_config):
     :param transcript_config: Configuration.
     :return:
     """
+
+    if transcript_config is None:
+        transcript_config = config
 
     if transcript_config['people_num'] is None:
         assert len(audio_path_list) > 1
@@ -174,6 +173,7 @@ def transcript(output_dir, audio_path_list, transcript_config):
     df.to_csv(transcript_path, index=False, encoding='utf_8_sig', header=True)
 
     # Remove `split` directory, we don't need them anymore
+    # import shutil
     # shutil.rmtree(split_audio_dir)
 
 

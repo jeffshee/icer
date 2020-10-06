@@ -5,8 +5,12 @@ import subprocess
 import time
 import math
 from tqdm import tqdm
+import cv2
+import face_recognition
 
-def calibrate_video(original_video_path, output_video_path, k_resolution, capture_image_num=50, model="hog", use_gpu=False):
+
+def calibrate_video(original_video_path, output_video_path, k_resolution, capture_image_num=50, model="hog",
+                    use_gpu=False):
     input_movie = cv2.VideoCapture(original_video_path)  # 動画を読み込む
     original_w = int(input_movie.get(cv2.CAP_PROP_FRAME_WIDTH))  # 動画の幅を測る
     original_h = int(input_movie.get(cv2.CAP_PROP_FRAME_HEIGHT))  # 動画の高さを測る
@@ -22,14 +26,14 @@ def calibrate_video(original_video_path, output_video_path, k_resolution, captur
     start = time.time()
     with tqdm(range(0, length, length // capture_image_num)) as pbar:
         for i, frame_number in enumerate(pbar):
-        # for i, frame_number in enumerate(range(0, length, length // capture_image_num)):
+            # for i, frame_number in enumerate(range(0, length, length // capture_image_num)):
 
             # print("frame_number:", frame_number)
             input_movie.set(cv2.CAP_PROP_POS_FRAMES, frame_number)  # 動画の開始フレームを設定
 
             # 動画を読み込む
             ret, frame = input_movie.read()
-        
+
             # フレームのサイズを調整する
             frame = cv2.resize(frame, (w, h))
 
@@ -41,25 +45,42 @@ def calibrate_video(original_video_path, output_video_path, k_resolution, captur
             rgb_frame = frame[:, :, ::-1]
 
             # 顔検出が最多になる動画の横方向のシフト数を算出
-            face_location_list = face_recognition.face_locations(rgb_frame, model=model)  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
+            face_location_list = face_recognition.face_locations(rgb_frame,
+                                                                 model=model)  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
             if i == 0: max_face_detection_num = len(face_location_list)
             base_face_detection_num_in_frame = len(face_location_list)
 
-            for dw in range(w//5, w, w//5):
+            for dw in range(w // 5, w, w // 5):
                 # face_location_list = face_recognition.face_locations(np.append(rgb_frame[:, dw:, :], rgb_frame[:, :dw, :], axis=1), model="hog")  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
-                face_location_list = face_recognition.face_locations(np.roll(rgb_frame, -dw, axis=1), model=model)  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
+                face_location_list = face_recognition.face_locations(np.roll(rgb_frame, -dw, axis=1),
+                                                                     model=model)  # model="cnn"にすると検出率は上がるが10倍以上時間がかかる top,right,bottom,leftの順
                 face_detection_num_in_frame = len(face_location_list)
-                if (face_detection_num_in_frame >= base_face_detection_num_in_frame) and (max_face_detection_num < face_detection_num_in_frame):
+                if (face_detection_num_in_frame >= base_face_detection_num_in_frame) and (
+                        max_face_detection_num < face_detection_num_in_frame):
                     max_face_detection_num = face_detection_num_in_frame
-                    calibrate_num = dw//k_resolution
+                    calibrate_num = dw // k_resolution
 
     if calibrate_num != 0:
-        if use_gpu: cmd = "ffmpeg -y -i {} -vcodec h264_nvenc -vf crop={}:{}:{}:{} {}_right.mp4".format(original_video_path, original_w-calibrate_num, original_h, calibrate_num, 0, output_video_path)
-        else: cmd = "ffmpeg -y -i {} -vf crop={}:{}:{}:{} {}_right.mp4".format(original_video_path, original_w-calibrate_num, original_h, calibrate_num, 0, output_video_path)
+        if use_gpu:
+            cmd = "ffmpeg -y -i {} -vcodec h264_nvenc -vf crop={}:{}:{}:{} {}_right.mp4".format(original_video_path,
+                                                                                                original_w - calibrate_num,
+                                                                                                original_h,
+                                                                                                calibrate_num, 0,
+                                                                                                output_video_path)
+        else:
+            cmd = "ffmpeg -y -i {} -vf crop={}:{}:{}:{} {}_right.mp4".format(original_video_path,
+                                                                             original_w - calibrate_num, original_h,
+                                                                             calibrate_num, 0, output_video_path)
         proc = subprocess.Popen(cmd, shell=True)
         time.sleep(5)
-        if use_gpu: cmd = "ffmpeg -y -i {} -vcodec h264_nvenc -vf crop={}:{}:{}:{} {}_left.mp4".format(original_video_path, calibrate_num, original_h, 0, 0, output_video_path)
-        else: cmd = "ffmpeg -y -i {} -vf crop={}:{}:{}:{} {}_left.mp4".format(original_video_path, calibrate_num, original_h, 0, 0, output_video_path)
+        if use_gpu:
+            cmd = "ffmpeg -y -i {} -vcodec h264_nvenc -vf crop={}:{}:{}:{} {}_left.mp4".format(original_video_path,
+                                                                                               calibrate_num,
+                                                                                               original_h, 0, 0,
+                                                                                               output_video_path)
+        else:
+            cmd = "ffmpeg -y -i {} -vf crop={}:{}:{}:{} {}_left.mp4".format(original_video_path, calibrate_num,
+                                                                            original_h, 0, 0, output_video_path)
         proc = subprocess.Popen(cmd, shell=True)
         proc.wait()  # 一番最後の動画のトリミングが終了するまで待つ
         input_video_list = ["{}_right.mp4".format(output_video_path), "{}_left.mp4".format(output_video_path)]
@@ -67,8 +88,13 @@ def calibrate_video(original_video_path, output_video_path, k_resolution, captur
         # concat_video(input_video_list, concat_video_path)
         # for cat_input_video_list in input_video_list:
         #     os.remove(cat_input_video_list)
-        if use_gpu: cmd = " ffmpeg -y -i {} -i {} -vcodec h264_nvenc -filter_complex hstack {}".format(input_video_list[0], input_video_list[1], concat_video_path)
-        else: cmd = " ffmpeg -y -i {} -i {} -filter_complex hstack {}".format(input_video_list[0], input_video_list[1], concat_video_path)
+        if use_gpu:
+            cmd = " ffmpeg -y -i {} -i {} -vcodec h264_nvenc -filter_complex hstack {}".format(input_video_list[0],
+                                                                                               input_video_list[1],
+                                                                                               concat_video_path)
+        else:
+            cmd = " ffmpeg -y -i {} -i {} -filter_complex hstack {}".format(input_video_list[0], input_video_list[1],
+                                                                            concat_video_path)
         proc = subprocess.Popen(cmd, shell=True)
         proc.wait()  # 一番最後の動画のトリミングが終了するまで待つ
     e_time = time.time() - start
@@ -78,10 +104,10 @@ def calibrate_video(original_video_path, output_video_path, k_resolution, captur
 def split_video(original_video_path, split_num):  # ms単位で正確には分割できないので，結局使ってない
     video_length_format = get_length(original_video_path)
     video_length_sec = datetime.timedelta(hours=int(video_length_format[0]),
-                                        minutes=int(video_length_format[1]),
-                                        seconds=int(video_length_format[2].split(".")[0]),
-                                        milliseconds=math.modf(float(video_length_format[2]))[
-                                                            0] * 1000).total_seconds()
+                                          minutes=int(video_length_format[1]),
+                                          seconds=int(video_length_format[2].split(".")[0]),
+                                          milliseconds=math.modf(float(video_length_format[2]))[
+                                                           0] * 1000).total_seconds()
     time_duration_sec = video_length_sec // split_num
     time_duration_format = str(datetime.timedelta(seconds=time_duration_sec)) + ".00000"
     for i in range(split_num):
@@ -96,9 +122,9 @@ def split_video(original_video_path, split_num):  # ms単位で正確には分�
         print(start_frame_format, time_duration_format)
 
         cmd = "ffmpeg -y -ss {} -i {} -ss 0 -t {} -c:v copy -strict -2 -an {}".format(start_frame_format,
-                                                                                    original_video_path,
-                                                                                    time_duration_format,
-                                                                                    output_video_path)
+                                                                                      original_video_path,
+                                                                                      time_duration_format,
+                                                                                      output_video_path)
         # cmd = "ffmpeg -y -ss {} -i {} -ss 0 -t {} -c:v copy -c:a copy -async 1 -strict -2 {}".format(start_frame_format, original_video_path, time_duration_format, output_video_path)
         popen = subprocess.Popen(cmd, shell=True)
 
@@ -109,9 +135,12 @@ def concat_video(input_video_list, concat_video_path, use_gpu=False):
     with open('input_video_list.txt', 'w') as f:
         for x in input_video_list:
             f.write("file '" + str(x) + "'\n")
-    
-    if use_gpu: cmd = "ffmpeg -y -safe 0 -f concat -i input_video_list.txt -vcodec h264_nvenc -c:v copy -map 0:v {}".format(concat_video_path)
-    else: cmd = "ffmpeg -y -safe 0 -f concat -i input_video_list.txt -c:v copy -map 0:v {}".format(concat_video_path)
+
+    if use_gpu:
+        cmd = "ffmpeg -y -safe 0 -f concat -i input_video_list.txt -vcodec h264_nvenc -c:v copy -map 0:v {}".format(
+            concat_video_path)
+    else:
+        cmd = "ffmpeg -y -safe 0 -f concat -i input_video_list.txt -c:v copy -map 0:v {}".format(concat_video_path)
     # cmd = "ffmpeg -y -safe 0 -f concat -i input_video_list.txt -c:v copy -c:a copy -map 0:v -map 0:a {}".format(concat_video_path)
     subprocess.call(cmd, shell=True)
     os.remove('input_video_list.txt')
@@ -126,12 +155,31 @@ def get_length(filename):
     return duration
 
 
-def trim_video(input_video_path, trim_time, use_gpu=False):
+def trim_video(input_video_path, trim_time, output_video_path=None, use_gpu=False):
     start_time = trim_time[0]  # "00:18:00"
     end_time = trim_time[1]  # "00:37:00"
-    output_video_path = input_video_path.replace(".", "_trim.")
-    if use_gpu: cmd = "ffmpeg -y -i {} -vcodec h264_nvenc -ss {} -to {} -c:v copy -c:a copy ./video/{}".format(input_video_path, start_time, end_time, output_video_path)
-    else: cmd = "ffmpeg -y -i {} -ss {} -to {} -c:v copy -c:a copy ./video/{}".format(input_video_path, start_time, end_time, output_video_path)
+    if output_video_path is None:
+        output_video_path = input_video_path.replace(".", "_trim.")
+    # if use_gpu:
+    #     cmd = "ffmpeg -y -i {} -vcodec h264_nvenc -ss {} -to {} -c:v copy -c:a copy ./video/{}".format(input_video_path,
+    #                                                                                                    start_time,
+    #                                                                                                    end_time,
+    #                                                                                                    output_video_path)
+    # else:
+    #     cmd = "ffmpeg -y -i {} -ss {} -to {} -c:v copy -c:a copy ./video/{}".format(input_video_path, start_time,
+    #                                                                                 end_time, output_video_path)
+    if use_gpu:
+        # -strict unofficial is to preserve the spherical (360) video metadata
+        # Ref: https://gist.github.com/soonraah/7c7a8369829975aeb65ed048af789f4f
+        cmd = "ffmpeg -y -i {} -ss {} -to {} -c:v h264_nvenc -c:a copy -strict unofficial {}".format(input_video_path,
+                                                                                                     start_time,
+                                                                                                     end_time,
+                                                                                                     output_video_path)
+    else:
+        cmd = "ffmpeg -y -i {} -ss {} -to {} -c:v copy -c:a copy -strict unofficial {}".format(input_video_path,
+                                                                                               start_time,
+                                                                                               end_time,
+                                                                                               output_video_path)
     subprocess.Popen(cmd, shell=True)
 
 
