@@ -362,13 +362,17 @@ def overlay_parallel(input_movie_path, output_movie_path, fourcc, split_frame_li
         df_transcript_extracted = df_transcript[
             (frame_number >= (df_transcript["Start time(ms)"] * video_frame_rate // 1000)) & (
                     (df_transcript["End time(ms)"] * video_frame_rate // 1000) >= frame_number)]
+
         if not df_transcript_extracted.empty:
             draw_transcript = ImageDraw.Draw(img_transcript_pil)
-            for i, x in enumerate(df_transcript_extracted.itertuples()):
-                new_text = ""
-                for j in range(1 + len(str(x[1 + 2])) // max_char):
-                    new_text = new_text + str(x[1 + 2])[j * max_char:(j + 1) * max_char] + "\n"
-                draw_transcript.text((20, 60), "{}: {}".format(x[1 + 1], new_text), font=font, fill=(0, 0, 0))
+            start = str(df_transcript_extracted["Start time(HH:MM:SS)"].item())
+            end = str(df_transcript_extracted["End time(HH:MM:SS)"].item())
+            text = str(df_transcript_extracted["Text"].item())
+            display = " ".join([start, end, text])
+            for i in range(len(display) // max_char):
+                display = display[:(i + 1) * max_char] + "\n" + display[(i + 1) * max_char:]
+            draw_transcript.text((20, 60), display, font=font, fill=(0, 0, 0))
+
         img_transcript = np.array(img_transcript_pil)
 
         #############################
@@ -489,24 +493,12 @@ def overlay_all_results(input_video_path, output_video_path, diarization_result_
     split_frame_list = [0] + split_frame_list + [video_length]
     print("split_frame_list", split_frame_list)
 
-    # TODO
-    # # transcriptの作成：文章ごとに音声を分割して保存し，音声認識する．
-    # split_wave_per_sentence(df_diarization_sorted, df_split_ms["time(ms)"].values.tolist(),
-    #                         path_audio + video_name + ".wav", path_emo_rec + "split_wave/")
-    # wav_to_transcript(path_emo_rec + "split_wave/", split_ms_list=df_split_ms["time(ms)"].values.tolist() + [
-    #     (video_length * 1000) // video_frame_rate], output_path=path_emo_rec + "transcript.csv")
-    # csv_to_text(path_emo_rec + "transcript.csv", output_path="co_occurrence/data/{}_transcript.txt".format(video_name),
-    #             specific_column=["Text"], specific_index="Speaker")
-    # df_transcript = pd.read_csv(path_emo_rec + "transcript.csv", encoding="utf_8_sig", header=0,
-    #                             usecols=["Order", "Speaker", "Text", "Start time(ms)", "End time(ms)"])
-
     df_transcript = pd.read_csv(transcript_result_path, encoding="utf_8_sig", header=0,
                                 usecols=['Order', 'Start time(HH:MM:SS)', 'End time(HH:MM:SS)', 'Text', 'Speaker',
                                          'Start time(ms)', 'End time(ms)'])
     # 並列処理で動画を作成する
-    # TODO
-    # split_video_num_v2 = split_video_num * 2
-    split_video_num_v2 = split_video_num
+    split_video_num_v2 = split_video_num * 2
+    # split_video_num_v2 = split_video_num
     process_list = []
 
     # https://github.com/opencv/opencv/issues/5150
@@ -514,7 +506,6 @@ def overlay_all_results(input_video_path, output_video_path, diarization_result_
     for split_video_index in range(split_video_num_v2):
         # if split_video_index > 0:
         #     continue
-        # TODO
         split_result_path = join(output_dir, "split_video_overlay_{}".format(split_video_index))
         cleanup_directory(split_result_path)
         process_list.append(multiprocessing.Process(target=overlay_parallel,
