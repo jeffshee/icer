@@ -23,9 +23,9 @@ config = {
     # NOTE:（　）の中はデフォルト
 
     # Run mode
-    'run_capture_face': False,  # 動画から顔領域の切り出し
-    'run_emotional_recognition': False,  # 切り出した顔画像の表情・頷き・口の開閉認識
-    'run_transcript': False,  # Diarization・音声認識
+    'run_capture_face': True,  # 動画から顔領域の切り出し
+    'run_emotional_recognition': True,  # 切り出した顔画像の表情・頷き・口の開閉認識
+    'run_transcript': True,  # Diarization・音声認識
     'run_overlay': True,  # 表情・頷き・発話情報を動画にまとめて可視化
 
     # capture_face関連設定
@@ -38,7 +38,7 @@ config = {
     'split_video_num': 10,  # split_video_num 並列で動画を処理する．10くらいがメモリ・CPUの限界
 
     # Debug関連設定
-    'no_clean': True,  # (Debug) Use old result (False)
+    'no_clean': False,  # (Debug) Use old result (False)
 }
 
 
@@ -180,8 +180,6 @@ def main(video_path, audio_path_list, output_dir, main_config=None):
         start = time.time()
         run_overlay(overlay_dir, cluster_dir, emotion_dir, transcript_dir, main_config)
         print('run_overlay elapsed time:', time.time() - start, '[sec]')
-
-    print('Elapsed time:', time.time() - start, '[sec]')
 
 
 if __name__ == '__main__':
