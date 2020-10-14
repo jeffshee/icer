@@ -195,3 +195,7 @@ if __name__ == '__main__':
 
     main('test/200225_芳賀先生_実験22video_10min.mp4',
          ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}_10min.wav".format(i) for i in range(1, 6)], 'main_test')
+
+
+
+##test for the push by zhang 2020 10 14
