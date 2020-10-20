@@ -21,6 +21,8 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 from matplotlib import rcParams  # matplotlibで日本語を表示するための設定
 from make_graph import get_graph_fig, get_transition_matrix
 
+from os.path import join
+
 
 def plot_tabel(df, save_path, colLabels=None):
     rcParams['font.family'] = 'sans-serif'
@@ -196,7 +198,8 @@ def overlay_parallel(input_movie_path, output_movie_path, fourcc, split_frame_li
             plt.title(index_to_name_dict[face_index], loc="center", fontsize=18)
 
             # 感情のヒストグラムを表示
-            df_emotion = pd.read_csv("{}result{}.csv".format(path_emo_rec, face_index), encoding="shift_jis", header=0,
+            df_emotion = pd.read_csv(join(path_emo_rec, "result{}.csv".format(face_index)), encoding="shift_jis",
+                                     header=0,
                                      usecols=["prediction"])
             # 1 speech あたりの感情
             df_emotion_count = df_emotion['prediction'][talk_start_frame:talk_end_frame].value_counts()
@@ -267,7 +270,8 @@ def overlay_parallel(input_movie_path, output_movie_path, fourcc, split_frame_li
         plt.scatter(x=[time_ms] * len(y_time_list), y=y_time_list, marker="|", color="yellow")
         # gestureが検出された時刻に点をプロット
         for face_index in range(len(faces_path)):
-            df_gesture = pd.read_csv("{}result{}.csv".format(path_emo_rec, face_index), encoding="shift_jis", header=0,
+            df_gesture = pd.read_csv(join(path_emo_rec, "result{}.csv".format(face_index)), encoding="shift_jis",
+                                     header=0,
                                      usecols=["time(ms)", "gesture"])
             df_gesture_yes = df_gesture[df_gesture["gesture"] == 1]
             plt.scatter(x=df_gesture_yes["time(ms)"], y=[face_index] * len(df_gesture_yes), marker="|", color="red",
@@ -358,13 +362,17 @@ def overlay_parallel(input_movie_path, output_movie_path, fourcc, split_frame_li
         df_transcript_extracted = df_transcript[
             (frame_number >= (df_transcript["Start time(ms)"] * video_frame_rate // 1000)) & (
                     (df_transcript["End time(ms)"] * video_frame_rate // 1000) >= frame_number)]
+
         if not df_transcript_extracted.empty:
             draw_transcript = ImageDraw.Draw(img_transcript_pil)
-            for i, x in enumerate(df_transcript_extracted.itertuples()):
-                new_text = ""
-                for j in range(1 + len(str(x[1 + 2])) // max_char):
-                    new_text = new_text + str(x[1 + 2])[j * max_char:(j + 1) * max_char] + "\n"
-                draw_transcript.text((20, 60), "{}: {}".format(x[1 + 1], new_text), font=font, fill=(0, 0, 0))
+            start = str(df_transcript_extracted["Start time(HH:MM:SS)"].item())
+            end = str(df_transcript_extracted["End time(HH:MM:SS)"].item())
+            text = str(df_transcript_extracted["Text"].item())
+            display = " ".join([start, end, text])
+            for i in range(len(display) // max_char):
+                display = display[:(i + 1) * max_char] + "\n" + display[(i + 1) * max_char:]
+            draw_transcript.text((20, 60), display, font=font, fill=(0, 0, 0))
+
         img_transcript = np.array(img_transcript_pil)
 
         #############################
@@ -392,15 +400,16 @@ def overlay_parallel(input_movie_path, output_movie_path, fourcc, split_frame_li
     cv2.destroyAllWindows()
 
 
-def overlay_all_results(input_movie_path, output_movie_path, path_diarization, matching_index_list, true_face_num,
-                        path_emo_rec, faces_path, video_name, index_to_name_dict, emotions, k_resolution,
-                        split_video_num, path_audio):
+def overlay_all_results(input_video_path, output_video_path, diarization_result_path, transcript_result_path,
+                        matching_index_list, true_face_num,
+                        emotion_dir, faces_path, video_name, index_to_name_dict, emotions, k_resolution,
+                        split_video_num, output_dir):
     # df_minutes = pd.read_excel(path_minutes + "{}.xlsx".format(video_name), encoding="shift_jis", header=0, usecols=["name", "ms", "comment"])
 
     font_path = 'GenYoMinJP-Regular.ttf'
 
     # diarization結果を口の開閉とのマッチング結果に置き換える
-    df_diarization = pd.read_csv("{}result.csv".format(path_diarization), encoding="shift_jis", header=0,
+    df_diarization = pd.read_csv(diarization_result_path, encoding="shift_jis", header=0,
                                  usecols=["time(ms)", "speaker class"])
     df_diarization_copy = df_diarization.copy()
     for speaker_class in range(len(df_diarization["speaker class"].unique())):
@@ -409,7 +418,7 @@ def overlay_all_results(input_movie_path, output_movie_path, path_diarization, m
 
     # 出力動画の詳細を設定する
     fourcc = cv2.VideoWriter_fourcc(*'XVID')  # 動画コーデック指定
-    input_movie = cv2.VideoCapture(input_movie_path)  # 動画を読み込む
+    input_movie = cv2.VideoCapture(input_video_path)  # 動画を読み込む
     video_length = int(input_movie.get(cv2.CAP_PROP_FRAME_COUNT))
     video_frame_rate = input_movie.get(cv2.CAP_PROP_FPS)  # 動画のフレームレートを取得
     original_w = int(input_movie.get(cv2.CAP_PROP_FRAME_WIDTH))  # 動画の幅を取得
@@ -464,7 +473,7 @@ def overlay_all_results(input_movie_path, output_movie_path, path_diarization, m
         except KeyError:
             data_summary[x].append(0)
 
-        df_gesture_tmp = pd.read_csv("{}result{}.csv".format(path_emo_rec, x), encoding="shift_jis", header=0,
+        df_gesture_tmp = pd.read_csv(join(emotion_dir, "result{}.csv".format(x)), encoding="shift_jis", header=0,
                                      usecols=["gesture"])
         df_gesture_tmp = df_gesture_tmp[df_gesture_tmp.diff()["gesture"] != 0]
         gesture_count = df_gesture_tmp["gesture"].value_counts()
@@ -475,8 +484,8 @@ def overlay_all_results(input_movie_path, output_movie_path, path_diarization, m
     rows_summary = [" {} ".format(index_to_name_dict[index]) for index in range(len(faces_path))]
     df_summary = pd.DataFrame(data_summary, index=rows_summary, columns=columns_summary)
     print(df_summary)
-    plot_tabel(df_summary, path_emo_rec + "summary_{}.png".format(video_name), colLabels=new_columns_name)
-    summary_image = cv2.imread(path_emo_rec + "summary_{}.png".format(video_name))
+    plot_tabel(df_summary, join(emotion_dir, "summary_{}.png".format(video_name)), colLabels=new_columns_name)
+    summary_image = cv2.imread(join(emotion_dir, "summary_{}.png".format(video_name)))
     summary_image = resize_with_original_aspect(summary_image, w_padding, h_padding + h_transcript)
 
     # 動画として保存
@@ -484,31 +493,29 @@ def overlay_all_results(input_movie_path, output_movie_path, path_diarization, m
     split_frame_list = [0] + split_frame_list + [video_length]
     print("split_frame_list", split_frame_list)
 
-    # transcriptの作成：文章ごとに音声を分割して保存し，音声認識する．
-    split_wave_per_sentence(df_diarization_sorted, df_split_ms["time(ms)"].values.tolist(),
-                            path_audio + video_name + ".wav", path_emo_rec + "split_wave/")
-    wav_to_transcript(path_emo_rec + "split_wave/", split_ms_list=df_split_ms["time(ms)"].values.tolist() + [
-        (video_length * 1000) // video_frame_rate], output_path=path_emo_rec + "transcript.csv")
-    csv_to_text(path_emo_rec + "transcript.csv", output_path="co_occurrence/data/{}_transcript.txt".format(video_name),
-                specific_column=["Text"], specific_index="Speaker")
-    df_transcript = pd.read_csv(path_emo_rec + "transcript.csv", encoding="utf_8_sig", header=0,
-                                usecols=["Order", "Speaker", "Text", "Start time(ms)", "End time(ms)"])
-
+    df_transcript = pd.read_csv(transcript_result_path, encoding="utf_8_sig", header=0,
+                                usecols=['Order', 'Start time(HH:MM:SS)', 'End time(HH:MM:SS)', 'Text', 'Speaker',
+                                         'Start time(ms)', 'End time(ms)'])
     # 並列処理で動画を作成する
     split_video_num_v2 = split_video_num * 2
+    # split_video_num_v2 = split_video_num
     process_list = []
+
+    # https://github.com/opencv/opencv/issues/5150
+    multiprocessing.set_start_method('spawn')
     for split_video_index in range(split_video_num_v2):
         # if split_video_index > 0:
         #     continue
-        split_result_path = "{}split_video_overlay_{}/".format(path_emo_rec, split_video_index)
+        split_result_path = join(output_dir, "split_video_overlay_{}".format(split_video_index))
         cleanup_directory(split_result_path)
         process_list.append(multiprocessing.Process(target=overlay_parallel,
-                                                    args=(input_movie_path,
-                                                          "{}split_video_overlay_{}/output.avi".format(path_emo_rec,
-                                                                                                       split_video_index),
+                                                    args=(input_video_path,
+                                                          join(output_dir,
+                                                               "split_video_overlay_{}".format(split_video_index),
+                                                               "output.avi"),
                                                           fourcc, split_frame_list, df_diarization_sorted,
                                                           video_frame_rate, true_face_num,
-                                                          faces_path, index_to_name_dict, path_emo_rec, emotions,
+                                                          faces_path, index_to_name_dict, emotion_dir, emotions,
                                                           w_padding, embedded_video_height, video_length,
                                                           matching_index_list, df_diarization, embedded_video_width,
                                                           h_padding,
@@ -519,9 +526,9 @@ def overlay_all_results(input_movie_path, output_movie_path, path_diarization, m
         process.join()
 
     # 分割して処理した結果を結合
-    input_video_list = ["{}split_video_overlay_{}/output.avi".format(path_emo_rec, i) for i in
+    input_video_list = [join(output_dir, "split_video_overlay_{}".format(i), "output.avi") for i in
                         range(split_video_num_v2)]
-    concat_video(input_video_list, output_movie_path)
+    concat_video(input_video_list, output_video_path)
 
 
 if __name__ == "__main__":
