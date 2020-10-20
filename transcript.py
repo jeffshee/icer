@@ -3,7 +3,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 import tensorflow as tf
 
-tf.get_logger().setLevel('INFO')
+# tf.get_logger().setLevel('INFO')
 
 import os
 from os.path import join, basename
