@@ -11,5 +11,5 @@ diarization
 ./diarization
 ./model
 /datasets/
-/utils/detect_face.csv
+/utils/detect_face_old.csv
 /utils/test.mp4
