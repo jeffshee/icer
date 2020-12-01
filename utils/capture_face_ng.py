@@ -4,6 +4,9 @@ import pandas as pd
 import numpy as np
 from os.path import join
 from ast import literal_eval as make_tuple
+import pickle
+from sklearn.cluster import KMeans
+from sklearn.metrics import pairwise_distances_argmin_min
 
 
 def get_frame_position(video_capture):
@@ -47,8 +50,33 @@ def interpolate_detect_face_result(detect_face_result):
 
 # TODO
 # use face_distance, choose closest. If collide, check nearest mid point.
-def match_detect_face_result(detect_face_result):
-    pass
+def match_detect_face_result(video_path):
+    import face_recognition
+
+    video_capture = cv2.VideoCapture(video_path)
+
+    with open("detect_face.pt", "rb") as f:
+        result = pickle.load(f)
+        max_face_num = 0
+        for r in result:
+            max_face_num = max(max_face_num, len(r) - 1)
+
+        encoding_list = []
+        for r in result:
+            frame_number, face_boxes = r[0], r[1:]
+            # Skip bad frame
+            if len(face_boxes) != max_face_num:
+                continue
+            set_frame_position(video_capture, frame_number)
+            ret, frame = video_capture.read()
+            # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
+            frame = frame[:, :, ::-1]
+            for top, right, bottom, left in face_boxes:
+                face_image = frame[top:bottom, left:right]
+                encoding_list.append(face_recognition.face_encodings(face_image))
+
+        model = KMeans(n_clusters=max_face_num)
+        # TODO
 
 
 # TODO: Initial analysis to detect a box where participants' faces will be in there mostly, cut the computational cost
@@ -179,6 +207,10 @@ def detect_face_multiprocess(video_path, parallel_num=3, k_resolution=3, frame_s
         for j in i:
             max_length = max(max_length, len(j))
             result_list.append(j)
+
+    # Save result into pickle
+    with open("detect_face.pt", "wb") as f:
+        pickle.dump(result_list, f)
     columns = ["frame"] + ["face{}".format(i) for i in range(max_length - 1)]
     df = pd.DataFrame(result_list, columns=columns)
     df.to_csv("detect_face.csv")
@@ -253,5 +285,6 @@ def recognize_emotion(video_path, k_resolution=3, batch_size=128):
 # # Prepare short ver. for testing
 # from edit_video import trim_video
 # trim_video("../datasets/Videos_new_200929/200221_expt12_video.mp4", ['00:00:00', '00:00:10'], "test.mp4")
-detect_face_multiprocess("test.mp4")
-recognize_emotion("test.mp4")
+# detect_face_multiprocess("test.mp4")
+# recognize_emotion("test.mp4")
+match_detect_face_result("test.mp4")
