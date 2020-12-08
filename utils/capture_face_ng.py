@@ -7,6 +7,10 @@ from ast import literal_eval as make_tuple
 import pickle
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances_argmin_min
+import shutil
+from main_util import cleanup_directory
+import os
+import numpy as np
 
 
 def get_frame_position(video_capture):
@@ -48,9 +52,21 @@ def interpolate_detect_face_result(detect_face_result):
         pass
 
 
+def my_compare_faces(known_faces, face_encoding_to_check):
+    distance_list = []
+    if len(known_faces) == 0:
+        return np.empty((0))
+
+    for known_face_list in known_faces:
+        distance_know_face_list = list(np.linalg.norm(known_face_list - face_encoding_to_check, axis=1))
+        distance_list.append(min(distance_know_face_list))
+
+    return distance_list
+
+
 # TODO
 # use face_distance, choose closest. If collide, check nearest mid point.
-def match_detect_face_result(video_path):
+def match_detect_face_result(video_path, output_path="../face_cluster", face_matching_th=0.35):
     import face_recognition
 
     video_capture = cv2.VideoCapture(video_path)
@@ -61,7 +77,12 @@ def match_detect_face_result(video_path):
         for r in result:
             max_face_num = max(max_face_num, len(r) - 1)
 
+        for cluster_index in range(max_face_num):
+            cleanup_directory(join(output_path, '{}'.format(cluster_index)))
+
         encoding_list = []
+        img_filepath_list = []
+        count = 0
         for r in result:
             frame_number, face_boxes = r[0], r[1:]
             # Skip bad frame
@@ -70,13 +91,86 @@ def match_detect_face_result(video_path):
             set_frame_position(video_capture, frame_number)
             ret, frame = video_capture.read()
             # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
-            frame = frame[:, :, ::-1]
             for top, right, bottom, left in face_boxes:
-                face_image = frame[top:bottom, left:right]
-                encoding_list.append(face_recognition.face_encodings(face_image))
+                img_filepath = join(output_path, "{}.png".format(count))
+                cv2.imwrite(img_filepath, frame[top:bottom, left:right])
+                img_filepath_list.append(img_filepath)
+                count += 1
 
+            frame = frame[:, :, ::-1]
+            encoding_list.extend(face_recognition.face_encodings(frame, face_boxes))
+
+        encoding_list = np.array(encoding_list)
         model = KMeans(n_clusters=max_face_num)
-        # TODO
+        model.fit(encoding_list)
+
+        pred_labels = model.labels_
+
+        closest, _ = pairwise_distances_argmin_min(model.cluster_centers_, encoding_list)
+
+        for i, (label, face_image_name) in enumerate(zip(pred_labels, img_filepath_list)):
+            if i == closest[label]:
+                shutil.move(face_image_name,
+                            join(output_path, "{}", "{}.png").format(label, "closest"))
+            else:
+                shutil.move(face_image_name,
+                            join(output_path, "{}", "{}.png").format(label, i))
+
+        # for r in result:
+        #     frame_number, face_boxes = r[0], r[1:]
+        #     set_frame_position(video_capture, frame_number)
+        #     ret, frame = video_capture.read()
+        #     frame = frame[:, :, ::-1]
+        #     encoding_frame = face_recognition.face_encodings(frame, face_boxes)
+        #     pred = model.predict(encoding_frame)
+
+        known_faces = []
+        for label in range(max_face_num):
+            temp = []
+            for i, encoding in enumerate(encoding_list):
+                if label == pred_labels[i]:
+                    temp.append(encoding)
+            known_faces.append(temp)
+
+        # cluster_image_path_list = []
+        # for cluster in os.listdir(output_path):
+        #     cluster_root = join(output_path, cluster)
+        #     img_list = os.listdir(cluster_root)
+        #     cluster_image_path_list.append([join(cluster_root, img) for img in img_list])
+        #
+        # known_faces = []
+        # for path_list in cluster_image_path_list:
+        #     face_images = [face_recognition.load_image_file(path) for path in path_list]
+        #     face_images_encoded = [
+        #         face_recognition.face_encodings(x, known_face_locations=[(x.shape[1], 0, 0, x.shape[0])])[0] for x in
+        #         face_images]
+        #     known_faces.append(face_images_encoded)
+
+        for r in result:
+            frame_number, face_boxes = r[0], r[1:]
+            set_frame_position(video_capture, frame_number)
+            ret, frame = video_capture.read()
+            frame = frame[:, :, ::-1]
+            face_encoded_list = face_recognition.face_encodings(frame, known_face_locations=face_boxes)
+
+            # 入力画像とのマッチング
+            face_distance_list = [[] for _ in range(len(known_faces))]
+            for face_encoded in face_encoded_list:
+                tmp_distance = my_compare_faces(known_faces, face_encoded)
+                for i in range(len(face_distance_list)):
+                    face_distance_list[i].append(tmp_distance[i])
+            print(face_distance_list)
+            face_index_list = [None] * len(face_encoded_list)
+            for i in range(len(known_faces)):
+                if min(face_distance_list[i]) <= face_matching_th:
+                    face_index = face_distance_list[i].index(min(face_distance_list[i]))
+                    if face_index_list[face_index] is None:  # クエリ画像が検出顔のどれともマッチングしていないとき
+                        face_index_list[face_index] = i
+                    elif face_distance_list[face_index_list[face_index]].index(
+                            min(face_distance_list[face_index_list[face_index]])) >= face_distance_list[i].index(
+                        min(face_distance_list[i])):  # クエリ画像が検出顔のいずれかとマッチング済みであるとき
+                        face_index_list[face_index] = i
+            print(face_index_list)
 
 
 # TODO: Initial analysis to detect a box where participants' faces will be in there mostly, cut the computational cost
