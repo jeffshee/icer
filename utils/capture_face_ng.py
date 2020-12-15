@@ -11,7 +11,11 @@ import shutil
 from main_util import cleanup_directory
 import os
 import numpy as np
+from utils.matcher import Matcher
 
+
+# TODO
+# return face landmarks
 
 def get_frame_position(video_capture):
     return int(video_capture.get(cv2.CAP_PROP_POS_FRAMES))
@@ -45,6 +49,15 @@ def calculate_original_box(x1, y1, x2, y2, resized_w, resized_h, original_w, ori
     return round(original_x1), round(original_y1), round(original_x2), round(original_y2)
 
 
+def calculate_box_midpoint(top, right, bottom, left):
+    midpoint = np.array([(bottom + top) / 2, (right + left) / 2])
+    return midpoint
+
+
+def calculate_box_distance(box1, box2):
+    return np.linalg.norm(calculate_box_midpoint(*box1) - calculate_box_midpoint(*box2))
+
+
 # TODO
 def interpolate_detect_face_result(detect_face_result):
     interpolated = []
@@ -62,6 +75,69 @@ def my_compare_faces(known_faces, face_encoding_to_check):
         distance_list.append(min(distance_know_face_list))
 
     return distance_list
+
+
+# TODO
+def match_detect_face_result_easy(video_path):
+    # Check only the mid-points
+    video_capture = cv2.VideoCapture(video_path)
+
+    with open("detect_face.pt", "rb") as f:
+        result = pickle.load(f)
+
+        box = [[]]
+        p = np.array([0, 1, 2])
+        for r1, r2 in zip(result, result[1:]):
+            _, face_boxes1 = r1[0], r1[1:]
+            _, face_boxes2 = r2[0], r2[1:]
+
+            r1_csv = []
+            for r1_label, box1 in enumerate(face_boxes1):
+                distance_r1_to_r2 = []
+                for box2 in face_boxes2:
+                    distance_r1_to_r2.append(calculate_box_distance(box1, box2))
+
+                distance_r1_to_r2 = np.array(distance_r1_to_r2)
+                # get the sort arguments
+                distance_argsort = distance_r1_to_r2.argsort()
+                # create label point to boxes in r2
+                label_list_r2 = np.array(range(len(face_boxes2)))
+                # ranks of r1's preference
+                ranks = label_list_r2[distance_argsort]
+                # label_r1 is the label of current box in r1
+                r1_csv.append(np.concatenate([[r1_label], ranks]).astype(str))
+
+            r2_csv = []
+            for r2_label, box2 in enumerate(face_boxes2):
+                distance_r2_to_r1 = []
+                for box1 in face_boxes1:
+                    distance_r2_to_r1.append(calculate_box_distance(box2, box1))
+
+                distance_r2_to_r1 = np.array(distance_r2_to_r1)
+                # get the sort arguments
+                distance_argsort = distance_r2_to_r1.argsort()
+                # create label point to boxes in r2
+                label_list_r1 = np.array(range(len(face_boxes1)))
+                # ranks of r1's preference
+                ranks = label_list_r1[distance_argsort]
+                # label_r1 is the label of current box in r1
+                r2_csv.append(np.concatenate([[r2_label], ranks]).astype(str))
+
+            df_r1 = pd.DataFrame(r1_csv, columns=["id"] + [str(i + 1) for i in range(len(face_boxes2))])
+            df_r2 = pd.DataFrame(r2_csv, columns=["id"] + [str(i + 1) for i in range(len(face_boxes1))])
+            print(df_r1)
+            print("==========")
+            print(df_r2)
+            if len(face_boxes1) > len(face_boxes2):
+                m = Matcher(df_r2, df_r1)
+            else:
+                m = Matcher(df_r1, df_r2)
+            m.match()
+            print("Matched pairs:", m.pairs)
+            print(m.wives)
+            map = [int(m.wives[str(i)]) for i in range(len(face_boxes1))]
+            print(p[map])
+            print("\n")
 
 
 # TODO
@@ -381,4 +457,14 @@ def recognize_emotion(video_path, k_resolution=3, batch_size=128):
 # trim_video("../datasets/Videos_new_200929/200221_expt12_video.mp4", ['00:00:00', '00:00:10'], "test.mp4")
 # detect_face_multiprocess("test.mp4")
 # recognize_emotion("test.mp4")
-match_detect_face_result("test.mp4")
+# match_detect_face_result("test.mp4")
+# match_detect_face_result_easy("test.mp4")
+
+def test():
+    p = {"face0": [], "face1": [], "face2": []}
+    t1 = ["b", "c"]
+    t2 = ["A", "B", "C"]
+    t1_int = ["0", "1"]
+    t2_int = ["0", "1", "2"]
+    m = {"0": "1", "1": "2"}
+    # p' = []
