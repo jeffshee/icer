@@ -34,19 +34,26 @@ def face_distance(face_encodings, face_to_compare):
 class FrameMatcher:
     def __init__(self, max_face_num):
         self.max_face_num = max_face_num
+        self.frame_number = defaultdict()
         self.dict = defaultdict()
         self.flag = defaultdict()
         for i in range(max_face_num):
+            self.frame_number[i] = []
             self.dict[i] = []
             self.flag[i] = []
 
-    def match(self, box_list_1, box_list_1_encodings, box_list_2, box_list_2_encodings):
-        # Append None for not detected box
-        last_box_list = list(zip(*self.dict.values()))
-        if len(last_box_list) != 0:
-            box_list_1 = last_box_list[-1]
+    def match(self, frame_number_1, box_list_1, box_list_1_encodings, frame_number_2, box_list_2, box_list_2_encodings):
+        accum_box_list = list(zip(*self.dict.values()))
+        if len(accum_box_list) > 0:
+            # Set box_list_1 as last_box_list, should not contain None
+            last_box_list = accum_box_list[-1]
+            box_list_1 = last_box_list
         else:
+            # First time
+            # Append None for not detected box
             box_list_1 += [None] * (self.max_face_num - len(box_list_1))
+
+        # Append None for not detected box
         box_list_2 += [None] * (self.max_face_num - len(box_list_2))
 
         # Create player object
@@ -82,9 +89,13 @@ class FrameMatcher:
                     # First time
                     dict_item.extend([key.name, solution[key].name])
                     self.flag[i].extend([True, True])
+                    self.frame_number[i].extend([frame_number_1, frame_number_2])
                     break
-                elif dict_item[-1] == key.name:
+                elif dict_item[-1] == key.name: # the last item
+                    # if len(self.frame_number[0])==44:
+                    #     print("dd")
                     next_item = solution[key].name
+                    self.frame_number[i].append(frame_number_2)
                     if next_item is None:
                         dict_item.append(key.name)
                         self.flag[i].append(False)
@@ -103,11 +114,17 @@ def test():
     matcher = FrameMatcher(max_face_num=3)
 
     with open("detect_face.pt", "rb") as f:
-        result = pickle.load(f)
+        result = pickle.load(f)[5:]
+        c = 0
         for r1, r2 in zip(result, result[1:]):
-            matcher.match(r1["face_locations"], r1["face_encodings"], r2["face_locations"], r2["face_encodings"])
+            matcher.match(r1["frame_number"], r1["face_locations"], r1["face_encodings"], r2["frame_number"], r2["face_locations"],
+                          r2["face_encodings"])
+            print(r1["frame_number"], r1["face_locations"], r2["frame_number"], r2["face_locations"])
+            # print(c)
+            c+=1
 
         print(matcher.get_result())
+        print(len(matcher.get_result()[0][0]))
 
 
 if __name__ == "__main__":

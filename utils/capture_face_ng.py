@@ -187,6 +187,7 @@ def match_result(result_from_detect_face=None):
     if result_from_detect_face is None:
         with open("detect_face.pt", "rb") as f:
             result_from_detect_face = pickle.load(f)
+            print(result_from_detect_face)
 
     # Calculate max_face_num
     max_face_num = 0
@@ -210,11 +211,11 @@ def interpolate_result(result_from_match_result):
     match_result_dict, match_result_flag = result_from_match_result
     max_face_num = len(match_result_dict)
     for face_index in range(max_face_num):
-        for i, cur_flag in enumerate(match_result_flag):
-            if cur_flag:
-                continue
+        loc = np.array(match_result_dict[face_index])
+        flag = np.array(match_result_flag[face_index])
+        loc_true = loc[flag]
+        print(loc_true, len(loc), len(loc_true))
 
-        pass
 
 
 # # TODO
@@ -279,9 +280,10 @@ def interpolate_result(result_from_match_result):
 # from edit_video import trim_video
 # trim_video("../datasets/Videos_new_200929/200221_expt12_video.mp4", ['00:00:00', '00:00:10'], "test.mp4")
 
-detect_face_result = detect_face_multiprocess("test.mp4")
-matched_face_locations = match_result(detect_face_result)
-print(matched_face_locations)
+# detect_face_result = detect_face_multiprocess("test.mp4")
+# matched_face_locations = match_result(detect_face_result)
+# print(matched_face_locations)
 
-# matched_face_locations = match_result()
+matched_face_locations = match_result()
 # print(len(matched_face_locations[0]))
+interpolate_result(matched_face_locations)
