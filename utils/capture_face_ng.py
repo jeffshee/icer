@@ -1,10 +1,10 @@
 import pickle
-from collections import defaultdict
 from multiprocessing import Process, Manager
 
 import cv2
 import numpy as np
 
+from utils.face import Face
 from utils.match_frame import FrameMatcher
 
 
@@ -122,14 +122,14 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
 
             for frame_number_in_batch, (face_locations, face_encodings) in enumerate(
                     zip(batch_of_face_locations, batch_of_face_encodings)):
-                # Use defaultdict to store result for each frame
-                result_dict = defaultdict()
-                result_dict["frame_number"] = frame_numbers[frame_number_in_batch]
-                result_dict["face_locations"] = [
-                    calculate_original_box(top, right, bottom, left, w, h, original_w, original_h) for
-                    top, right, bottom, left in face_locations]
-                result_dict["face_encodings"] = [np.array(encoding) for encoding in face_encodings]
-                result.append(result_dict)
+                temp = []
+                for location, encoding in zip(face_locations, face_encodings):
+                    temp.append(Face(frame_numbers[frame_number_in_batch],
+                                     calculate_original_box(*location, w, h, original_w, original_h),
+                                     np.array(encoding)))
+                if len(temp) != 0:
+                    # Only append if there is any face detected
+                    result.append(temp)
 
             bar.update(len(frame_list))
             # Clear the frames array to start the next batch
@@ -181,8 +181,6 @@ def detect_face_multiprocess(video_path, parallel_num=3, k_resolution=3, frame_s
     return combined
 
 
-# TODO
-# Need to include frame number to the result
 def match_result(result_from_detect_face=None):
     if result_from_detect_face is None:
         with open("detect_face.pt", "rb") as f:
@@ -192,11 +190,11 @@ def match_result(result_from_detect_face=None):
     # Calculate max_face_num
     max_face_num = 0
     for result in result_from_detect_face:
-        max_face_num = max(len(result["face_locations"]), max_face_num)
+        max_face_num = max(len(result), max_face_num)
 
     matcher = FrameMatcher(max_face_num)
     for r1, r2 in zip(result_from_detect_face, result_from_detect_face[1:]):
-        matcher.match(r1["face_locations"], r1["face_encodings"], r2["face_locations"], r2["face_encodings"])
+        matcher.match(r1, r2)
 
     # Debug
     # print(matcher.get_result())
@@ -204,18 +202,16 @@ def match_result(result_from_detect_face=None):
     return matcher.get_result()
 
 
-# TODO
-def interpolate_result(result_from_match_result):
-    # Maybe can use this: coord and time -> 2d space
-    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp2d.html
-    match_result_dict, match_result_flag = result_from_match_result
-    max_face_num = len(match_result_dict)
-    for face_index in range(max_face_num):
-        loc = np.array(match_result_dict[face_index])
-        flag = np.array(match_result_flag[face_index])
-        loc_true = loc[flag]
-        print(loc_true, len(loc), len(loc_true))
-
+# # TODO
+# def interpolate_result(result_from_match_result):
+#     for face_list in result_from_match_result:
+#         for face in face_list:
+#             if face.is_detected
+#
+#         loc = np.array(match_result_dict[face_index])
+#         flag = np.array(match_result_flag[face_index])
+#         loc_true = loc[flag]
+#         print(loc_true, len(loc), len(loc_true))
 
 
 # # TODO
@@ -285,5 +281,5 @@ def interpolate_result(result_from_match_result):
 # print(matched_face_locations)
 
 matched_face_locations = match_result()
-# print(len(matched_face_locations[0]))
-interpolate_result(matched_face_locations)
+print(matched_face_locations)
+# interpolate_result(matched_face_locations)
