@@ -37,11 +37,11 @@ def calculate_original_box(x1, y1, x2, y2, resized_w, resized_h, original_w, ori
     original_y1 = alpha_y1 * original_h / (1 + alpha_y1)
     original_y2 = alpha_y2 * original_h / (1 + alpha_y2)
 
-    return round(original_x1), round(original_y1), round(original_x2), round(original_y2)
+    return [round(original_x1), round(original_y1), round(original_x2), round(original_y2)]
 
 
 # TODO: Initial analysis to detect a box where participants' faces will be in there mostly, cut the computational cost
-def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0, batch_size=8,
+def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0, batch_size=8, drop_last=True,
                 return_dict=None):
     """
     Detect all the faces in video, using CNN and CUDA for high accuracy and performance
@@ -51,14 +51,21 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
     :param parallel_num: Number of parallel jobs (Multiprocessing on GPUs)
     :param gpu_index: Which GPU to use
     :param batch_size: Batch size
+    :param drop_last: Drop last incomplete batch.
+    Workaround for a dlib bug that raise CUDA OOM error, especially when the last incomplete batch size == 1,
+    even there are plenty of RAM still available.
+    Refer:
+    https://forums.developer.nvidia.com/t/cudamalloc-out-of-memory-although-the-gpu-memory-is-enough/84327
+
     :param k_resolution:
     :param frame_skip:
     :param return_dict:
 
     :return:
     """
+    # NOTE: face_recognition MUST NOT imported before dlib, CUDA will fail to initialize otherwise
     import dlib
-    dlib.cuda.set_device(gpu_index)  # Call before import face_recognition
+    dlib.cuda.set_device(gpu_index)
     import face_recognition
     from tqdm import tqdm
 
@@ -175,18 +182,10 @@ def detect_face_multiprocess(video_path, parallel_num=3, k_resolution=3, frame_s
     with open("detect_face.pt", "wb") as f:
         pickle.dump(combined, f)
 
-    # Debug
-    # print(combined)
-
     return combined
 
 
-def match_result(result_from_detect_face=None):
-    if result_from_detect_face is None:
-        with open("detect_face.pt", "rb") as f:
-            result_from_detect_face = pickle.load(f)
-            print(result_from_detect_face)
-
+def match_result(result_from_detect_face):
     # Calculate max_face_num
     max_face_num = 0
     for result in result_from_detect_face:
@@ -196,90 +195,65 @@ def match_result(result_from_detect_face=None):
     for r1, r2 in zip(result_from_detect_face, result_from_detect_face[1:]):
         matcher.match(r1, r2)
 
-    # Debug
-    # print(matcher.get_result())
-
     return matcher.get_result()
 
 
-# # TODO
-# def interpolate_result(result_from_match_result):
-#     for face_list in result_from_match_result:
-#         for face in face_list:
-#             if face.is_detected
-#
-#         loc = np.array(match_result_dict[face_index])
-#         flag = np.array(match_result_flag[face_index])
-#         loc_true = loc[flag]
-#         print(loc_true, len(loc), len(loc_true))
+def interpolate_result(result_from_match_result):
+    import warnings
+    # Ignore weird RuntimeWarning when importing SciPy
+    warnings.simplefilter('ignore', RuntimeWarning)
+    from scipy.interpolate import interp1d
+    warnings.resetwarnings()
+
+    for face_list in result_from_match_result.values():
+        for i in range(4):
+            # Interpolate (top,right,bottom,left) for undetected frames
+            # Set to None when interpolation is impossible, e.g. before the first or after the last detected frame
+            time = np.array([face.frame_number for face in face_list if face.is_detected])
+            value = np.array([face.location[i] for face in face_list if face.is_detected])
+            interp_range = time.min(), value.min()
+            f = interp1d(time, value)
+            for face in face_list:
+                if face.is_detected:
+                    continue
+                if face.frame_number in np.arange(*interp_range) and face.location is not None:
+                    face.location[i] = int(f(face.frame_number))
+                else:
+                    face.location = None
+
+    return result_from_match_result
 
 
-# # TODO
-# def recognize_emotion(video_path, k_resolution=3, batch_size=128):
-#     df = pd.read_csv("detect_face.csv")
-#     # Note convert string to tuple
-#     # t = df["face1"][0]
-#     # print(make_tuple(t))
-#     # print(get_face_location_from_csv("detect_face.csv", 110000))
-#     from keras.models import model_from_json
-#     model_dir = '../model'
-#     model_name = 'mini_XCEPTION'
-#     model = model_from_json(open(join(model_dir, 'model_{}.json'.format(model_name)), 'r').read())
-#     model.load_weights(join(model_dir, 'model_{}.h5'.format(model_name)))
-#
-#     # Open video file
-#     video_capture = cv2.VideoCapture(video_path)
-#     original_w, original_h = get_video_dimension(video_capture)
-#     resize_rate = (1080 * k_resolution) / original_w  # Resize
-#     w = int(original_w * resize_rate)
-#     h = int(original_h * resize_rate)
-#
-#     frames = []
-#     faces = []
-#
-#     frame_count = 0
-#     while video_capture.isOpened():
-#         # Grab a single frame of video
-#         ret, frame = video_capture.read()
-#
-#         # Bail out when the video file ends
-#         if not ret:
-#             break
-#
-#         # Resize
-#         # frame = cv2.resize(frame, (w, h))
-#         face_location = get_face_location_from_csv(df, frame_count)
-#         for top, right, bottom, left in face_location:
-#             face = frame[top:bottom, left:right]
-#             import matplotlib.pyplot as plt
-#             plt.imshow(face)
-#             plt.show()
-#             face = cv2.resize(cv2.cvtColor(face, cv2.COLOR_BGR2GRAY), (64, 64)) / 255.0
-#             faces.append(face)
-#
-#         frame_count += 1
-#         # faces.append()
-#
-#         # Save each frame of the video to a list
-#         frames.append(frame)
-#
-#         # Every 128 frames (the default batch size), batch process the list of frames to find faces
-#         if len(faces) > batch_size:
-#             val = np.stack(faces)
-#             predictions = model.predict(val)
-#             print(predictions)
-#             # Clear the frames array to start the next batch
-#             faces = []
+def main(video_path):
+    """
+    Main routine, do detect_face on Multi-GPU,
+    then perform frame-face matching,
+    finally interpolate the result for undetected face.
+    :return: The final interpolated result.
+    Dict{
+        0: [<Face>, <Face>, ...], # Result of person 0
+        1: [<Face>, <Face>, ...], # Result of person 1
+        2: [<Face>, <Face>, ...], # Result of person 2
+        ...
+    }
+    """
+    return interpolate_result(match_result(detect_face_multiprocess(video_path)))
 
 
-# # Prepare short ver. for testing
-# from edit_video import trim_video
-# trim_video("../datasets/Videos_new_200929/200221_expt12_video.mp4", ['00:00:00', '00:00:10'], "test.mp4")
+def test():
+    # Prepare short ver. for testing
+    # from edit_video import trim_video
+    # trim_video("../datasets/Videos_new_200929/200221_expt12_video.mp4", ['00:00:00', '00:00:16'], "test.mp4")
 
-# detect_face_result = detect_face_multiprocess("test.mp4")
-# matched_face_locations = match_result(detect_face_result)
-# print(matched_face_locations)
+    # Test full run
+    print(main("test.mp4"))
 
-matched_face_locations = match_result()
-print(matched_face_locations)
-# interpolate_result(matched_face_locations)
+    # Test using pickled result
+    # with open("detect_face.pt", "rb") as f:
+    #     result_from_detect_face = pickle.load(f)
+    # result = interpolate_result(match_result(result_from_detect_face))
+    # print(result)
+
+
+if __name__ == "__main__":
+    test()
