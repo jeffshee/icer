@@ -53,10 +53,8 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
     :param batch_size: Batch size
     :param drop_last: Drop last incomplete batch.
     Workaround for a dlib bug that raise CUDA OOM error, especially when the last incomplete batch size == 1,
-    even there are plenty of RAM still available.
-    Refer:
+    even there are plenty of RAM still available. Refer:
     https://forums.developer.nvidia.com/t/cudamalloc-out-of-memory-although-the-gpu-memory-is-enough/84327
-
     :param k_resolution:
     :param frame_skip:
     :param return_dict:
@@ -83,7 +81,7 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
     frame_range = [[i * divided, (i + 1) * divided] for i in range(parallel_num)]
     # Set the rest of the frames to the last process
     # Note: This is actually a workaround, for some reason OpenCV will fail to read the last frame
-    # frame_range[-1][1] = video_length - 1
+    frame_range[-1][1] = video_length - 1
 
     # The frame range of this process
     start, end = frame_range[gpu_index]
@@ -97,13 +95,15 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
 
     set_frame_position(video_capture, start)  # Move position
     while video_capture.isOpened() and get_frame_position(video_capture) in range(start, end):
+        # Progress
+        bar.update(1)
+
         current_pos = get_frame_position(video_capture)
         next_pos = current_pos + frame_skip + 1
 
         # Grab a single frame of video
         ret, frame = video_capture.read()
         if frame_skip != 0 and current_pos % frame_skip != 0:
-            bar.update(1)
             continue
 
         # # Bail out when the video file ends
@@ -121,7 +121,7 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
         frame_numbers.append(current_pos)
 
         # Every batch_size frames, batch process the list of frames to find faces
-        if len(frame_list) == batch_size or next_pos >= end:
+        if len(frame_list) == batch_size or (next_pos >= end and not drop_last):
             batch_of_face_locations = face_recognition.batch_face_locations(frame_list,
                                                                             number_of_times_to_upsample=0,
                                                                             batch_size=len(frame_list))
@@ -138,7 +138,6 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
                     # Only append if there is any face detected
                     result.append(temp)
 
-            bar.update(len(frame_list))
             # Clear the frames array to start the next batch
             frame_list = []
             frame_numbers = []
@@ -198,28 +197,62 @@ def match_result(result_from_detect_face):
     return matcher.get_result()
 
 
-def interpolate_result(result_from_match_result):
+def interpolate_result(result_from_match_result, total_frame=None, fill_blank=True):
     import warnings
     # Ignore weird RuntimeWarning when importing SciPy
     warnings.simplefilter('ignore', RuntimeWarning)
     from scipy.interpolate import interp1d
     warnings.resetwarnings()
 
-    for face_list in result_from_match_result.values():
-        for i in range(4):
-            # Interpolate (top,right,bottom,left) for undetected frames
-            # Set to None when interpolation is impossible, e.g. before the first or after the last detected frame
-            time = np.array([face.frame_number for face in face_list if face.is_detected])
-            value = np.array([face.location[i] for face in face_list if face.is_detected])
-            interp_range = time.min(), value.min()
-            f = interp1d(time, value)
-            for face in face_list:
-                if face.is_detected:
-                    continue
-                if face.frame_number in np.arange(*interp_range) and face.location is not None:
-                    face.location[i] = int(f(face.frame_number))
+    # Miss detected face
+    ghosts = []
+
+    # Fill blank
+    if fill_blank and total_frame is not None:
+        for key, face_list in enumerate(result_from_match_result.values()):
+            filled_list = []
+            cur_ptr = 0
+            for f in range(total_frame):
+                if cur_ptr < len(face_list) and f == face_list[cur_ptr].frame_number:
+                    filled_list.append(face_list[cur_ptr])
+                    cur_ptr += 1
+                else:
+                    filled_list.append(Face(f, None, None, False))
+            # Swap the result with the filled_list
+            result_from_match_result[key] = filled_list
+
+    for key, face_list in enumerate(result_from_match_result.values()):
+        # Interpolate (top,right,bottom,left) for undetected frames
+        # Set to None when interpolation is impossible, e.g. before the first or after the last detected frame
+        time = np.array([face.frame_number for face in face_list if face.is_detected])
+        value_top = np.array([face.location[0] for face in face_list if face.is_detected and face.location is not None])
+        value_right = np.array(
+            [face.location[1] for face in face_list if face.is_detected and face.location is not None])
+        value_bottom = np.array(
+            [face.location[2] for face in face_list if face.is_detected and face.location is not None])
+        value_left = np.array(
+            [face.location[3] for face in face_list if face.is_detected and face.location is not None])
+
+        if time.min() == time.max():
+            ghosts.append(key)
+            continue
+
+        f_top = interp1d(time, value_top)
+        f_right = interp1d(time, value_right)
+        f_bottom = interp1d(time, value_bottom)
+        f_left = interp1d(time, value_left)
+
+        for face in face_list:
+            if not face.is_detected:
+                if time.min() < face.frame_number < time.max():
+                    face.location = [int(f_top(face.frame_number)), int(f_right(face.frame_number)),
+                                     int(f_bottom(face.frame_number)), int(f_left(face.frame_number))]
                 else:
                     face.location = None
+
+    # Remove ghost from result
+    for ghost in ghosts:
+        result_from_match_result.pop(ghost)
 
     return result_from_match_result
 
@@ -237,7 +270,8 @@ def main(video_path):
         ...
     }
     """
-    return interpolate_result(match_result(detect_face_multiprocess(video_path)))
+    total_frame = get_video_length(cv2.VideoCapture(video_path))
+    return interpolate_result(match_result(detect_face_multiprocess(video_path)), total_frame)
 
 
 def test():
@@ -246,6 +280,7 @@ def test():
     # trim_video("../datasets/Videos_new_200929/200221_expt12_video.mp4", ['00:00:00', '00:00:16'], "test.mp4")
 
     # Test full run
+    # print(main("test.mp4"))
     print(main("test.mp4"))
 
     # Test using pickled result
