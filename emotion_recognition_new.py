@@ -1,6 +1,8 @@
 import pandas as pd
 import cv2
+import csv
 import numpy as np
+import pickle
 from os.path import join
 from keras.models import model_from_json
 from ast import literal_eval as make_tuple
@@ -18,6 +20,12 @@ def calculate_MAR(landmarks):
     D = dist.euclidean(landmarks["top_lip"][0], landmarks["bottom_lip"][0])  # 横
     mar = L / D
     return mar
+
+def box_label(bgr, x1, y1, x2, y2, label, color):
+    cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 2)  # 顔を囲む箱
+    cv2.rectangle(bgr, (int(x1), int(y1 - 18)), (x2, y1), (255, 255, 255), -1)  # テキスト記入用の白いボックス
+    cv2.putText(bgr, label, (x1, int(y1 - 5)), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1)
+
 
 # int型の座標を取得
 def get_coords(p1):
@@ -248,7 +256,7 @@ def emotion_recognition(target_video_path,path_result,k_resolution,emotions,spli
             frame_gray_old = frame_gray
 
             # データをリストに追加
-            for face_index in range(len(known_faces)):
+            for face_index in range(person_number):
                 csv_saving_list[face_index].append([
                     frame_number, int(1000 * frame_number / video_frame_rate),
                     emotion[face_index],
@@ -260,7 +268,7 @@ def emotion_recognition(target_video_path,path_result,k_resolution,emotions,spli
                     rec_face[face_index][0], rec_face[face_index][1], rec_face[face_index][2], rec_face[face_index][3]
                 ])
 
-            face_recog_flag = [False] * len(target_image_path_list)
+            face_recog_flag = [False] * person_number
             output_movie.write(frame)
             first_flag = False
 
@@ -271,12 +279,13 @@ def emotion_recognition(target_video_path,path_result,k_resolution,emotions,spli
     cv2.destroyAllWindows()
 
     # 結果をCSVファイルに保存
-    for i in range(len(target_image_path_list)):
+    for i in range(person_number):
         with open(join(path_result, 'result{}.csv'.format(i)), "w", encoding="Shift_jis") as f:
             writer = csv.writer(f, lineterminator="\n")  # writerオブジェクトの作成 改行記号で行を区切る
             writer.writerows(csv_saving_list[i])  # csvファイルに書き込み
 
 # a=emotion_recognition("file/out1.mp4",3,128,"file/detect_face.csv")
+
 if __name__ == '__main__':
     with open("detect_face.pt", "rb") as f:
         rst = pickle.load(f)
