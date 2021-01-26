@@ -287,6 +287,9 @@ def emotion_recognition(target_video_path,path_result,k_resolution,emotions,spli
 # a=emotion_recognition("file/out1.mp4",3,128,"file/detect_face.csv")
 
 if __name__ == '__main__':
-    with open("detect_face.pt", "rb") as f:
+    with open("utils/detect_face.pt", "rb") as f:
         rst = pickle.load(f)
-        print(rst[0]["face_locations"])## 脸部坐标
+        # print(rst[0]["face_locations"])## 脸部坐标
+        print(rst[0][1])  ## 脸部坐标
+        print(len(rst))
+        print(len(rst[0]))
