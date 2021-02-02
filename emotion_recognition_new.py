@@ -134,7 +134,7 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
     first_flag = True
     file_strat_frame=0 ##初始化文件中最开始的一帧
     file_frame_count=0
-    print("0")
+    # print("0")
     for i in range (0,len(rst[0])):
         if rst[0][i].frame_number>=start_frame:
             file_strat_frame=rst[0][i].frame_number  ##记录从哪帧开始  第一个0位人数的索引 表示第0个人
@@ -143,14 +143,14 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
     for frame_number in range(start_frame, stop_frame): ##从开始帧数到结束的帧数
         # 動画を読み込む
         ret, frame = input_movie.read()
-        print("initial frame shape",frame.shape)
+        # print("initial frame shape",frame.shape)
         print("\nWriting frame {} / {}".format(frame_number, length - 1))
         # 動画が読み取れない場合は終了
         if not ret:
             break
 
         # フレームのサイズを調整する
-        frame = cv2.resize(frame, (w, h))
+        # frame = cv2.resize(frame, (w, h))
 
         # print(frame.shape())
 
@@ -163,15 +163,15 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
             for face_index in range(person_number):
                 top, right, bottom, left=rst[file_frame_count][face_index].location
                 top,bottom = top,bottom
-                print(top, right, bottom, left)
+                # print(top, right, bottom, left)
 
                 rec_face[face_index] = [top, bottom, left, right]
                 # 顔領域を切り取る
                 dst = frame[top:bottom, left:right]
-                print("frame_size",frame.shape)
-                print("frame_type",type(frame))
-                print("type",type(dst))
-                print("size",dst.shape)
+                # print("frame_size",frame.shape)
+                # print("frame_type",type(frame))
+                # print("type",type(dst))
+                # print("size",dst.shape)
 
                 # 表情認識
                 if model_name == "mini_XCEPTION":
