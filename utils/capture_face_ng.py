@@ -6,6 +6,7 @@ import numpy as np
 
 from utils.face import Face
 from utils.match_frame import FrameMatcher
+import time
 
 
 def get_frame_position(video_capture):
@@ -257,6 +258,82 @@ def interpolate_result(result_from_match_result, total_frame=None, fill_blank=Tr
     return result_from_match_result
 
 
+def output_video(interpolated_result: dict, input_path, output_path):
+    def drawline(img, pt1, pt2, color, thickness=1, style='dotted', gap=20):
+        dist = ((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2) ** .5
+        pts = []
+        for i in np.arange(0, dist, gap):
+            r = i / dist
+            x = int((pt1[0] * (1 - r) + pt2[0] * r) + .5)
+            y = int((pt1[1] * (1 - r) + pt2[1] * r) + .5)
+            p = (x, y)
+            pts.append(p)
+
+        if style == 'dotted':
+            for p in pts:
+                cv2.circle(img, p, thickness, color, -1)
+        else:
+            s = pts[0]
+            e = pts[0]
+            i = 0
+            for p in pts:
+                s = e
+                e = p
+                if i % 2 == 1:
+                    cv2.line(img, s, e, color, thickness)
+                i += 1
+        return img
+
+    def drawpoly(img, pts, color, thickness=1, style='dotted', ):
+        s = pts[0]
+        e = pts[0]
+        pts.append(pts.pop(0))
+        for p in pts:
+            s = e
+            e = p
+            drawline(img, s, e, color, thickness, style)
+        return img
+
+    def drawrect(img, pt1, pt2, color, thickness=1, style='dotted'):
+        pts = [pt1, (pt2[0], pt1[1]), pt2, (pt1[0], pt2[1])]
+        drawpoly(img, pts, color, thickness, style)
+        return img
+
+    video_capture = cv2.VideoCapture(input_path)
+    # TODO
+    # get the parameter from input
+    # colormap
+    frame_rate = 30
+    width, height = 3840, 2160
+    colormap = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255)]
+    fourcc = cv2.VideoWriter_fourcc(*"XVID")
+    video_writer = cv2.VideoWriter(output_path, fourcc, frame_rate, (width, height))
+
+    frame_index = 0
+    while video_capture.isOpened():
+        ret, frame = video_capture.read()
+        if not ret:
+            break
+        for key in interpolated_result.keys():
+            # Assume fill_blank = True
+            face: Face = interpolated_result[key][frame_index]
+            if face.location is not None:
+                top, right, bottom, left = face.location
+                # BBox
+                p1 = (left, top)
+                p2 = (right, bottom)
+                if face.is_detected:
+                    frame = cv2.rectangle(frame, p1, p2, color=colormap[key], thickness=10)
+                else:
+                    frame = drawrect(frame, p1, p2, color=colormap[key], thickness=10, style="dotted")
+
+        video_writer.write(frame)
+        frame_index += 1
+
+    video_capture.release()
+    video_writer.release()
+
+
 def main(video_path):
     """
     Main routine, do detect_face on Multi-GPU,
@@ -270,8 +347,11 @@ def main(video_path):
         ...
     }
     """
+    start = time.time()
     total_frame = get_video_length(cv2.VideoCapture(video_path))
-    return interpolate_result(match_result(detect_face_multiprocess(video_path)), total_frame)
+    result = interpolate_result(match_result(detect_face_multiprocess(video_path)), total_frame)
+    print('capture_face_ng elapsed time:', time.time() - start, '[sec]')
+    return result
 
 
 def test():
@@ -281,13 +361,19 @@ def test():
 
     # Test full run
     # print(main("test.mp4"))
-    print(main("test.mp4"))
+    # print(main("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"))
 
     # Test using pickled result
-    # with open("detect_face.pt", "rb") as f:
-    #     result_from_detect_face = pickle.load(f)
-    # result = interpolate_result(match_result(result_from_detect_face))
-    # print(result)
+    with open("detect_face.pt", "rb") as f:
+    # with open("detect_face_long.pt", "rb") as f:
+        result_from_detect_face = pickle.load(f)
+    # total_frame = get_video_length(cv2.VideoCapture("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"))
+    total_frame = get_video_length(cv2.VideoCapture("test.mp4"))
+    result = interpolate_result(match_result(result_from_detect_face),
+                                total_frame)
+    print(result)
+    output_video(result, "test.mp4", "test_out.avi")
+    # output_video(result, "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4", "long_out.avi")
 
 
 if __name__ == "__main__":
