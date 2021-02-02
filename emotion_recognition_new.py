@@ -66,13 +66,13 @@ def get_eye_location(face_landmarks):
     eye_center=  (righteye + lefteye) // 2, (topeye + bottomeye) // 2
     return eye_center
 
-def emotion_recognition(target_video_path,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path):
-    with open(file_path+"detect_face.pt", "rb") as f:
+def emotion_recognition(target_video_path,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name):
+    with open(file_path+file_name, "rb") as f:
         rst = pickle.load(f)  ##rst[0][3]["face_location"]为第0个人第3次识别时人脸部的坐标
-    person_number = len(rst)  ## 参加的人数
+    person_number = len(rst[0])  ## 参加的人数
 
     # k=3 ##每3帧检测一次  ##根据文件中的帧数进行判断
-    model_dir = '../model'
+    model_dir = 'model'
     model_name = 'mini_XCEPTION'
     model = model_from_json(open(join(model_dir, 'model_{}.json'.format(model_name)), 'r').read())
     model.load_weights(join(model_dir, 'model_{}.h5'.format(model_name)))##载入模型
@@ -134,14 +134,16 @@ def emotion_recognition(target_video_path,path_result,k_resolution,emotions,spli
     first_flag = True
     file_strat_frame=0 ##初始化文件中最开始的一帧
     file_frame_count=0
+    print("0")
     for i in range (0,len(rst[0])):
-        if rst[0][i]["frame_number"]>=start_frame:
-            file_strat_frame=rst[0][i]["frame_number"]  ##记录从哪帧开始  第一个0位人数的索引 表示第0个人
+        if rst[0][i].frame_number>=start_frame:
+            file_strat_frame=rst[0][i].frame_number  ##记录从哪帧开始  第一个0位人数的索引 表示第0个人
             file_frame_count=i  ##记录索引
 
     for frame_number in range(start_frame, stop_frame): ##从开始帧数到结束的帧数
         # 動画を読み込む
         ret, frame = input_movie.read()
+        print("initial frame shape",frame.shape)
         print("\nWriting frame {} / {}".format(frame_number, length - 1))
         # 動画が読み取れない場合は終了
         if not ret:
@@ -150,15 +152,27 @@ def emotion_recognition(target_video_path,path_result,k_resolution,emotions,spli
         # フレームのサイズを調整する
         frame = cv2.resize(frame, (w, h))
 
+        # print(frame.shape())
+
+        print("frame_num",frame_number,file_strat_frame)
+
         if frame_number!= file_strat_frame:
             continue  ##先调到与文件时间同步
         # 表情识别  头部判断
         else:
-            for person_index in range(person_number):
-                top, right, bottom, left=rst[person_index][file_frame_count]["face_location"]
+            for face_index in range(person_number):
+                top, right, bottom, left=rst[file_frame_count][face_index].location
+                top,bottom = top,bottom
+                print(top, right, bottom, left)
+
                 rec_face[face_index] = [top, bottom, left, right]
                 # 顔領域を切り取る
                 dst = frame[top:bottom, left:right]
+                print("frame_size",frame.shape)
+                print("frame_type",type(frame))
+                print("type",type(dst))
+                print("size",dst.shape)
+
                 # 表情認識
                 if model_name == "mini_XCEPTION":
                     val = cv2.resize(cv2.cvtColor(dst, cv2.COLOR_BGR2GRAY), (64, 64)) / 255.0
@@ -167,7 +181,7 @@ def emotion_recognition(target_video_path,path_result,k_resolution,emotions,spli
                     exit("Invalid model_name")
 
                 # Solved https://stackoverflow.com/questions/60905801/parallelizing-model-predictions-in-keras-using-multiprocessing-for-python
-                if (rst[person_index][file_frame_count]["detective"]):
+                if (rst[file_frame_count][face_index].is_detected):
                     predictions = model.predict(val, batch_size=1)  # 学習モデルから表情を特定
                     emotion[face_index] = emotions[int(np.argmax(predictions[0]))]
                     box_label(frame, left, top, right, bottom, "{}:{}".format(face_index, emotion[face_index]),
@@ -272,7 +286,7 @@ def emotion_recognition(target_video_path,path_result,k_resolution,emotions,spli
             output_movie.write(frame)
             first_flag = False
 
-        file_strat_frame=rst[0][file_frame_count+1]["frame_number"]
+        file_strat_frame=rst[file_frame_count+1][0].frame_number
         file_frame_count=file_frame_count+1
     # 動画保存
     input_movie.release()
@@ -287,9 +301,18 @@ def emotion_recognition(target_video_path,path_result,k_resolution,emotions,spli
 # a=emotion_recognition("file/out1.mp4",3,128,"file/detect_face.csv")
 
 if __name__ == '__main__':
-    with open("utils/detect_face.pt", "rb") as f:
-        rst = pickle.load(f)
-        # print(rst[0]["face_locations"])## 脸部坐标
-        print(rst[0][1])  ## 脸部坐标
-        print(len(rst))
-        print(len(rst[0]))
+    # with open("utils/detect_face.pt", "rb") as f:
+    #     rst = pickle.load(f)
+    #     # print(rst[0]["face_locations"])## 脸部坐标
+    #     print(rst[80][1])  ## 脸部坐标
+    #     print(len(rst))
+    #     print(len(rst[0]))
+    target_video_path="utils/test.mp4"
+    path_result="output_0126/"
+    k_resolution=3
+    emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
+    split_video_index=0
+    split_video_num=1
+    file_path="utils/"
+    file_name="detect_face.pt"
+    emotion_recognition(target_video_path,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name)
