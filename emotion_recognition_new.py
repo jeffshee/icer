@@ -66,12 +66,12 @@ def get_eye_location(face_landmarks):
     eye_center=  (righteye + lefteye) // 2, (topeye + bottomeye) // 2
     return eye_center
 
-def emotion_recognition(target_video_path,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name):
+def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name):
     with open(file_path+file_name, "rb") as f:
         rst = pickle.load(f)  ##rst[0][3]["face_location"]为第0个人第3次识别时人脸部的坐标
     person_number = len(rst[0])  ## 参加的人数
 
-    # k=3 ##每3帧检测一次  ##根据文件中的帧数进行判断
+    k=k_prame ##每3帧检测一次  ##根据文件中的帧数进行判断
     model_dir = 'model'
     model_name = 'mini_XCEPTION'
     model = model_from_json(open(join(model_dir, 'model_{}.json'.format(model_name)), 'r').read())
@@ -286,7 +286,7 @@ def emotion_recognition(target_video_path,path_result,k_resolution,emotions,spli
             output_movie.write(frame)
             first_flag = False
 
-        file_strat_frame=rst[file_frame_count+1][0].frame_number
+        file_strat_frame=rst[file_frame_count+k_prame][0].frame_number
         file_frame_count=file_frame_count+1
     # 動画保存
     input_movie.release()
@@ -315,4 +315,4 @@ if __name__ == '__main__':
     split_video_num=1
     file_path="utils/"
     file_name="detect_face.pt"
-    emotion_recognition(target_video_path,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name)
+    emotion_recognition(target_video_path,3,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name)
