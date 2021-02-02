@@ -68,14 +68,14 @@ def get_eye_location(face_landmarks):
 
 def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name):
     with open(file_path+file_name, "rb") as f:
-        rst = pickle.load(f)  ##rst[0][3]["face_location"]为第0个人第3次识别时人脸部的坐标
-    person_number = len(rst[0])  ## 参加的人数
+        rst = pickle.load(f)
+    person_number = len(rst[0])
 
-    k=k_prame ##每3帧检测一次  ##根据文件中的帧数进行判断
+    k=k_prame ## how often we read one frame (e.g. 3 frames)
     model_dir = 'model'
     model_name = 'mini_XCEPTION'
     model = model_from_json(open(join(model_dir, 'model_{}.json'.format(model_name)), 'r').read())
-    model.load_weights(join(model_dir, 'model_{}.h5'.format(model_name)))##载入模型
+    model.load_weights(join(model_dir, 'model_{}.h5'.format(model_name)))##
 
     input_movie = cv2.VideoCapture(target_video_path)  # 動画を読み込む
     video_frame_rate = input_movie.get(cv2.CAP_PROP_FPS)
@@ -132,15 +132,15 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
     stop_frame = length if split_video_index == split_video_num - 1 else start_frame + frame_duration
     input_movie.set(cv2.CAP_PROP_POS_FRAMES, start_frame)  # 動画の開始フレームを設定
     first_flag = True
-    file_strat_frame=0 ##初始化文件中最开始的一帧
+    file_strat_frame=0 # the first frame we use
     file_frame_count=0
     # print("0")
     for i in range (0,len(rst[0])):
         if rst[0][i].frame_number>=start_frame:
-            file_strat_frame=rst[0][i].frame_number  ##记录从哪帧开始  第一个0位人数的索引 表示第0个人
-            file_frame_count=i  ##记录索引
+            file_strat_frame=rst[0][i].frame_number  ## the first frame we use
+            file_frame_count=i  ##record the index
 
-    for frame_number in range(start_frame, stop_frame): ##从开始帧数到结束的帧数
+    for frame_number in range(start_frame, stop_frame):
         # 動画を読み込む
         ret, frame = input_movie.read()
         # print("initial frame shape",frame.shape)
@@ -150,15 +150,14 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
             break
 
         # フレームのサイズを調整する
-        # frame = cv2.resize(frame, (w, h))
-
-        # print(frame.shape())
+        # frame = cv2.resize(frame, (w, h)) ## no need to modify the size in this new method
 
         print("frame_num",frame_number,file_strat_frame)
 
         if frame_number!= file_strat_frame:
-            continue  ##先调到与文件时间同步
-        # 表情识别  头部判断
+            continue  ## make sure we use the same frame with the .pt file
+
+        ## emotion recognization and head movement judgement
         else:
             for face_index in range(person_number):
                 if rst[file_frame_count][face_index].location==None:
@@ -166,15 +165,10 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
                 else:
                     top, right, bottom, left=rst[file_frame_count][face_index].location
                     top,bottom = top,bottom
-                    # print(top, right, bottom, left)
 
                     rec_face[face_index] = [top, bottom, left, right]
                     # 顔領域を切り取る
                     dst = frame[top:bottom, left:right]
-                    # print("frame_size",frame.shape)
-                    # print("frame_type",type(frame))
-                    # print("type",type(dst))
-                    # print("size",dst.shape)
 
                     # 表情認識
                     if model_name == "mini_XCEPTION":
@@ -218,7 +212,7 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
                 if not flag:
                     emotion[face_index] = "Unknown"
 
-            #头部的判断
+            ## head movement judgement
             frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             for face_index in range(person_number):
                 if first_flag:  # 前フレームがない場合は終了
@@ -227,7 +221,7 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
                     p1[face_index] = np.array([[eye_center[face_index]]], np.float32)
                     if face_recog_flag[face_index]: ##
                         p1[face_index] = np.array([[eye_center[face_index]]], np.float32)
-                    else: ##此部分的代碼需要討論
+                    else: ## copy the codes from perious method  (unclear)
                         # オプティカルフローのパラメータ設定
                         lk_params = dict(winSize=(int(rec_face[face_index][1] - rec_face[face_index][0]),
                                                   int(rec_face[face_index][1] - rec_face[face_index][0])), maxLevel=2,
@@ -306,9 +300,9 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
 if __name__ == '__main__':
     with open("utils/detect_face.pt", "rb") as f:
         rst = pickle.load(f)
-        # print(rst[0]["face_locations"])## 脸部坐标
-        print(rst[60])  ## 脸部坐标
-        print(rst[71])  ## 脸部坐标
+        # print(rst[0]["face_locations"])##
+        print(rst[60])  ##
+        print(rst[71])  ##
 
         print(len(rst))
     #     print(len(rst[0]))
