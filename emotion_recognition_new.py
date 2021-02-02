@@ -161,55 +161,58 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
         # 表情识别  头部判断
         else:
             for face_index in range(person_number):
-                top, right, bottom, left=rst[file_frame_count][face_index].location
-                top,bottom = top,bottom
-                # print(top, right, bottom, left)
-
-                rec_face[face_index] = [top, bottom, left, right]
-                # 顔領域を切り取る
-                dst = frame[top:bottom, left:right]
-                # print("frame_size",frame.shape)
-                # print("frame_type",type(frame))
-                # print("type",type(dst))
-                # print("size",dst.shape)
-
-                # 表情認識
-                if model_name == "mini_XCEPTION":
-                    val = cv2.resize(cv2.cvtColor(dst, cv2.COLOR_BGR2GRAY), (64, 64)) / 255.0
-                    val = val.reshape(1, 64, 64, 1)
+                if rst[file_frame_count][face_index].location==None:
+                    continue
                 else:
-                    exit("Invalid model_name")
+                    top, right, bottom, left=rst[file_frame_count][face_index].location
+                    top,bottom = top,bottom
+                    # print(top, right, bottom, left)
 
-                # Solved https://stackoverflow.com/questions/60905801/parallelizing-model-predictions-in-keras-using-multiprocessing-for-python
-                if (rst[file_frame_count][face_index].is_detected):
-                    predictions = model.predict(val, batch_size=1)  # 学習モデルから表情を特定
-                    emotion[face_index] = emotions[int(np.argmax(predictions[0]))]
-                    box_label(frame, left, top, right, bottom, "{}:{}".format(face_index, emotion[face_index]),
-                              color=(0, 255, 0))
-                    face_recog_flag[face_index] = True
+                    rec_face[face_index] = [top, bottom, left, right]
+                    # 顔領域を切り取る
+                    dst = frame[top:bottom, left:right]
+                    # print("frame_size",frame.shape)
+                    # print("frame_type",type(frame))
+                    # print("type",type(dst))
+                    # print("size",dst.shape)
 
-                # 顔の部位の座標を検出する
-                face_landmarks_list = face_recognition.face_landmarks(dst, face_locations=[
-                    (0, dst.shape[1], dst.shape[0], 0)])  # 顔の部位の座標が取れないときは return []
-                # 顔の部位を切り取る．画像中に複数顔が存在する場合を想定して返り値がlistになっている．
-                for face_landmarks in face_landmarks_list:
-                    # 独自の計算式から口の空き具合を計算
-                    mouse_opening_rate_list[face_index] = calculate_MAR(face_landmarks)
+                    # 表情認識
+                    if model_name == "mini_XCEPTION":
+                        val = cv2.resize(cv2.cvtColor(dst, cv2.COLOR_BGR2GRAY), (64, 64)) / 255.0
+                        val = val.reshape(1, 64, 64, 1)
+                    else:
+                        exit("Invalid model_name")
 
-                    # 目の位置
-                    leye_x = get_parts_coordinates(face_landmarks["left_eye"], True)
-                    reye_x = get_parts_coordinates(face_landmarks["right_eye"], True)
-                    eye_y = get_parts_coordinates(face_landmarks["left_eye"] + face_landmarks["right_eye"], False)
-                    topeye = min(eye_y)
-                    bottomeye = max(eye_y)
-                    lefteye = min(leye_x)
-                    righteye = max(reye_x)
-                    eye_center[face_index] = left + (righteye + lefteye) // 2, top + (topeye + bottomeye) // 2
+                    # Solved https://stackoverflow.com/questions/60905801/parallelizing-model-predictions-in-keras-using-multiprocessing-for-python
+                    if (rst[file_frame_count][face_index].is_detected):
+                        predictions = model.predict(val, batch_size=1)  # 学習モデルから表情を特定
+                        emotion[face_index] = emotions[int(np.argmax(predictions[0]))]
+                        box_label(frame, left, top, right, bottom, "{}:{}".format(face_index, emotion[face_index]),
+                                  color=(0, 255, 0))
+                        face_recog_flag[face_index] = True
 
-                if not first_face_recog_flag[face_index]:
-                    # face_center[face_index] = (left + right) / 2, (top + bottom) / 2
-                    p0[face_index] = np.array([[eye_center[face_index]]], np.float32)
-                    first_face_recog_flag[face_index] = True
+                    # 顔の部位の座標を検出する
+                    face_landmarks_list = face_recognition.face_landmarks(dst, face_locations=[
+                        (0, dst.shape[1], dst.shape[0], 0)])  # 顔の部位の座標が取れないときは return []
+                    # 顔の部位を切り取る．画像中に複数顔が存在する場合を想定して返り値がlistになっている．
+                    for face_landmarks in face_landmarks_list:
+                        # 独自の計算式から口の空き具合を計算
+                        mouse_opening_rate_list[face_index] = calculate_MAR(face_landmarks)
+
+                        # 目の位置
+                        leye_x = get_parts_coordinates(face_landmarks["left_eye"], True)
+                        reye_x = get_parts_coordinates(face_landmarks["right_eye"], True)
+                        eye_y = get_parts_coordinates(face_landmarks["left_eye"] + face_landmarks["right_eye"], False)
+                        topeye = min(eye_y)
+                        bottomeye = max(eye_y)
+                        lefteye = min(leye_x)
+                        righteye = max(reye_x)
+                        eye_center[face_index] = left + (righteye + lefteye) // 2, top + (topeye + bottomeye) // 2
+
+                    if not first_face_recog_flag[face_index]:
+                        # face_center[face_index] = (left + right) / 2, (top + bottom) / 2
+                        p0[face_index] = np.array([[eye_center[face_index]]], np.float32)
+                        first_face_recog_flag[face_index] = True
             # 顔が読み取れなかった場合 感情＝不明とする
             for face_index, flag in enumerate(face_recog_flag):
                 if not flag:
@@ -301,18 +304,22 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
 # a=emotion_recognition("file/out1.mp4",3,128,"file/detect_face.csv")
 
 if __name__ == '__main__':
-    # with open("utils/detect_face.pt", "rb") as f:
-    #     rst = pickle.load(f)
-    #     # print(rst[0]["face_locations"])## 脸部坐标
-    #     print(rst[80][1])  ## 脸部坐标
-    #     print(len(rst))
+    with open("utils/detect_face.pt", "rb") as f:
+        rst = pickle.load(f)
+        # print(rst[0]["face_locations"])## 脸部坐标
+        print(rst[60])  ## 脸部坐标
+        print(rst[71])  ## 脸部坐标
+
+        print(len(rst))
     #     print(len(rst[0]))
-    target_video_path="utils/test.mp4"
-    path_result="output_0126/"
-    k_resolution=3
-    emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
-    split_video_index=0
-    split_video_num=1
-    file_path="utils/"
-    file_name="detect_face.pt"
-    emotion_recognition(target_video_path,3,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name)
+
+
+    # target_video_path="utils/test.mp4"
+    # path_result="output_0126/"
+    # k_resolution=3
+    # emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
+    # split_video_index=0
+    # split_video_num=1
+    # file_path="utils/"
+    # file_name="detect_face.pt"
+    # emotion_recognition(target_video_path,3,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name)
