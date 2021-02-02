@@ -6,6 +6,7 @@ import numpy as np
 
 from utils.face import Face
 from utils.match_frame import FrameMatcher
+from utils.cluster_face_ng import cluster_face
 import time
 
 
@@ -198,6 +199,14 @@ def match_result(result_from_detect_face):
     return matcher.get_result()
 
 
+def match_result_manual(result_from_detect_face, input_path):
+    # Calculate max_face_num
+    max_face_num = 0
+    for result in result_from_detect_face:
+        max_face_num = max(len(result), max_face_num)
+    cluster_face(result_from_detect_face, max_face_num, input_path)
+
+
 def interpolate_result(result_from_match_result, total_frame=None, fill_blank=True):
     import warnings
     # Ignore weird RuntimeWarning when importing SciPy
@@ -363,17 +372,21 @@ def test():
     # print(main("test.mp4"))
     # print(main("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"))
 
-    # Test using pickled result
+    # # Test using pickled result
+    # with open("detect_face.pt", "rb") as f:
+    #     # with open("detect_face_long.pt", "rb") as f:
+    #     result_from_detect_face = pickle.load(f)
+    # # total_frame = get_video_length(cv2.VideoCapture("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"))
+    # total_frame = get_video_length(cv2.VideoCapture("test.mp4"))
+    # result = interpolate_result(match_result(result_from_detect_face),
+    #                             total_frame)
+    # print(result)
+    # output_video(result, "test.mp4", "test_out.avi")
+    # # output_video(result, "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4", "long_out.avi")
+
     with open("detect_face.pt", "rb") as f:
-    # with open("detect_face_long.pt", "rb") as f:
         result_from_detect_face = pickle.load(f)
-    # total_frame = get_video_length(cv2.VideoCapture("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"))
-    total_frame = get_video_length(cv2.VideoCapture("test.mp4"))
-    result = interpolate_result(match_result(result_from_detect_face),
-                                total_frame)
-    print(result)
-    output_video(result, "test.mp4", "test_out.avi")
-    # output_video(result, "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4", "long_out.avi")
+    match_result_manual(result_from_detect_face, "test.mp4")
 
 
 if __name__ == "__main__":

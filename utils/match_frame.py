@@ -11,6 +11,8 @@ class FrameMatcher:
         self.max_face_num = max_face_num
         self.is_first_round = True
         self.result = defaultdict()
+        self.box_th = 20
+        self.face_th = 0.5
 
     def match(self, face_list_1, face_list_2):
         if len(face_list_1) == 0 or len(face_list_2) == 0:
@@ -39,6 +41,7 @@ class FrameMatcher:
         for i in range(self.max_face_num):
             face_1 = face_list_1[i]
             distances = np.array([face_1.box_distance(face_2) for face_2 in face_list_2])
+            distances = np.where(distances < self.box_th, distances, np.inf)
             argsort = distances.argsort()
             preference = face_list_2_players[argsort]
             face_list_1_players[i].set_prefs(list(preference))
@@ -47,6 +50,7 @@ class FrameMatcher:
         for i in range(self.max_face_num):
             face_2 = face_list_2[i]
             distances = np.array([face_2.face_distance(face_1) for face_1 in face_list_1])
+            distances = np.where(distances < self.face_th, distances, np.inf)
             argsort = distances.argsort()
             preference = face_list_1_players[argsort]
             face_list_2_players[i].set_prefs(list(preference))
