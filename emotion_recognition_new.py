@@ -156,11 +156,19 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
         print("frame_num",frame_number,file_strat_frame)
 
         if frame_number!= file_strat_frame:
-            output_movie.write(frame)
+            if write_flg:
+                cv2.circle(frame, get_coords(p1[face_index]), 3, (255, 0, 255), -1)
+                cv2.putText(frame, "{}".format(gesture_threshold), (face_index * 100, 30), cv2.FONT_HERSHEY_COMPLEX,
+                            1.0, (0, 0, 0), 2)
+                cv2.putText(frame, "{}".format(y_movement[face_index]), (face_index * 100, 60),
+                            cv2.FONT_HERSHEY_COMPLEX, 1.0, (0, 0, 0), 2)
+                output_movie.write(frame)
+
             continue  ## make sure we use the same frame with the .pt file
 
         ## emotion recognization and head movement judgement
         else:
+            write_flg = True
             for face_index in range(person_number):
                 if rst[face_index][file_frame_count].location==None:
                     continue
