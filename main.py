@@ -18,12 +18,14 @@ from main_util import concat_csv
 from match_speaker import match_speaker
 from overlay_video import overlay_all_results
 from transcript import transcript
+from emotion_recognition_new import emotion_recognition_new
+
 
 config = {
     # NOTE:（　）の中はデフォルト
 
     # Run mode
-    'run_capture_face': True,  # 動画から顔領域の切り出し
+    'run_capture_face': False,  # 動画から顔領域の切り出し
     'run_emotional_recognition': True,  # 切り出した顔画像の表情・頷き・口の開閉認識
     'run_transcript': True,  # Diarization・音声認識
     'run_overlay': True,  # 表情・頷き・発話情報を動画にまとめて可視化
@@ -35,8 +37,8 @@ config = {
     # 感情認識関連設定
     'face_matching_tolerance': 0.35,  # 顔認識を行う際の距離の閾値
     'frame_use_rate': 3,  # frame_use_rate フレームに１回emotional_recognition
-    'split_video_num': 10,  # split_video_num 並列で動画を処理する．10くらいがメモリ・CPUの限界
-
+    # 'split_video_num': 10,  # split_video_num 並列で動画を処理する．10くらいがメモリ・CPUの限界
+    'split_video_num': 2,
     # Debug関連設定
     'no_clean': False,  # (Debug) Use old result (False)
 }
@@ -58,6 +60,31 @@ def run_capture_face(video_path, face_dir, cluster_dir, main_config):
     print('顔画像切り出し完了．\nPath: {} を確認して，対象外人物のフォルダを削除してください．\n完了した場合，何か入力してください．'.format(
         cluster_dir))
     input()  # 入力待ち
+
+def run_emotional_recognition_new(video_path,file_path,file_name,output_dir,main_config):
+    # 感情認識モデルの読み込み
+    model_name = 'mini_XCEPTION'
+    model = None
+    emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
+    # 感情認識（並列処理）
+    process_list = []
+    split_result_dir_list = []
+    split_video_path_list = []
+    for split_video_index in range(main_config['split_video_num']):
+        split_result_dir = join(output_dir, 'temp_{}'.format(split_video_index))
+        split_result_dir_list.append(split_result_dir)
+        split_video_path_list.append(join(split_result_dir, 'output.avi'))
+        cleanup_directory(split_result_dir)
+        process_list.append(multiprocessing.Process(target=emotion_recognition_new,args=(video_path,main_config['frame_use_rate'],split_result_dir,main_config['face_matching_tolerance'],emotions,split_video_index,main_config['split_video_num'],file_path,file_name)))
+        process_list[split_video_index].start()
+    for process in process_list:
+        process.join()
+    # 分割して処理した結果を結合
+    concat_video(split_video_path_list, join(output_dir, 'output.avi'))
+    for j in range(len(cluster_image_path_list)):
+        split_csv_path_list = [join(output_dir, 'temp_{}', 'result{}.csv').format(i, j) for i in
+                               range(main_config['split_video_num'])]
+        concat_csv(split_csv_path_list, join(output_dir, 'result{}.csv'.format(j)))
 
 
 def run_emotional_recognition(video_path, cluster_image_path_list, output_dir, main_config):
@@ -163,13 +190,17 @@ def main(video_path, audio_path_list, output_dir, main_config=None):
 
     if config['run_emotional_recognition']:
         start = time.time()
-        cluster_image_path_list = []
-        for cluster in os.listdir(cluster_dir):
-            cluster_root = join(cluster_dir, cluster)
-            img_list = os.listdir(cluster_root)
-            cluster_image_path_list.append([join(cluster_root, img) for img in img_list])
-        run_emotional_recognition(video_path, cluster_image_path_list, emotion_dir, main_config)
+        # cluster_image_path_list = [] ##
+        # for cluster in os.listdir(cluster_dir):
+        #     cluster_root = join(cluster_dir, cluster)
+        #     img_list = os.listdir(cluster_root)
+        #     cluster_image_path_list.append([join(cluster_root, img) for img in img_list]) ##
+        # run_emotional_recognition(video_path, cluster_image_path_list, emotion_dir, main_config)
+        file_path = "utils/"
+        file_name = "detect_face2.pt"
+        run_emotional_recognition_new(video_path, file_path,file_name, emotion_dir, main_config)
         print('run_emotional_recognition elapsed time:', time.time() - start, '[sec]')
+        exit(0) ##
 
     if config['run_transcript']:
         start = time.time()
@@ -193,7 +224,9 @@ if __name__ == '__main__':
     # for path in ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)]:
     #     trim_audio(path, path[:-4] + '_10min.wav', [0, 10 * 60 * 1000])
 
-    main('test/200225_芳賀先生_実験22video_10min.mp4',
+    # main('test/200225_芳賀先生_実験22video_10min.mp4',
+    #      ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}_10min.wav".format(i) for i in range(1, 6)], 'main_test')
+    main('utils/test.mp4',
          ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}_10min.wav".format(i) for i in range(1, 6)], 'main_test')
 
 

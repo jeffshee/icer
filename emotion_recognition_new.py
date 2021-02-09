@@ -66,7 +66,7 @@ def get_eye_location(face_landmarks):
     eye_center=  (righteye + lefteye) // 2, (topeye + bottomeye) // 2
     return eye_center
 
-def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name):
+def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split_video_index,split_video_num,file_path,file_name):
     with open(file_path+file_name, "rb") as f:
         rst = pickle.load(f)
     person_number = len(rst)
@@ -84,9 +84,9 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
     fourcc = cv2.VideoWriter_fourcc(*'XVID')  # 動画コーデック指定
     original_w = int(input_movie.get(cv2.CAP_PROP_FRAME_WIDTH))  # 動画の幅を測る
     original_h = int(input_movie.get(cv2.CAP_PROP_FRAME_HEIGHT))  # 動画の高さを測る
-    resize_rate = (1080 * k_resolution) / original_w  # 動画の横幅を3Kに固定
-    w = int(original_w * resize_rate)
-    h = int(original_h * resize_rate)
+    # resize_rate = (1080 * k_resolution) / original_w  # 動画の横幅を3Kに固定
+    # w = int(original_w * resize_rate)
+    # h = int(original_h * resize_rate)
     output_movie = cv2.VideoWriter(join(path_result, 'output.avi'), fourcc, video_frame_rate, (original_w, original_h))  # 出力する動画の詳細を設定する
 
     # CSVファイルの最初の列
@@ -329,4 +329,4 @@ if __name__ == '__main__':
     split_video_num=1
     file_path="utils/"
     file_name="detect_face2.pt"
-    emotion_recognition(target_video_path,3,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name)
+    emotion_recognition_new(target_video_path,3,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name)
