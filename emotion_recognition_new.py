@@ -69,7 +69,7 @@ def get_eye_location(face_landmarks):
 def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name):
     with open(file_path+file_name, "rb") as f:
         rst = pickle.load(f)
-    person_number = len(rst[0])
+    person_number = len(rst)
 
     k=k_prame ## how often we read one frame (e.g. 3 frames)
     model_dir = 'model'
@@ -139,6 +139,7 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
         if rst[0][i].frame_number>=start_frame:
             file_strat_frame=rst[0][i].frame_number  ## the first frame we use
             file_frame_count=i  ##record the index
+            break
 
     for frame_number in range(start_frame, stop_frame):
         # 動画を読み込む
@@ -155,15 +156,16 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
         print("frame_num",frame_number,file_strat_frame)
 
         if frame_number!= file_strat_frame:
+            output_movie.write(frame)
             continue  ## make sure we use the same frame with the .pt file
 
         ## emotion recognization and head movement judgement
         else:
             for face_index in range(person_number):
-                if rst[file_frame_count][face_index].location==None:
+                if rst[face_index][file_frame_count].location==None:
                     continue
                 else:
-                    top, right, bottom, left=rst[file_frame_count][face_index].location
+                    top, right, bottom, left=rst[face_index][file_frame_count].location
                     top,bottom = top,bottom
 
                     rec_face[face_index] = [top, bottom, left, right]
@@ -178,7 +180,7 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
                         exit("Invalid model_name")
 
                     # Solved https://stackoverflow.com/questions/60905801/parallelizing-model-predictions-in-keras-using-multiprocessing-for-python
-                    if (rst[file_frame_count][face_index].is_detected):
+                    if (rst[face_index][file_frame_count].is_detected):
                         predictions = model.predict(val, batch_size=1)  # 学習モデルから表情を特定
                         emotion[face_index] = emotions[int(np.argmax(predictions[0]))]
                         box_label(frame, left, top, right, bottom, "{}:{}".format(face_index, emotion[face_index]),
@@ -282,9 +284,12 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
             face_recog_flag = [False] * person_number
             output_movie.write(frame)
             first_flag = False
+        if(file_frame_count+k_prame)<=len(rst[0]):
+            file_strat_frame=rst[0][file_frame_count+k_prame].frame_number
+            file_frame_count=file_frame_count+k_prame
+        else:
+            break
 
-        file_strat_frame=rst[file_frame_count+k_prame][0].frame_number
-        file_frame_count=file_frame_count+1
     # 動画保存
     input_movie.release()
     cv2.destroyAllWindows()
@@ -298,22 +303,22 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
 # a=emotion_recognition("file/out1.mp4",3,128,"file/detect_face.csv")
 
 if __name__ == '__main__':
-    with open("utils/detect_face.pt", "rb") as f:
+    with open("utils/detect_face2.pt", "rb") as f:
         rst = pickle.load(f)
         # print(rst[0]["face_locations"])##
-        print(rst[60])  ##
-        print(rst[71])  ##
+        # print(rst[0][60])  ##
+        # print(rst[71])  ##
 
-        print(len(rst))
+        # print(len(rst[0]))
     #     print(len(rst[0]))
 
 
-    # target_video_path="utils/test.mp4"
-    # path_result="output_0126/"
-    # k_resolution=3
-    # emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
-    # split_video_index=0
-    # split_video_num=1
-    # file_path="utils/"
-    # file_name="detect_face.pt"
-    # emotion_recognition(target_video_path,3,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name)
+    target_video_path="utils/test.mp4"
+    path_result="output_0209/"
+    k_resolution=3
+    emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
+    split_video_index=0
+    split_video_num=1
+    file_path="utils/"
+    file_name="detect_face2.pt"
+    emotion_recognition(target_video_path,3,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name)
