@@ -43,6 +43,7 @@ def calculate_original_box(x1, y1, x2, y2, resized_w, resized_h, original_w, ori
 
 
 # TODO: Initial analysis to detect a box where participants' faces will be in there mostly, cut the computational cost
+# TODO: Set a distance threshold, if two boxes are too close, omit one of them (to avoid double detection)
 def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0, batch_size=8, drop_last=True,
                 return_dict=None):
     """
@@ -186,27 +187,22 @@ def detect_face_multiprocess(video_path, parallel_num=3, k_resolution=3, frame_s
     return combined
 
 
-def match_result(result_from_detect_face):
+def match_result(result_from_detect_face, face_num=None):
     # Calculate max_face_num
-    max_face_num = 0
-    for result in result_from_detect_face:
-        max_face_num = max(len(result), max_face_num)
+    if face_num is None:
+        face_num = 0
+        for result in result_from_detect_face:
+            face_num = max(len(result), face_num)
 
-    matcher = FrameMatcher(max_face_num)
+    matcher = FrameMatcher(face_num)
     for r1, r2 in zip(result_from_detect_face, result_from_detect_face[1:]):
         matcher.match(r1, r2)
 
     return matcher.get_result()
 
 
-def match_result_manual(result_from_detect_face, input_path):
-    # Calculate max_face_num
-    max_face_num = 0
-    for result in result_from_detect_face:
-        max_face_num = max(len(result), max_face_num)
-    cluster_face(result_from_detect_face, max_face_num, input_path)
-
-
+# TODO
+# Set a threshold, if the interpolation is larger than that, ignore
 def interpolate_result(result_from_match_result, total_frame=None, fill_blank=True):
     import warnings
     # Ignore weird RuntimeWarning when importing SciPy
@@ -219,7 +215,7 @@ def interpolate_result(result_from_match_result, total_frame=None, fill_blank=Tr
 
     # Fill blank
     if fill_blank and total_frame is not None:
-        for key, face_list in enumerate(result_from_match_result.values()):
+        for key, face_list in result_from_match_result.items():
             filled_list = []
             cur_ptr = 0
             for f in range(total_frame):
@@ -231,11 +227,12 @@ def interpolate_result(result_from_match_result, total_frame=None, fill_blank=Tr
             # Swap the result with the filled_list
             result_from_match_result[key] = filled_list
 
-    for key, face_list in enumerate(result_from_match_result.values()):
+    for key, face_list in result_from_match_result.items():
         # Interpolate (top,right,bottom,left) for undetected frames
         # Set to None when interpolation is impossible, e.g. before the first or after the last detected frame
         time = np.array([face.frame_number for face in face_list if face.is_detected])
-        value_top = np.array([face.location[0] for face in face_list if face.is_detected and face.location is not None])
+        value_top = np.array(
+            [face.location[0] for face in face_list if face.is_detected and face.location is not None])
         value_right = np.array(
             [face.location[1] for face in face_list if face.is_detected and face.location is not None])
         value_bottom = np.array(
@@ -384,9 +381,20 @@ def test():
     # output_video(result, "test.mp4", "test_out.avi")
     # # output_video(result, "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4", "long_out.avi")
 
-    with open("detect_face.pt", "rb") as f:
+    # with open("detect_face.pt", "rb") as f:
+    #     result_from_detect_face = pickle.load(f)
+    # total_frame = get_video_length(cv2.VideoCapture("test.mp4"))
+    # result = interpolate_result(cluster_face(result_from_detect_face, face_num=3, input_path="test.mp4"), total_frame)
+    # print(result)
+    # output_video(result, "test.mp4", "test_out_cluster.avi")
+
+    input_path = "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"
+    with open("detect_face_long.pt", "rb") as f:
         result_from_detect_face = pickle.load(f)
-    match_result_manual(result_from_detect_face, "test.mp4")
+    total_frame = get_video_length(cv2.VideoCapture(input_path))
+    result = interpolate_result(cluster_face(result_from_detect_face, face_num=6, input_path=input_path), total_frame)
+    print(result)
+    output_video(result, input_path, "test_out_long_cluster.avi")
 
 
 if __name__ == "__main__":
