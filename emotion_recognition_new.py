@@ -87,7 +87,7 @@ def emotion_recognition(target_video_path,k_prame,path_result,k_resolution,emoti
     resize_rate = (1080 * k_resolution) / original_w  # 動画の横幅を3Kに固定
     w = int(original_w * resize_rate)
     h = int(original_h * resize_rate)
-    output_movie = cv2.VideoWriter(join(path_result, 'output.avi'), fourcc, video_frame_rate, (w, h))  # 出力する動画の詳細を設定する
+    output_movie = cv2.VideoWriter(join(path_result, 'output.avi'), fourcc, video_frame_rate, (original_w, original_h))  # 出力する動画の詳細を設定する
 
     # CSVファイルの最初の列
     csv_saving_list = [[["frame_number", "time(ms)", "prediction", "x", "y", "absolute_x", "relative_x", "x_movement",
