@@ -10,14 +10,7 @@ from sklearn.metrics import pairwise_distances_argmin_min
 
 from main_util import cleanup_directory
 from utils.face import Face
-
-
-def get_frame_position(video_capture):
-    return int(video_capture.get(cv2.CAP_PROP_POS_FRAMES))
-
-
-def set_frame_position(video_capture, position):
-    return int(video_capture.set(cv2.CAP_PROP_POS_FRAMES, position))
+from utils.video_utils import get_video_capture, set_frame_position
 
 
 def output_face_image(video_capture: cv2.VideoCapture, face: Face, output_path):
@@ -41,9 +34,9 @@ def my_compare_faces(known_faces, face_encoding_to_check):
     return distance_list
 
 
-def cluster_face(result_from_detect_face, face_num=None, input_path=None, target_cluster_size=1000,
-                 output_path="face_cluster", unattended=False):
-    if not unattended and input_path is None:
+def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, output_path="face_cluster",
+                 target_cluster_size=1000, face_matching_th=0.35, unattended=False):
+    if not unattended and video_path is None:
         raise ValueError("not unattended and input_path is None")
 
     if face_num is None:
@@ -51,7 +44,7 @@ def cluster_face(result_from_detect_face, face_num=None, input_path=None, target
         for result in result_from_detect_face:
             face_num = max(len(result), face_num)
 
-    video_capture = cv2.VideoCapture(input_path)
+    video_capture = get_video_capture(video_path)
 
     for cluster_index in range(face_num):
         cleanup_directory(join(output_path, '{}'.format(cluster_index)))
@@ -129,28 +122,28 @@ def cluster_face(result_from_detect_face, face_num=None, input_path=None, target
     for r in result_from_detect_face:
         face_encoded_list = [face.encoding for face in r]
         # 入力画像とのマッチング
-        face_matching_th = 0.35
         face_distance_list = [[] for _ in range(len(known_faces))]
         for face_encoded in face_encoded_list:
             tmp_distance = my_compare_faces(known_faces, face_encoded)
             for i in range(len(face_distance_list)):
                 face_distance_list[i].append(tmp_distance[i])
-        # print(face_distance_list)
+
         face_index_list = [None] * len(face_encoded_list)
         for i in range(len(known_faces)):
             if min(face_distance_list[i]) <= face_matching_th:
                 face_index = face_distance_list[i].index(min(face_distance_list[i]))
-                if face_index_list[face_index] is None:  # クエリ画像が検出顔のどれともマッチングしていないとき
+                if face_index_list[face_index] is None:
+                    # クエリ画像が検出顔のどれともマッチングしていないとき
                     face_index_list[face_index] = i
                 elif face_distance_list[face_index_list[face_index]].index(
                         min(face_distance_list[face_index_list[face_index]])) >= face_distance_list[i].index(
-                    min(face_distance_list[i])):  # クエリ画像が検出顔のいずれかとマッチング済みであるとき
+                    min(face_distance_list[i])):
+                    # クエリ画像が検出顔のいずれかとマッチング済みであるとき
                     face_index_list[face_index] = i
-        print(face_index_list)
+        # print(face_index_list)
 
         for face, idx in zip(r, face_index_list):
             if idx is not None:
                 result[idx].append(face)
 
-    print(result)
     return result

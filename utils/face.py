@@ -8,7 +8,7 @@ def calculate_box_midpoint(top, right, bottom, left):
 
 
 class Face:
-    def __init__(self, frame_number, location, encoding, is_detected=True):
+    def __init__(self, frame_number: int, location: np.array, encoding: np.array, is_detected=True):
         self.__id = uuid.uuid4()
         self.frame_number = frame_number
         self.location = location

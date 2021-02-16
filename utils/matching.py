@@ -6,7 +6,7 @@ from collections import defaultdict
 from utils.face import Face
 
 
-class FrameMatcher:
+class Matcher:
     def __init__(self, max_face_num):
         self.max_face_num = max_face_num
         self.is_first_round = True
@@ -74,3 +74,17 @@ class FrameMatcher:
 
     def get_result(self):
         return self.result
+
+
+def match_frame(result_from_detect_face: list, face_num=None):
+    # Calculate max_face_num
+    if face_num is None:
+        face_num = 0
+        for result in result_from_detect_face:
+            face_num = max(len(result), face_num)
+
+    matcher = Matcher(face_num)
+    for r1, r2 in zip(result_from_detect_face, result_from_detect_face[1:]):
+        matcher.match(r1, r2)
+
+    return matcher.get_result()

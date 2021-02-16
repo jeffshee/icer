@@ -1,29 +1,9 @@
 import pickle
 from multiprocessing import Process, Manager
-
-import cv2
-import numpy as np
-
-from utils.face import Face
-from utils.match_frame import FrameMatcher
-from utils.cluster_face_ng import cluster_face
 import time
+from collections import defaultdict
 
-
-def get_frame_position(video_capture):
-    return int(video_capture.get(cv2.CAP_PROP_POS_FRAMES))
-
-
-def set_frame_position(video_capture, position):
-    return int(video_capture.set(cv2.CAP_PROP_POS_FRAMES, position))
-
-
-def get_video_dimension(video_capture):
-    return int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-
-def get_video_length(video_capture):
-    return int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+from utils.video_utils import *
 
 
 def calculate_original_box(x1, y1, x2, y2, resized_w, resized_h, original_w, original_h):
@@ -42,10 +22,15 @@ def calculate_original_box(x1, y1, x2, y2, resized_w, resized_h, original_w, ori
     return [round(original_x1), round(original_y1), round(original_x2), round(original_y2)]
 
 
+def calculate_box_midpoint(top, right, bottom, left):
+    midpoint = np.array([(bottom + top) / 2, (right + left) / 2])
+    return midpoint
+
+
 # TODO: Initial analysis to detect a box where participants' faces will be in there mostly, cut the computational cost
 # TODO: Set a distance threshold, if two boxes are too close, omit one of them (to avoid double detection)
-def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0, batch_size=8, drop_last=True,
-                return_dict=None):
+def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0, batch_size=8,
+                drop_last=True, return_dict=None):
     """
     Detect all the faces in video, using CNN and CUDA for high accuracy and performance
     Refer to the example of face_recognition below:
@@ -74,16 +59,19 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
 
     # Open video file
     video_capture = cv2.VideoCapture(video_path)
-    original_w, original_h = get_video_dimension(video_capture)
-    resize_rate = (1080 * k_resolution) / original_w  # Resize
+    original_w, original_h = get_video_dimension(video_path)
+
+    # Resize
+    resize_rate = (1080 * k_resolution) / original_w
     w = int(original_w * resize_rate)
     h = int(original_h * resize_rate)
 
-    video_length = get_video_length(video_capture)
+    video_length = get_video_length(video_path)
+
     divided = video_length // parallel_num  # Frames per process
     frame_range = [[i * divided, (i + 1) * divided] for i in range(parallel_num)]
     # Set the rest of the frames to the last process
-    # Note: This is actually a workaround, for some reason OpenCV will fail to read the last frame
+    # NOTE: Workaround, for some reason OpenCV will fail to read the last frame
     frame_range[-1][1] = video_length - 1
 
     # The frame range of this process
@@ -108,10 +96,6 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
         ret, frame = video_capture.read()
         if frame_skip != 0 and current_pos % frame_skip != 0:
             continue
-
-        # # Bail out when the video file ends
-        # if not ret:
-        #     break
 
         # Resize
         frame = cv2.resize(frame, (w, h))
@@ -149,10 +133,9 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
         return_dict[gpu_index] = result
 
 
-# TODO
-# Have a possibility causing CUDA OOM, need optimization
-# Maybe there is a bug, OOM always happen when processing the end of the video
-def detect_face_multiprocess(video_path, parallel_num=3, k_resolution=3, frame_skip=3, batch_size=8):
+# TODO: Have a possibility causing CUDA OOM, need optimization. (Implemented drop_last as workaround)
+# Consider https://github.com/1adrianb/face-alignment or https://github.com/jacobgil/dlib_facedetector_pytorch
+def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, frame_skip=3, batch_size=8) -> list:
     # Note: Batch size = 8 is about the limitation of current machine
     print("Using", parallel_num, "GPU(s)")
     process_list = []
@@ -187,23 +170,26 @@ def detect_face_multiprocess(video_path, parallel_num=3, k_resolution=3, frame_s
     return combined
 
 
-def match_result(result_from_detect_face, face_num=None):
-    # Calculate max_face_num
-    if face_num is None:
-        face_num = 0
-        for result in result_from_detect_face:
-            face_num = max(len(result), face_num)
+def match_result(result_from_detect_face: list, video_path=None, face_num=None, method="cluster_face") -> defaultdict:
+    if method == "cluster_face":
+        from utils.clustering import cluster_face
+        return cluster_face(result_from_detect_face, face_num, video_path)
+    elif method == "match_frame":
+        # TODO: Not very robust due to undetected face, perhaps match with box distance and clustering? use
+        #  cluster_face for now
+        from utils.matching import match_frame
+        return match_frame(result_from_detect_face, face_num)
+    else:
+        raise ValueError("Unknown method")
 
-    matcher = FrameMatcher(face_num)
-    for r1, r2 in zip(result_from_detect_face, result_from_detect_face[1:]):
-        matcher.match(r1, r2)
 
-    return matcher.get_result()
-
-
-# TODO
-# Set a threshold, if the interpolation is larger than that, ignore
-def interpolate_result(result_from_match_result, total_frame=None, fill_blank=True):
+def interpolate_result(result_from_match_result: defaultdict, video_path: str, box_th=0.1):
+    """
+    :param result_from_match_result: Result from match_result
+    :param video_path: Input video path
+    :param box_th: ignore boxes that too far from median
+    :return:
+    """
     import warnings
     # Ignore weird RuntimeWarning when importing SciPy
     warnings.simplefilter('ignore', RuntimeWarning)
@@ -212,33 +198,26 @@ def interpolate_result(result_from_match_result, total_frame=None, fill_blank=Tr
 
     # Miss detected face
     ghosts = []
-
-    # Fill blank
-    if fill_blank and total_frame is not None:
-        for key, face_list in result_from_match_result.items():
-            filled_list = []
-            cur_ptr = 0
-            for f in range(total_frame):
-                if cur_ptr < len(face_list) and f == face_list[cur_ptr].frame_number:
-                    filled_list.append(face_list[cur_ptr])
-                    cur_ptr += 1
-                else:
-                    filled_list.append(Face(f, None, None, False))
-            # Swap the result with the filled_list
-            result_from_match_result[key] = filled_list
+    original_w, original_h = get_video_dimension(video_path)
+    total_frame = get_video_length(video_path)
 
     for key, face_list in result_from_match_result.items():
         # Interpolate (top,right,bottom,left) for undetected frames
         # Set to None when interpolation is impossible, e.g. before the first or after the last detected frame
-        time = np.array([face.frame_number for face in face_list if face.is_detected])
-        value_top = np.array(
-            [face.location[0] for face in face_list if face.is_detected and face.location is not None])
-        value_right = np.array(
-            [face.location[1] for face in face_list if face.is_detected and face.location is not None])
-        value_bottom = np.array(
-            [face.location[2] for face in face_list if face.is_detected and face.location is not None])
-        value_left = np.array(
-            [face.location[3] for face in face_list if face.is_detected and face.location is not None])
+        face_list_detected = [face for face in face_list if face.is_detected and face.location is not None]
+        face_location_median = np.median([calculate_box_midpoint(*face.location) for face in face_list_detected],
+                                         axis=0)
+        face_list_filtered = []
+        for face in face_list_detected:
+            distance_to_median = np.linalg.norm(calculate_box_midpoint(*face.location) - face_location_median)
+            if distance_to_median < box_th * original_w:
+                face_list_filtered.append(face)
+
+        time = np.array([face.frame_number for face in face_list_filtered])
+        value_top = np.array([face.location[0] for face in face_list_filtered])
+        value_right = np.array([face.location[1] for face in face_list_filtered])
+        value_bottom = np.array([face.location[2] for face in face_list_filtered])
+        value_left = np.array([face.location[3] for face in face_list_filtered])
 
         if time.min() == time.max():
             ghosts.append(key)
@@ -249,13 +228,21 @@ def interpolate_result(result_from_match_result, total_frame=None, fill_blank=Tr
         f_bottom = interp1d(time, value_bottom)
         f_left = interp1d(time, value_left)
 
-        for face in face_list:
-            if not face.is_detected:
-                if time.min() < face.frame_number < time.max():
-                    face.location = [int(f_top(face.frame_number)), int(f_right(face.frame_number)),
-                                     int(f_bottom(face.frame_number)), int(f_left(face.frame_number))]
-                else:
-                    face.location = None
+        # Interpolation
+        interpolated_result = []
+        cur_ptr = 0
+        for f in range(total_frame):
+            if cur_ptr < len(face_list) and f == face_list[cur_ptr].frame_number:
+                interpolated_result.append(face_list[cur_ptr])
+                cur_ptr += 1
+            else:
+                fill_face = Face(f, None, None, False)
+                if time.min() < f < time.max():
+                    fill_face.location = [int(f_top(f)), int(f_right(f)), int(f_bottom(f)), int(f_left(f))]
+                interpolated_result.append(Face(f, None, None, False))
+
+        # Swap the result with the interpolated one
+        result_from_match_result[key] = interpolated_result
 
     # Remove ghost from result
     for ghost in ghosts:
@@ -264,86 +251,10 @@ def interpolate_result(result_from_match_result, total_frame=None, fill_blank=Tr
     return result_from_match_result
 
 
-def output_video(interpolated_result: dict, input_path, output_path):
-    def drawline(img, pt1, pt2, color, thickness=1, style='dotted', gap=20):
-        dist = ((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2) ** .5
-        pts = []
-        for i in np.arange(0, dist, gap):
-            r = i / dist
-            x = int((pt1[0] * (1 - r) + pt2[0] * r) + .5)
-            y = int((pt1[1] * (1 - r) + pt2[1] * r) + .5)
-            p = (x, y)
-            pts.append(p)
-
-        if style == 'dotted':
-            for p in pts:
-                cv2.circle(img, p, thickness, color, -1)
-        else:
-            s = pts[0]
-            e = pts[0]
-            i = 0
-            for p in pts:
-                s = e
-                e = p
-                if i % 2 == 1:
-                    cv2.line(img, s, e, color, thickness)
-                i += 1
-        return img
-
-    def drawpoly(img, pts, color, thickness=1, style='dotted', ):
-        s = pts[0]
-        e = pts[0]
-        pts.append(pts.pop(0))
-        for p in pts:
-            s = e
-            e = p
-            drawline(img, s, e, color, thickness, style)
-        return img
-
-    def drawrect(img, pt1, pt2, color, thickness=1, style='dotted'):
-        pts = [pt1, (pt2[0], pt1[1]), pt2, (pt1[0], pt2[1])]
-        drawpoly(img, pts, color, thickness, style)
-        return img
-
-    video_capture = cv2.VideoCapture(input_path)
-    # TODO
-    # get the parameter from input
-    # colormap
-    frame_rate = 30
-    width, height = 3840, 2160
-    colormap = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255)]
-    fourcc = cv2.VideoWriter_fourcc(*"XVID")
-    video_writer = cv2.VideoWriter(output_path, fourcc, frame_rate, (width, height))
-
-    frame_index = 0
-    while video_capture.isOpened():
-        ret, frame = video_capture.read()
-        if not ret:
-            break
-        for key in interpolated_result.keys():
-            # Assume fill_blank = True
-            face: Face = interpolated_result[key][frame_index]
-            if face.location is not None:
-                top, right, bottom, left = face.location
-                # BBox
-                p1 = (left, top)
-                p2 = (right, bottom)
-                if face.is_detected:
-                    frame = cv2.rectangle(frame, p1, p2, color=colormap[key], thickness=10)
-                else:
-                    frame = drawrect(frame, p1, p2, color=colormap[key], thickness=10, style="dotted")
-
-        video_writer.write(frame)
-        frame_index += 1
-
-    video_capture.release()
-    video_writer.release()
-
-
 def main(video_path):
     """
     Main routine, do detect_face on Multi-GPU,
-    then perform frame-face matching,
+    then perform frame-face matching or face clustering,
     finally interpolate the result for undetected face.
     :return: The final interpolated result.
     Dict{
@@ -354,8 +265,8 @@ def main(video_path):
     }
     """
     start = time.time()
-    total_frame = get_video_length(cv2.VideoCapture(video_path))
-    result = interpolate_result(match_result(detect_face_multiprocess(video_path)), total_frame)
+    result = interpolate_result(match_result(detect_face_multiprocess(video_path), video_path=video_path),
+                                video_path=video_path)
     print('capture_face_ng elapsed time:', time.time() - start, '[sec]')
     return result
 
@@ -369,32 +280,12 @@ def test():
     # print(main("test.mp4"))
     # print(main("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"))
 
-    # # Test using pickled result
-    # with open("detect_face.pt", "rb") as f:
-    #     # with open("detect_face_long.pt", "rb") as f:
-    #     result_from_detect_face = pickle.load(f)
-    # # total_frame = get_video_length(cv2.VideoCapture("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"))
-    # total_frame = get_video_length(cv2.VideoCapture("test.mp4"))
-    # result = interpolate_result(match_result(result_from_detect_face),
-    #                             total_frame)
-    # print(result)
-    # output_video(result, "test.mp4", "test_out.avi")
-    # # output_video(result, "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4", "long_out.avi")
-
-    # with open("detect_face.pt", "rb") as f:
-    #     result_from_detect_face = pickle.load(f)
-    # total_frame = get_video_length(cv2.VideoCapture("test.mp4"))
-    # result = interpolate_result(cluster_face(result_from_detect_face, face_num=3, input_path="test.mp4"), total_frame)
-    # print(result)
-    # output_video(result, "test.mp4", "test_out_cluster.avi")
-
-    input_path = "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"
+    video_path = "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"
     with open("detect_face_long.pt", "rb") as f:
         result_from_detect_face = pickle.load(f)
-    total_frame = get_video_length(cv2.VideoCapture(input_path))
-    result = interpolate_result(cluster_face(result_from_detect_face, face_num=6, input_path=input_path), total_frame)
-    print(result)
-    output_video(result, input_path, "test_out_long_cluster.avi")
+    result = interpolate_result(
+        match_result(result_from_detect_face, video_path=video_path, face_num=6), video_path=video_path)
+    output_video(result, video_path, output_path="test_out_long_cluster.avi")
 
 
 if __name__ == "__main__":
