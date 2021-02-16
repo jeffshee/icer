@@ -63,8 +63,6 @@ def run_capture_face(video_path, face_dir, cluster_dir, main_config):
 
 def run_emotional_recognition_new(video_path,file_path,file_name,output_dir,main_config):
     # 感情認識モデルの読み込み
-    model_name = 'mini_XCEPTION'
-    model = None
     emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
     # 感情認識（並列処理）
     process_list = []

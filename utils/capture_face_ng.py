@@ -52,10 +52,6 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
     :param parallel_num: Number of parallel jobs (Multiprocessing on GPUs)
     :param gpu_index: Which GPU to use
     :param batch_size: Batch size
-    :param drop_last: Drop last incomplete batch.
-    Workaround for a dlib bug that raise CUDA OOM error, especially when the last incomplete batch size == 1,
-    even there are plenty of RAM still available. Refer:
-    https://forums.developer.nvidia.com/t/cudamalloc-out-of-memory-although-the-gpu-memory-is-enough/84327
     :param k_resolution:
     :param frame_skip:
     :param return_dict:
@@ -125,7 +121,7 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
         if len(frame_list) == batch_size or (next_pos >= end and not drop_last):
             batch_of_face_locations = face_recognition.batch_face_locations(frame_list,
                                                                             number_of_times_to_upsample=0,
-                                                                            batch_size=len(frame_list))
+                                                                            batch_size=len(frame_list)) ##此处改
             batch_of_face_encodings = batch_face_encodings(frame_list, batch_of_face_locations)
 
             for frame_number_in_batch, (face_locations, face_encodings) in enumerate(
