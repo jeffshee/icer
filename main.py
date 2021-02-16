@@ -4,7 +4,7 @@ import os
 import time
 
 os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'  # see issue #152
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 from os.path import join
 import tensorflow as tf
@@ -75,13 +75,13 @@ def run_emotional_recognition_new(video_path,file_path,file_name,output_dir,main
         split_result_dir_list.append(split_result_dir)
         split_video_path_list.append(join(split_result_dir, 'output.avi'))
         cleanup_directory(split_result_dir)
-        process_list.append(multiprocessing.Process(target=emotion_recognition_new,args=(video_path,main_config['frame_use_rate'],split_result_dir,main_config['face_matching_tolerance'],emotions,split_video_index,main_config['split_video_num'],file_path,file_name)))
+        process_list.append(multiprocessing.Process(target=emotion_recognition_new,args=(video_path,main_config['frame_use_rate'],split_result_dir,emotions,split_video_index,main_config['split_video_num'],file_path,file_name)))
         process_list[split_video_index].start()
     for process in process_list:
         process.join()
     # 分割して処理した結果を結合
     concat_video(split_video_path_list, join(output_dir, 'output.avi'))
-    for j in range(len(cluster_image_path_list)):
+    for j in range(3):
         split_csv_path_list = [join(output_dir, 'temp_{}', 'result{}.csv').format(i, j) for i in
                                range(main_config['split_video_num'])]
         concat_csv(split_csv_path_list, join(output_dir, 'result{}.csv'.format(j)))
@@ -227,7 +227,7 @@ if __name__ == '__main__':
     # main('test/200225_芳賀先生_実験22video_10min.mp4',
     #      ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}_10min.wav".format(i) for i in range(1, 6)], 'main_test')
     main('utils/test.mp4',
-         ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}_10min.wav".format(i) for i in range(1, 6)], 'main_test')
+         ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}_10min.wav".format(i) for i in range(1, 6)], 'main_test_020902')
 
 
 

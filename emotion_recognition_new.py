@@ -3,13 +3,14 @@ import cv2
 import csv
 import numpy as np
 import pickle
+import os
 from os.path import join
 from keras.models import model_from_json
 from ast import literal_eval as make_tuple
 import face_recognition
 from scipy.spatial import distance as dist
 
-
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 # MAR: Mouse Aspect Ratio
 # https://medium.freecodecamp.org/smilfie-auto-capture-selfies-by-detecting-a-smile-using-opencv-and-python-8c5cfb6ec197
 def calculate_MAR(landmarks):
@@ -140,7 +141,8 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
             file_strat_frame=rst[0][i].frame_number  ## the first frame we use
             file_frame_count=i  ##record the index
             break
-
+    write_flg=False
+    gesture_threshold=0 ##tmp
     for frame_number in range(start_frame, stop_frame):
         # 動画を読み込む
         ret, frame = input_movie.read()
@@ -157,13 +159,19 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
 
         if frame_number!= file_strat_frame:
             if write_flg:
-                cv2.circle(frame, get_coords(p1[face_index]), 3, (255, 0, 255), -1)
-                cv2.putText(frame, "{}".format(gesture_threshold), (face_index * 100, 30), cv2.FONT_HERSHEY_COMPLEX,
-                            1.0, (0, 0, 0), 2)
-                cv2.putText(frame, "{}".format(y_movement[face_index]), (face_index * 100, 60),
-                            cv2.FONT_HERSHEY_COMPLEX, 1.0, (0, 0, 0), 2)
-                output_movie.write(frame)
+                for face_index in range(person_number):
 
+                    # cv2.circle(frame, get_coords(p0[face_index]), 3, (255, 0, 255), -1)
+                    # cv2.putText(frame, "{}".format(gesture_threshold), (face_index * 100, 30), cv2.FONT_HERSHEY_COMPLEX,
+                    #             1.0, (0, 0, 0), 2)
+                    # cv2.putText(frame, "{}".format(y_movement[face_index]), (face_index * 100, 60),
+                    #         cv2.FONT_HERSHEY_COMPLEX, 1.0, (0, 0, 0), 2)
+                    if emotion[face_index] != "Unknown":
+                        box_label(frame, int(rec_face[face_index][2]), int(rec_face[face_index][0]),
+                                  int(rec_face[face_index][3]), int(rec_face[face_index][1]),
+                                  "{}:{}".format(face_index, emotion[face_index]), color=(0, 255, 0))
+                        print(frame_number,"draw",face_index)
+            output_movie.write(frame)
             continue  ## make sure we use the same frame with the .pt file
 
         ## emotion recognization and head movement judgement
@@ -188,12 +196,12 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                         exit("Invalid model_name")
 
                     # Solved https://stackoverflow.com/questions/60905801/parallelizing-model-predictions-in-keras-using-multiprocessing-for-python
-                    if (rst[face_index][file_frame_count].is_detected):
-                        predictions = model.predict(val, batch_size=1)  # 学習モデルから表情を特定
-                        emotion[face_index] = emotions[int(np.argmax(predictions[0]))]
-                        box_label(frame, left, top, right, bottom, "{}:{}".format(face_index, emotion[face_index]),
-                                  color=(0, 255, 0))
-                        face_recog_flag[face_index] = True
+                    # if (rst[face_index][file_frame_count].is_detected):
+                    predictions = model.predict(val, batch_size=1)  # 学習モデルから表情を特定
+                    emotion[face_index] = emotions[int(np.argmax(predictions[0]))]
+                    box_label(frame, left, top, right, bottom, "{}:{}".format(face_index, emotion[face_index]),
+                              color=(0, 255, 0))
+                    face_recog_flag[face_index] = True
 
                     # 顔の部位の座標を検出する
                     face_landmarks_list = face_recognition.face_landmarks(dst, face_locations=[
@@ -317,16 +325,16 @@ if __name__ == '__main__':
         # print(rst[0][60])  ##
         # print(rst[71])  ##
 
-        # print(len(rst[0]))
+        print(rst[0])
     #     print(len(rst[0]))
 
-
-    target_video_path="utils/test.mp4"
-    path_result="output_0209/"
-    k_resolution=3
-    emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
-    split_video_index=0
-    split_video_num=1
-    file_path="utils/"
-    file_name="detect_face2.pt"
-    emotion_recognition_new(target_video_path,3,path_result,k_resolution,emotions,split_video_index,split_video_num,file_path,file_name)
+    #
+    # target_video_path="utils/test.mp4"
+    # path_result="output_0209/"
+    # k_resolution=3
+    # emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
+    # split_video_index=0
+    # split_video_num=1
+    # file_path="utils/"
+    # file_name="detect_face2.pt"
+    # emotion_recognition_new(target_video_path,3,path_result,emotions,split_video_index,split_video_num,file_path,file_name)
