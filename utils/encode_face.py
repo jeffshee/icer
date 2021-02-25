@@ -29,9 +29,9 @@ def batch_face_encodings(batch_face_image, batch_known_face_locations=None, num_
 
 def test():
     import face_recognition
-    known_obama_image = face_recognition.load_image_file("obama.jpeg")
-    known_biden_image = face_recognition.load_image_file("biden.jpeg")
-    print(batch_face_encodings([known_obama_image, known_biden_image]))
+    # known_obama_image = face_recognition.load_image_file("obama.jpeg")
+    # known_biden_image = face_recognition.load_image_file("biden.jpeg")
+    # print(batch_face_encodings([known_obama_image, known_biden_image]))
 
 
 if __name__ == "__main__":

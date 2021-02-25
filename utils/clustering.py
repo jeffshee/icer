@@ -35,9 +35,26 @@ def my_compare_faces(known_faces, face_encoding_to_check):
 
 
 def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, output_path="face_cluster",
-                 target_cluster_size=1000, face_matching_th=0.35, unattended=False, use_old=True):
-    if not unattended and video_path is None:
-        raise ValueError("not unattended and input_path is None")
+                 target_cluster_size=1000, face_matching_th=0.35, unattended=False, use_old=False):
+    """
+
+    :param result_from_detect_face: Result from detect_face function (list)
+    :param face_num: Specify number of face in the video, otherwise use maximum number of detected face in all frame
+    :param video_path: Video path for clustering, required if unattended is False
+    :param output_path: Output path to store the cluster for manual revision
+    :param target_cluster_size: Target cluster size, larger size may produce better result, but require more time
+    :param face_matching_th: Face matching threshold, match the faces only if the distance is lower than threshold
+    :param unattended: Skip the manual revision process after the clustering (Warn: High possibility of bad result)
+    :param use_old: Use old clustering result
+    :return:
+    """
+    # Validate input data
+    if not unattended:
+        assert video_path is None, "input_path is None"
+    if use_old:
+        assert use_old and os.path.isdir(output_path), "check old cluster directory"
+        assert len(os.listdir(output_path)) > 0, "check old cluster directory"
+        assert not unattended
 
     if face_num is None:
         face_num = 0
@@ -46,7 +63,7 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
 
     video_capture = get_video_capture(video_path)
 
-    if not use_old:
+    if not unattended and not use_old:
         for cluster_index in range(face_num):
             cleanup_directory(join(output_path, '{}'.format(cluster_index)))
 
@@ -82,7 +99,7 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
 
     # 学習結果のラベル
     pred_labels = model.labels_
-    print("ClusterFace bincount:", np.bincount(pred_labels))
+    # print("ClusterFace bincount:", np.bincount(pred_labels))
 
     # Get nearest point to centroid
     closest, _ = pairwise_distances_argmin_min(model.cluster_centers_, face_image_encoded_np)

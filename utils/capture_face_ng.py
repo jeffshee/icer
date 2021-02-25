@@ -6,6 +6,11 @@ from collections import defaultdict
 from utils.video_utils import *
 
 
+def get_timestamp():
+    from datetime import datetime
+    return datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
+
+
 def calculate_original_box(x1, y1, x2, y2, resized_w, resized_h, original_w, original_h):
     alpha_x1 = x1 / (resized_w - x1)
     alpha_x2 = x2 / (resized_w - x2)
@@ -164,21 +169,19 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
         combined.extend(return_dict[i])
 
     # Save result into pickle
-    with open("detect_face.pt", "wb") as f:
+    with open(f"{get_timestamp()}_detect_face.pt", "wb") as f:
         pickle.dump(combined, f)
 
     return combined
 
 
-def match_result(result_from_detect_face: list, video_path=None, face_num=None, method="cluster_face") -> defaultdict:
+def match_result(result_from_detect_face: list, method="cluster_face", **kwargs) -> defaultdict:
     if method == "cluster_face":
         from utils.clustering import cluster_face
-        return cluster_face(result_from_detect_face, face_num, video_path)
+        return cluster_face(result_from_detect_face, kwargs)
     elif method == "match_frame":
-        # TODO: Not very robust due to undetected face, perhaps match with box distance and clustering? use
-        #  cluster_face for now
         from utils.matching import match_frame
-        return match_frame(result_from_detect_face, face_num)
+        return match_frame(result_from_detect_face, kwargs)
     else:
         raise ValueError("Unknown method")
 
@@ -212,8 +215,8 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
             distance_to_median = np.linalg.norm(calculate_box_midpoint(*face.location) - face_location_median)
             if distance_to_median < box_th * original_w:
                 face_list_filtered.append(face)
-            else:
-                print("filtered", face)
+            # else:
+            #     print("filtered", face)
 
         time = np.array([face.frame_number for face in face_list_filtered])
         value_top = np.array([face.location[0] for face in face_list_filtered])
@@ -242,16 +245,6 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
                 if time.min() < f < time.max():
                     fill_face.location = [int(f_top(f)), int(f_right(f)), int(f_bottom(f)), int(f_left(f))]
                 interpolated_result.append(fill_face)
-        #
-        # for f in range(total_frame):
-        #     if cur_ptr < len(face_list) and f == face_list[cur_ptr].frame_number:
-        #         interpolated_result.append(face_list[cur_ptr])
-        #         cur_ptr += 1
-        #     else:
-        #         fill_face = Face(f, None, None, False)
-        #         if time.min() < f < time.max():
-        #             fill_face.location = [int(f_top(f)), int(f_right(f)), int(f_bottom(f)), int(f_left(f))]
-        #         interpolated_result.append(fill_face)
 
         # Swap the result with the interpolated one
         result_from_match_result[key] = interpolated_result
@@ -263,7 +256,7 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
     return result_from_match_result
 
 
-def main(video_path):
+def main(video_path, face_num):
     """
     Main routine, do detect_face on Multi-GPU,
     then perform frame-face matching or face clustering,
@@ -277,8 +270,9 @@ def main(video_path):
     }
     """
     start = time.time()
-    result = interpolate_result(match_result(detect_face_multiprocess(video_path), video_path=video_path),
-                                video_path=video_path)
+    result = interpolate_result(
+        match_result(detect_face_multiprocess(video_path), video_path=video_path, face_num=face_num),
+        video_path=video_path)
     print('capture_face_ng elapsed time:', time.time() - start, '[sec]')
     return result
 
@@ -296,7 +290,7 @@ def test():
     with open("detect_face_long.pt", "rb") as f:
         result_from_detect_face = pickle.load(f)
     result = interpolate_result(
-        match_result(result_from_detect_face, video_path=video_path, face_num=6), video_path=video_path)
+        match_result(result_from_detect_face, video_path=video_path, face_num=6, use_old=True), video_path=video_path)
     output_video(result, video_path, output_path="test_out_long_cluster_v2.avi")
 
 
