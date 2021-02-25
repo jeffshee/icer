@@ -35,7 +35,7 @@ def my_compare_faces(known_faces, face_encoding_to_check):
 
 
 def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, output_path="face_cluster",
-                 target_cluster_size=1000, face_matching_th=0.35, unattended=False):
+                 target_cluster_size=1000, face_matching_th=0.35, unattended=False, use_old=True):
     if not unattended and video_path is None:
         raise ValueError("not unattended and input_path is None")
 
@@ -46,8 +46,9 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
 
     video_capture = get_video_capture(video_path)
 
-    for cluster_index in range(face_num):
-        cleanup_directory(join(output_path, '{}'.format(cluster_index)))
+    if not use_old:
+        for cluster_index in range(face_num):
+            cleanup_directory(join(output_path, '{}'.format(cluster_index)))
 
     face_image_encoded_list = []
     face_image_path_list = []
@@ -59,7 +60,8 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
                 for face in r:
                     if not unattended:
                         face_image_path = join(output_path, "{}.png".format(count))
-                        output_face_image(video_capture, face, face_image_path)
+                        if not use_old:
+                            output_face_image(video_capture, face, face_image_path)
                         face_image_path_list.append(face_image_path)
                     face_image_encoded_list.append(face.encoding)
                     count += 1
@@ -88,20 +90,21 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
     known_faces = []
     if not unattended:
         # クラスタリング結果ごとにインデックスを付け保存
-        for i, (label, face_image_path) in enumerate(zip(pred_labels, face_image_path_list)):
-            if i == closest[label]:
-                shutil.move(face_image_path,
-                            join(output_path, "{}", "closest.png").format(label))
-            else:
-                shutil.move(face_image_path,
-                            join(output_path, "{}", "{}").format(label, os.path.basename(face_image_path)))
-        print('顔画像切り出し完了．\nPath: {} を確認して，対象外人物のフォルダを削除してください．\n完了した場合，何か入力してください．'.format(
-            os.path.abspath(output_path)))
-        # Launch Nautilus (Linux only)
-        import subprocess
-        subprocess.run(["xdg-open", output_path])
-        # 入力待ち
-        input()
+        if not use_old:
+            for i, (label, face_image_path) in enumerate(zip(pred_labels, face_image_path_list)):
+                if i == closest[label]:
+                    shutil.move(face_image_path,
+                                join(output_path, "{}", "closest.png").format(label))
+                else:
+                    shutil.move(face_image_path,
+                                join(output_path, "{}", "{}").format(label, os.path.basename(face_image_path)))
+            print('顔画像切り出し完了．\nPath: {} を確認して，対象外人物のフォルダを削除してください．\n完了した場合，何か入力してください．'.format(
+                os.path.abspath(output_path)))
+            # Launch Nautilus (Linux only)
+            import subprocess
+            subprocess.run(["xdg-open", output_path])
+            # 入力待ち
+            input()
 
         """
         known_faces = [[face1_enc1, face1_enc2, ... ], [face2_enc1, face2_enc2, ... ], ... ]

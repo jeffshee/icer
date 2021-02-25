@@ -212,6 +212,8 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
             distance_to_median = np.linalg.norm(calculate_box_midpoint(*face.location) - face_location_median)
             if distance_to_median < box_th * original_w:
                 face_list_filtered.append(face)
+            else:
+                print("filtered", face)
 
         time = np.array([face.frame_number for face in face_list_filtered])
         value_top = np.array([face.location[0] for face in face_list_filtered])
@@ -232,14 +234,24 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
         interpolated_result = []
         cur_ptr = 0
         for f in range(total_frame):
-            if cur_ptr < len(face_list) and f == face_list[cur_ptr].frame_number:
-                interpolated_result.append(face_list[cur_ptr])
+            if cur_ptr < len(face_list_filtered) and f == face_list_filtered[cur_ptr].frame_number:
+                interpolated_result.append(face_list_filtered[cur_ptr])
                 cur_ptr += 1
             else:
                 fill_face = Face(f, None, None, False)
                 if time.min() < f < time.max():
                     fill_face.location = [int(f_top(f)), int(f_right(f)), int(f_bottom(f)), int(f_left(f))]
-                interpolated_result.append(Face(f, None, None, False))
+                interpolated_result.append(fill_face)
+        #
+        # for f in range(total_frame):
+        #     if cur_ptr < len(face_list) and f == face_list[cur_ptr].frame_number:
+        #         interpolated_result.append(face_list[cur_ptr])
+        #         cur_ptr += 1
+        #     else:
+        #         fill_face = Face(f, None, None, False)
+        #         if time.min() < f < time.max():
+        #             fill_face.location = [int(f_top(f)), int(f_right(f)), int(f_bottom(f)), int(f_left(f))]
+        #         interpolated_result.append(fill_face)
 
         # Swap the result with the interpolated one
         result_from_match_result[key] = interpolated_result
@@ -285,7 +297,7 @@ def test():
         result_from_detect_face = pickle.load(f)
     result = interpolate_result(
         match_result(result_from_detect_face, video_path=video_path, face_num=6), video_path=video_path)
-    output_video(result, video_path, output_path="test_out_long_cluster.avi")
+    output_video(result, video_path, output_path="test_out_long_cluster_v2.avi")
 
 
 if __name__ == "__main__":
