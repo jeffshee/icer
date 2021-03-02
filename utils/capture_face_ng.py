@@ -41,6 +41,40 @@ def calculate_original_box(x1, y1, x2, y2, resized_w, resized_h, original_w, ori
 
     return [round(original_x1), round(original_y1), round(original_x2), round(original_y2)]
 
+##
+def detele_repetitive_location(batch_of_face_locations,video_width):
+    if len(batch_of_face_locations)<1:
+        print("error: no face location")
+    # new_locations=batch_of_face_locations.copy()
+    new_locations=[]
+    frame_num=len(batch_of_face_locations)
+    for i in range(frame_num):
+        frame_length=len(batch_of_face_locations[i])
+        x_locations=[0]*frame_length
+        delete_flg=[False]*frame_length
+        tmp_location=[]
+        for j in range(frame_length):
+            _,_,_,x_locations[j]=batch_of_face_locations[i][j]
+        for j in range(frame_length):
+            if delete_flg[j]:
+                continue
+            for k in range(j+1,frame_length):
+                if delete_flg[k]:
+                    continue
+                if abs(x_locations[j]-x_locations[k])<0.033*video_width:
+                    delete_flg[k]=True
+        for j in range(frame_length):
+            if not delete_flg[j]:
+                tmp_location.append(batch_of_face_locations[i][j])
+        ##only used to show the deleted results no necessary
+        for j in range(frame_length):
+            if delete_flg[j]:
+                print(batch_of_face_locations[i][j]," is deleted",tmp_location," are saved")
+        new_locations.append(tmp_location)
+    return new_locations
+
+
+
 
 # TODO: Initial analysis to detect a box where participants' faces will be in there mostly, cut the computational cost
 # TODO: Set a distance threshold, if two boxes are too close, omit one of them (to avoid double detection)
@@ -128,6 +162,10 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
             batch_of_face_locations = face_recognition.batch_face_locations(frame_list,
                                                                             number_of_times_to_upsample=0,
                                                                             batch_size=len(frame_list))
+
+            ##delete the face of the same person in one frame
+            # new_batch_of_face_locations=detele_repetitive_location(batch_of_face_locations,w)
+
             batch_of_face_encodings = batch_face_encodings(frame_list, batch_of_face_locations)
 
             for frame_number_in_batch, (face_locations, face_encodings) in enumerate(
@@ -152,7 +190,7 @@ def detect_face(video_path, gpu_index=0, parallel_num=1, k_resolution=3, frame_s
 # TODO
 # Have a possibility causing CUDA OOM, need optimization
 # Maybe there is a bug, OOM always happen when processing the end of the video
-def detect_face_multiprocess(video_path, parallel_num=3, k_resolution=3, frame_skip=3, batch_size=8):
+def detect_face_multiprocess(video_path, parallel_num=1, k_resolution=3, frame_skip=3, batch_size=8):
     # Note: Batch size = 8 is about the limitation of current machine
     print("Using", parallel_num, "GPU(s)")
     process_list = []
@@ -181,7 +219,7 @@ def detect_face_multiprocess(video_path, parallel_num=3, k_resolution=3, frame_s
         combined.extend(return_dict[i])
 
     # Save result into pickle
-    with open("detect_face.pt", "wb") as f:
+    with open("detect_face4.pt", "wb") as f:
         pickle.dump(combined, f)
 
     return combined
@@ -381,21 +419,24 @@ def test():
     # output_video(result, "test.mp4", "test_out.avi")
     # # output_video(result, "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4", "long_out.avi")
 
-    # with open("detect_face.pt", "rb") as f:
-    #     result_from_detect_face = pickle.load(f)
-    # total_frame = get_video_length(cv2.VideoCapture("test.mp4"))
-    # result = interpolate_result(cluster_face(result_from_detect_face, face_num=3, input_path="test.mp4"), total_frame)
-    # print(result)
-    # output_video(result, "test.mp4", "test_out_cluster.avi")
-
-    input_path = "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"
-    with open("detect_face_long.pt", "rb") as f:
+    with open("detect_face4.pt", "rb") as f:
         result_from_detect_face = pickle.load(f)
-    total_frame = get_video_length(cv2.VideoCapture(input_path))
-    result = interpolate_result(cluster_face(result_from_detect_face, face_num=6, input_path=input_path), total_frame)
+    total_frame = get_video_length(cv2.VideoCapture("test23.mp4"))
+    result = interpolate_result(cluster_face(result_from_detect_face, face_num=6, input_path="test23.mp4"), total_frame)
     print(result)
-    output_video(result, input_path, "test_out_long_cluster.avi")
+    output_video(result, "test23.mp4", "test_out_cluster.avi")
 
+    # input_path = "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"
+    # with open("detect_face_long.pt", "rb") as f:
+    #     result_from_detect_face = pickle.load(f)
+    # total_frame = get_video_length(cv2.VideoCapture(input_path))
+    # result = interpolate_result(cluster_face(result_from_detect_face, face_num=6, input_path=input_path), total_frame)
+    # print(result)
+    # output_video(result, input_path, "test_out_long_cluster.avi")
+
+    #test detect face
+    # result=detect_face_multiprocess("test23.mp4")
+    # print(len(result))
 
 if __name__ == "__main__":
     test()
