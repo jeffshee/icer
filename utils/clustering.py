@@ -34,6 +34,8 @@ def my_compare_faces(known_faces, face_encoding_to_check):
     return distance_list
 
 
+# def reidentification(result_from_detect_face: List, face)
+
 def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, output_path="face_cluster",
                  target_cluster_size=1000, face_matching_th=0.35, unattended=False, use_old=False):
     """

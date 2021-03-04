@@ -33,7 +33,6 @@ def calculate_box_midpoint(top, right, bottom, left):
 
 
 # TODO: Initial analysis to detect a box where participants' faces will be in there mostly, cut the computational cost
-# TODO: Set a distance threshold, if two boxes are too close, omit one of them (to avoid double detection)
 def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0, batch_size=8,
                 drop_last=True, return_dict=None):
     """
@@ -252,6 +251,10 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
     # Remove ghost from result
     for ghost in ghosts:
         result_from_match_result.pop(ghost)
+
+    # Dump
+    with open(f"{get_timestamp()}_interpolated_face.pt", "wb") as f:
+        pickle.dump(result_from_match_result, f)
 
     return result_from_match_result
 
