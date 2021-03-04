@@ -260,7 +260,7 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
 
                     gesture_threshold = int((rec_face[face_index][1] - rec_face[face_index][0]) * 0.2)
 
-                    if y_movement[face_index] > gesture_threshold:
+                    if y_movement[face_index] > gesture_threshold * k:
                         gesture[face_index] = 1
                         y_movement[face_index] = 0
                         gesture_show[face_index] = gesture_show_frame  # number of frames a gesture is shown
@@ -319,22 +319,22 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
 # a=emotion_recognition("file/out1.mp4",3,128,"file/detect_face.csv")
 
 if __name__ == '__main__':
-    with open("utils/detect_face2.pt", "rb") as f:
-        rst = pickle.load(f)
-        # print(rst[0]["face_locations"])##
-        # print(rst[0][60])  ##
-        # print(rst[71])  ##
-
-        print(rst[0])
+    # with open("utils/30s-1.pt", "rb") as f:
+    #     rst = pickle.load(f)
+    #     # print(rst[0]["face_locations"])##
+    #     # print(rst[0][60])  ##
+    #     # print(rst[71])  ##
+    #
+    #     print(len(rst))
     #     print(len(rst[0]))
 
     #
-    # target_video_path="utils/test.mp4"
-    # path_result="output_0209/"
-    # k_resolution=3
-    # emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
-    # split_video_index=0
-    # split_video_num=1
-    # file_path="utils/"
-    # file_name="detect_face2.pt"
-    # emotion_recognition_new(target_video_path,3,path_result,emotions,split_video_index,split_video_num,file_path,file_name)
+    target_video_path="test_video/out1.mp4"
+    path_result="output_0304-2/"
+    k_resolution=3
+    emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
+    split_video_index=0
+    split_video_num=1
+    file_path="utils/"
+    file_name="30s-1.pt"
+    emotion_recognition_new(target_video_path,3,path_result,emotions,split_video_index,split_video_num,file_path,file_name)
