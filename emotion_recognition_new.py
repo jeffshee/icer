@@ -127,6 +127,8 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
     # 感情
     emotion = ["Unknown"] * person_number
     mouse_opening_rate_list = [0] * person_number
+    ##
+    top_for_lastframe=[0] * person_number
 
     frame_duration = length // split_video_num
     start_frame = split_video_index * frame_duration
@@ -260,7 +262,7 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
 
                     gesture_threshold = int((rec_face[face_index][1] - rec_face[face_index][0]) * 0.2)
 
-                    if y_movement[face_index] > gesture_threshold:
+                    if y_movement[face_index] > gesture_threshold and (top_for_lastframe[face_index]-rec_face[face_index][0]) < gesture_threshold:
                         gesture[face_index] = 1
                         y_movement[face_index] = 0
                         gesture_show[face_index] = gesture_show_frame  # number of frames a gesture is shown
@@ -280,6 +282,7 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                                 cv2.FONT_HERSHEY_COMPLEX, 1.0, (0, 0, 0), 25)
 
                     p0[face_index] = p1[face_index]
+                    top_for_lastframe[face_index]=rec_face[face_index][0]
                 else:
                     pass
             frame_gray_old = frame_gray
