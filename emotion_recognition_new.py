@@ -267,7 +267,7 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
 
                     if gesture[face_index] and gesture_show[face_index] > 0:
                         cv2.circle(frame, get_coords(p1[face_index]), 100, (0, 0, 255), 5)  # now nodding
-                        gesture_show[face_index] -= 1
+                        gesture_show[face_index] -= 1 * k
 
                     if gesture_show[face_index] <= 0:
                         gesture[face_index] = 0
