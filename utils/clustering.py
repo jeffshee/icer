@@ -52,7 +52,7 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
     """
     # Validate input data
     if not unattended:
-        assert video_path is None, "input_path is None"
+        assert video_path is not None, "input_path is None"
     if use_old:
         assert use_old and os.path.isdir(output_path), "check old cluster directory"
         assert len(os.listdir(output_path)) > 0, "check old cluster directory"

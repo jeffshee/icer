@@ -177,10 +177,10 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
 def match_result(result_from_detect_face: list, method="cluster_face", **kwargs) -> defaultdict:
     if method == "cluster_face":
         from utils.clustering import cluster_face
-        return cluster_face(result_from_detect_face, kwargs)
+        return cluster_face(result_from_detect_face, **kwargs)
     elif method == "match_frame":
         from utils.matching import match_frame
-        return match_frame(result_from_detect_face, kwargs)
+        return match_frame(result_from_detect_face, **kwargs)
     else:
         raise ValueError("Unknown method")
 
@@ -286,15 +286,15 @@ def test():
     # trim_video("../datasets/Videos_new_200929/200221_expt12_video.mp4", ['00:00:00', '00:00:16'], "test.mp4")
 
     # Test full run
-    # print(main("test.mp4"))
+    print(main("test.mp4"))
     # print(main("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"))
 
-    video_path = "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"
-    with open("detect_face_long.pt", "rb") as f:
-        result_from_detect_face = pickle.load(f)
-    result = interpolate_result(
-        match_result(result_from_detect_face, video_path=video_path, face_num=6, use_old=True), video_path=video_path)
-    output_video(result, video_path, output_path="test_out_long_cluster_v2.avi")
+    # video_path = "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"
+    # with open("detect_face_long.pt", "rb") as f:
+    #     result_from_detect_face = pickle.load(f)
+    # result = interpolate_result(
+    #     match_result(result_from_detect_face, video_path=video_path, face_num=6, use_old=True), video_path=video_path)
+    # output_video(result, video_path, output_path="test_out_long_cluster_v2.avi")
 
 
 if __name__ == "__main__":
