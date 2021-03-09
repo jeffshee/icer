@@ -110,7 +110,7 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
     x = [0] * person_number
     y = [0] * person_number
     # 動作判定の表示時間
-    gesture_show_frame = 15
+    gesture_show_frame = 30
     gesture_show = [gesture_show_frame] * person_number
     # 顔が認識できたかどうか
     face_recog_flag = [False] * person_number
@@ -127,6 +127,8 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
     # 感情
     emotion = ["Unknown"] * person_number
     mouse_opening_rate_list = [0] * person_number
+    ##
+    top_for_lastframe=[0] * person_number
 
     frame_duration = length // split_video_num
     start_frame = split_video_index * frame_duration
@@ -254,16 +256,13 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                     absolute_y[face_index] = abs(a[1] - b[1])
                     relative_x[face_index] = a[0] - b[0]
                     relative_y[face_index] = a[1] - b[1]
-                    decay_number = int((rec_face[face_index][1] - rec_face[face_index][0]) * 0.10)
+                    decay_number = int((rec_face[face_index][1] - rec_face[face_index][0]) * 0.05)
                     x_movement[face_index] = max(0, int((x_movement[face_index] + abs(a[0] - b[0])) - decay_number))
                     y_movement[face_index] = max(0, int((y_movement[face_index] + abs(a[1] - b[1])) - decay_number))
 
-                    if y_movement[face_index]!=0:
-                        y_movement[face_index]=y_movement[face_index]+decay_number
+                    gesture_threshold = int((rec_face[face_index][1] - rec_face[face_index][0]) * 0.2)
 
-                    gesture_threshold = int((rec_face[face_index][1] - rec_face[face_index][0]) * 0.10)
-
-                    if y_movement[face_index] > gesture_threshold :
+                    if y_movement[face_index] > gesture_threshold and (top_for_lastframe[face_index]-rec_face[face_index][0]) < gesture_threshold:
                         gesture[face_index] = 1
                         y_movement[face_index] = 0
                         gesture_show[face_index] = gesture_show_frame  # number of frames a gesture is shown
@@ -283,6 +282,7 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                                 cv2.FONT_HERSHEY_COMPLEX, 1.0, (0, 0, 0), 25)
 
                     p0[face_index] = p1[face_index]
+                    top_for_lastframe[face_index]=rec_face[face_index][0]
                 else:
                     pass
             frame_gray_old = frame_gray
@@ -323,22 +323,22 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
 # a=emotion_recognition("file/out1.mp4",3,128,"file/detect_face.csv")
 
 if __name__ == '__main__':
-    # with open("utils/10s-1.pt", "rb") as f:
-    #     rst = pickle.load(f)
-    #     print(rst[0])##
-    #     # print(rst[0][60])  ##
-    #     # print(rst[71])  ##
-    #
-    #     print(len(rst))
+    with open("utils/detect_face2.pt", "rb") as f:
+        rst = pickle.load(f)
+        # print(rst[0]["face_locations"])##
+        # print(rst[0][60])  ##
+        # print(rst[71])  ##
+
+        print(rst[0])
     #     print(len(rst[0]))
 
     #
-    target_video_path="test_video/out1.mp4"
-    path_result="output_0309-1/"
-    k_resolution=3
-    emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
-    split_video_index=0
-    split_video_num=1
-    file_path="utils/"
-    file_name="60s-1.pt"
-    emotion_recognition_new(target_video_path,3,path_result,emotions,split_video_index,split_video_num,file_path,file_name)
+    # target_video_path="utils/test.mp4"
+    # path_result="output_0209/"
+    # k_resolution=3
+    # emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
+    # split_video_index=0
+    # split_video_num=1
+    # file_path="utils/"
+    # file_name="detect_face2.pt"
+    # emotion_recognition_new(target_video_path,3,path_result,emotions,split_video_index,split_video_num,file_path,file_name)
