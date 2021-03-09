@@ -1,16 +1,13 @@
 import os
 import shutil
-from os.path import join
 from collections import defaultdict
+from os.path import join
 
-import cv2
-import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances_argmin_min
 
 from main_util import cleanup_directory
-from utils.face import Face
-from utils.video_utils import get_video_capture, set_frame_position
+from utils.video_utils import *
 
 
 def output_face_image(video_capture: cv2.VideoCapture, face: Face, output_path):
@@ -34,7 +31,48 @@ def my_compare_faces(known_faces, face_encoding_to_check):
     return distance_list
 
 
-# def reidentification(result_from_detect_face: List, face)
+def reidentification(result_from_detect_face: list, face_video_result: list, face_matching_th=0.35):
+    """
+    Alternative method that takes a list of face video of single person
+    :param result_from_detect_face:
+    :param face_video_result:
+    :return:
+    """
+    known_faces = []
+    for i, face_video_r in enumerate(face_video_result):
+        print(face_video_r)
+        known_faces.append([face.encoding for face in face_video_r])
+
+    result = defaultdict(list)
+    for r in result_from_detect_face:
+        face_encoded_list = [face.encoding for face in r]
+        # 入力画像とのマッチング
+        face_distance_list = [[] for _ in range(len(known_faces))]
+        for face_encoded in face_encoded_list:
+            tmp_distance = my_compare_faces(known_faces, face_encoded)
+            for i in range(len(face_distance_list)):
+                face_distance_list[i].append(tmp_distance[i])
+
+        face_index_list = [None] * len(face_encoded_list)
+        for i in range(len(known_faces)):
+            if min(face_distance_list[i]) <= face_matching_th:
+                face_index = face_distance_list[i].index(min(face_distance_list[i]))
+                if face_index_list[face_index] is None:
+                    # クエリ画像が検出顔のどれともマッチングしていないとき
+                    face_index_list[face_index] = i
+                elif face_distance_list[face_index_list[face_index]].index(
+                        min(face_distance_list[face_index_list[face_index]])) >= face_distance_list[i].index(
+                    min(face_distance_list[i])):
+                    # クエリ画像が検出顔のいずれかとマッチング済みであるとき
+                    face_index_list[face_index] = i
+        # print(face_index_list)
+
+        for face, idx in zip(r, face_index_list):
+            if idx is not None:
+                result[idx].append(face)
+
+    return result
+
 
 def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, output_path="face_cluster",
                  target_cluster_size=1000, face_matching_th=0.35, unattended=False, use_old=False):

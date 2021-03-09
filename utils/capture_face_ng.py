@@ -177,10 +177,10 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
 def match_result(result_from_detect_face: list, method="cluster_face", **kwargs) -> defaultdict:
     if method == "cluster_face":
         from utils.clustering import cluster_face
-        return cluster_face(result_from_detect_face, **kwargs)
+        return cluster_face(result_from_detect_face, kwargs)
     elif method == "match_frame":
         from utils.matching import match_frame
-        return match_frame(result_from_detect_face, **kwargs)
+        return match_frame(result_from_detect_face, kwargs)
     else:
         raise ValueError("Unknown method")
 
