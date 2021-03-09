@@ -93,7 +93,7 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
     # CSVファイルの最初の列
     csv_saving_list = [[["frame_number", "time(ms)", "prediction", "x", "y", "absolute_x", "relative_x", "x_movement",
                          "absolute_y", "relative_y", "y_movement", "mouse opening", "gesture", "top", "bottom", "left",
-                         "right"]] for _ in range(person_number)]
+                         "right","gesture_threshold"]] for _ in range(person_number)]
     # 各変数を初期化
     # 前フレームの顔の座標を記録する変数
     rec_face = [[0, 0, 0, 0]] * person_number
@@ -275,9 +275,9 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                     # 計算した座標に点を表示
                     cv2.circle(frame, get_coords(p1[face_index]), 3, (255, 0, 255), -1)
                     cv2.putText(frame, "{}".format(gesture_threshold), (face_index * 100, 30), cv2.FONT_HERSHEY_COMPLEX,
-                                1.0, (0, 0, 0), 2)
+                                1.0, (0, 0, 0), 25)
                     cv2.putText(frame, "{}".format(y_movement[face_index]), (face_index * 100, 60),
-                                cv2.FONT_HERSHEY_COMPLEX, 1.0, (0, 0, 0), 2)
+                                cv2.FONT_HERSHEY_COMPLEX, 1.0, (0, 0, 0), 25)
 
                     p0[face_index] = p1[face_index]
                 else:
@@ -294,7 +294,8 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                     absolute_y[face_index], relative_y[face_index], y_movement[face_index],
                     mouse_opening_rate_list[face_index],
                     gesture[face_index],
-                    rec_face[face_index][0], rec_face[face_index][1], rec_face[face_index][2], rec_face[face_index][3]
+                    rec_face[face_index][0], rec_face[face_index][1], rec_face[face_index][2], rec_face[face_index][3],
+                    gesture_threshold
                 ])
 
             face_recog_flag = [False] * person_number
