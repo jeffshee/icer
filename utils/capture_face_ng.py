@@ -15,25 +15,25 @@ def get_timestamp():
     return datetime.today().strftime('%Y%m%d%H%M%S')
 
 
-def calculate_original_box(x1, y1, x2, y2, resized_w, resized_h, original_w, original_h, roi=None):
-    alpha_x1 = x1 / (resized_w - x1)
-    alpha_x2 = x2 / (resized_w - x2)
-
-    alpha_y1 = y1 / (resized_h - y1)
-    alpha_y2 = y2 / (resized_h - y2)
-
-    original_x1 = alpha_x1 * original_w / (1 + alpha_x1)
-    original_x2 = alpha_x2 * original_w / (1 + alpha_x2)
-
-    original_y1 = alpha_y1 * original_h / (1 + alpha_y1)
-    original_y2 = alpha_y2 * original_h / (1 + alpha_y2)
-
+def calculate_original_box(top, right, bottom, left, resized_w, resized_h, original_w, original_h, roi=None):
     if roi is not None:
         pad_x, pad_y = roi[0], roi[1]
-        return [pad_x + round(original_x1), pad_y + round(original_y1), pad_x + round(original_x2),
-                pad_y + round(original_y2)]
+        return [pad_y + top, pad_x + right, pad_y + bottom, pad_x + left]
+        # return [pad_y + round(original_top), pad_x + round(original_right), pad_y + round(original_bottom),
+        #         pad_x + round(original_left)]
     else:
-        return [round(original_x1), round(original_y1), round(original_x2), round(original_y2)]
+        alpha_top = top / (resized_h - top)
+        alpha_bottom = bottom / (resized_h - bottom)
+
+        alpha_right = right / (resized_w - right)
+        alpha_left = left / (resized_w - left)
+
+        original_top = alpha_top * original_h / (1 + alpha_top)
+        original_bottom = alpha_bottom * original_h / (1 + alpha_bottom)
+
+        original_right = alpha_right * original_w / (1 + alpha_right)
+        original_left = alpha_left * original_w / (1 + alpha_left)
+        return [round(original_top), round(original_right), round(original_bottom), round(original_left)]
 
 
 def calculate_box_midpoint(top, right, bottom, left):
@@ -59,6 +59,7 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
     :param k_resolution: resize factor, None = original
     :param frame_skip:
     :param return_dict:
+    :param roi: ROI where the face recognition is performed
 
     :return:
     """
@@ -80,8 +81,10 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
     # Resize
     if k_resolution is not None:
         resize_rate = (1080 * k_resolution) / original_w
-        w = int(original_w * resize_rate)
-        h = int(original_h * resize_rate)
+    else:
+        resize_rate = 1
+    w = int(original_w * resize_rate)
+    h = int(original_h * resize_rate)
 
     video_length = get_video_length(video_path)
 
@@ -142,7 +145,7 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
                 temp = []
                 for location, encoding in zip(face_locations, face_encodings):
                     temp.append(Face(frame_numbers[frame_number_in_batch],
-                                     calculate_original_box(*location, w, h, original_w, original_h),
+                                     calculate_original_box(*location, w, h, original_w, original_h, roi),
                                      np.array(encoding)))
                 if len(temp) != 0:
                     # Only append if there is any face detected
@@ -179,14 +182,20 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
         else:
             four_k_size = 3840 * 2160
             roi_size = int(roi[2] * roi[3])
-            ratio = four_k_size // roi_size
+            # Heuristic for current GPU setting, which 1 GPU can process 3K res * 8 images in 1 batch at the most
+            # Calculate the size ratio of the 4K and the ROI, then adjust the heuristic such that it doesn't cause OOM
+            heuristic = 0.65
+            ratio = four_k_size / roi_size * heuristic
             kwargs = {"video_path": video_path,
                       "gpu_index": i,
                       "parallel_num": parallel_num,
                       "k_resolution": None,
                       "frame_skip": frame_skip,
-                      "batch_size": batch_size * ratio,
-                      "return_dict": return_dict}
+                      "batch_size": int(batch_size * ratio),
+                      "return_dict": return_dict,
+                      "roi": roi}
+            if config["debug"]:
+                print(kwargs)
         p = Process(target=detect_face, kwargs=kwargs)
         process_list.append(p)
         p.start()
@@ -200,8 +209,9 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
         combined.extend(return_dict[i])
 
     # Save result into pickle
-    with open(f"{get_timestamp()}_detect_face.pt", "wb") as f:
-        pickle.dump(combined, f)
+    if config["debug"]:
+        with open(f"{get_timestamp()}_detect_face.pt", "wb") as f:
+            pickle.dump(combined, f)
 
     return combined
 
@@ -210,11 +220,14 @@ def get_roi(video_path: str):
     video_capture = get_video_capture(video_path)
     ret, frame = video_capture.read()
     roi = cv2.selectROI(frame)
+    if roi == (0, 0, 0, 0):
+        roi = None
     print("ROI:", roi)
     return roi
 
 
 def match_result(result_from_detect_face: list, method="cluster_face", **kwargs) -> defaultdict:
+    print(f"\nMatching result")
     if method == "cluster_face":
         from utils.clustering import cluster_face
         return cluster_face(result_from_detect_face, **kwargs)
@@ -242,6 +255,7 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
     :param box_th: ignore boxes that too far from median
     :return:
     """
+    print(f"\nInterpolating result")
     import warnings
     # Ignore weird RuntimeWarning when importing SciPy
     warnings.simplefilter('ignore', RuntimeWarning)
@@ -303,13 +317,14 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
         result_from_match_result.pop(ghost)
 
     # Dump
-    with open(f"{get_timestamp()}_interpolated_face.pt", "wb") as f:
-        pickle.dump(result_from_match_result, f)
+    if config["debug"]:
+        with open(f"{get_timestamp()}_interpolated_face.pt", "wb") as f:
+            pickle.dump(result_from_match_result, f)
 
     return result_from_match_result
 
 
-def main(video_path, face_num):
+def main(video_path, face_num=None, face_video_list=None):
     """
     Main routine, do detect_face on Multi-GPU,
     then perform frame-face matching or face clustering,
@@ -322,13 +337,16 @@ def main(video_path, face_num):
         ...
     }
     """
-    start = time.time()
     roi = get_roi(video_path)
+    start = time.time()
     result = interpolate_result(
-        match_result(detect_face_multiprocess(video_path, roi=roi), video_path=video_path, face_num=face_num),
-        video_path=video_path)
+        match_result(detect_face_multiprocess(video_path, roi=roi), method="reidentification",
+                     face_video_list=face_video_list), video_path=video_path)
+    # result = interpolate_result(
+    #     match_result(detect_face_multiprocess(video_path, roi=roi), video_path=video_path, face_num=face_num),
+    #     video_path=video_path)
+    output_video_multiprocess(result, video_path, output_path="test_out_long_cluster_test.avi")
     print('capture_face_ng elapsed time:', time.time() - start, '[sec]')
-    return result
 
 
 def test():
@@ -347,15 +365,24 @@ def test():
     #     match_result(result_from_detect_face, video_path=video_path, face_num=6, use_old=True), video_path=video_path)
     # output_video(result, video_path, output_path="test_out_long_cluster_v2.avi")
 
+    # video_path = "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"
+    # with open("detect_face_long.pt", "rb") as f:
+    #     result_from_detect_face = pickle.load(f)
+    # result = interpolate_result(
+    #     match_result(result_from_detect_face, method="reidentification",
+    #                  face_video_list=[f"reid_test/untitled{i}.mp4" for i in range(1, 7)]), video_path=video_path)
+    # output_video(result, video_path, output_path="test_out_long_cluster_re_id_v2.avi")
+
     video_path = "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"
     with open("detect_face_long.pt", "rb") as f:
         result_from_detect_face = pickle.load(f)
     result = interpolate_result(
         match_result(result_from_detect_face, method="reidentification",
                      face_video_list=[f"reid_test/untitled{i}.mp4" for i in range(1, 7)]), video_path=video_path)
-    output_video(result, video_path, output_path="test_out_long_cluster_re_id_v2.avi")
+    output_video_final(result, video_path, output_path="test_out_long_cluster_test.avi")
 
 
 if __name__ == "__main__":
-    main("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4", 6)
+    main("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4",
+         face_video_list=[f"reid_test/untitled{i}.mp4" for i in range(1, 7)])
     # test()

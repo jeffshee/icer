@@ -40,7 +40,7 @@ def reidentification(result_from_detect_face: list, face_video_result: list, fac
     """
     known_faces = []
     for i, face_video_r in enumerate(face_video_result):
-        print(face_video_r)
+        # print(face_video_r)
         known_faces.append([face.encoding for face in face_video_r])
 
     result = defaultdict(list)
