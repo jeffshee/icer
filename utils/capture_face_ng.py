@@ -41,7 +41,6 @@ def calculate_box_midpoint(top, right, bottom, left):
     return midpoint
 
 
-# TODO: Initial analysis to detect a box where participants' faces will be in there mostly, cut the computational cost
 def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0, batch_size=8,
                 drop_last=True, return_dict=None, roi=None):
     """
