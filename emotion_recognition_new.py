@@ -10,7 +10,9 @@ from ast import literal_eval as make_tuple
 import face_recognition
 from scipy.spatial import distance as dist
 
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+
 # MAR: Mouse Aspect Ratio
 # https://medium.freecodecamp.org/smilfie-auto-capture-selfies-by-detecting-a-smile-using-opencv-and-python-8c5cfb6ec197
 def calculate_MAR(landmarks):
@@ -21,6 +23,7 @@ def calculate_MAR(landmarks):
     D = dist.euclidean(landmarks["top_lip"][0], landmarks["bottom_lip"][0])  # 横
     mar = L / D
     return mar
+
 
 def box_label(bgr, x1, y1, x2, y2, label, color):
     cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 2)  # 顔を囲む箱
@@ -35,6 +38,7 @@ def get_coords(p1):
     except IndexError:
         return int(p1[0][0]), int(p1[0][1])
 
+
 def get_parts_coordinates(a, b):
     l = list()
     if b == True:
@@ -45,8 +49,10 @@ def get_parts_coordinates(a, b):
             l.append(w[1])
     return l
 
+
 def get_video_dimension(video_capture):
     return int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
 
 def get_face_location_from_csv(df, frame_num):
     face_location = df.loc[df["frame"] == frame_num].values.tolist()
@@ -54,6 +60,7 @@ def get_face_location_from_csv(df, frame_num):
         # frame_num not found in csv
         return None
     return [make_tuple(s) for s in face_location[0][2:]]
+
 
 def get_eye_location(face_landmarks):
     # 目の位置
@@ -64,19 +71,23 @@ def get_eye_location(face_landmarks):
     bottomeye = max(eye_y)
     lefteye = min(leye_x)
     righteye = max(reye_x)
-    eye_center=  (righteye + lefteye) // 2, (topeye + bottomeye) // 2
+    eye_center = (righteye + lefteye) // 2, (topeye + bottomeye) // 2
     return eye_center
 
-def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split_video_index,split_video_num,file_path,file_name):
-    with open(file_path+file_name, "rb") as f:
-        rst = pickle.load(f)
+
+def emotion_recognition_new(target_video_path, k_prame, path_result, emotions, split_video_index, split_video_num,
+                            result):
+    # with open(file_path + file_name, "rb") as f:
+    #     rst = pickle.load(f)
+    rst = result
     person_number = len(rst)
 
-    k=k_prame ## how often we read one frame (e.g. 3 frames)
-    model_dir = 'model'
+    k = k_prame  ## how often we read one frame (e.g. 3 frames)
+    # model_dir = 'model'
+    model_dir = '../model'
     model_name = 'mini_XCEPTION'
     model = model_from_json(open(join(model_dir, 'model_{}.json'.format(model_name)), 'r').read())
-    model.load_weights(join(model_dir, 'model_{}.h5'.format(model_name)))##
+    model.load_weights(join(model_dir, 'model_{}.h5'.format(model_name)))  ##
 
     input_movie = cv2.VideoCapture(target_video_path)  # 動画を読み込む
     video_frame_rate = input_movie.get(cv2.CAP_PROP_FPS)
@@ -88,12 +99,13 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
     # resize_rate = (1080 * k_resolution) / original_w  # 動画の横幅を3Kに固定
     # w = int(original_w * resize_rate)
     # h = int(original_h * resize_rate)
-    output_movie = cv2.VideoWriter(join(path_result, 'output.avi'), fourcc, video_frame_rate, (original_w, original_h))  # 出力する動画の詳細を設定する
+    output_movie = cv2.VideoWriter(join(path_result, 'output.avi'), fourcc, video_frame_rate,
+                                   (original_w, original_h))  # 出力する動画の詳細を設定する
 
     # CSVファイルの最初の列
     csv_saving_list = [[["frame_number", "time(ms)", "prediction", "x", "y", "absolute_x", "relative_x", "x_movement",
                          "absolute_y", "relative_y", "y_movement", "mouse opening", "gesture", "top", "bottom", "left",
-                         "right","gesture_threshold"]] for _ in range(person_number)]
+                         "right", "gesture_threshold"]] for _ in range(person_number)]
     # 各変数を初期化
     # 前フレームの顔の座標を記録する変数
     rec_face = [[0, 0, 0, 0]] * person_number
@@ -128,23 +140,23 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
     emotion = ["Unknown"] * person_number
     mouse_opening_rate_list = [0] * person_number
     ##
-    top_for_lastframe=[0] * person_number
+    top_for_lastframe = [0] * person_number
 
     frame_duration = length // split_video_num
     start_frame = split_video_index * frame_duration
     stop_frame = length if split_video_index == split_video_num - 1 else start_frame + frame_duration
     input_movie.set(cv2.CAP_PROP_POS_FRAMES, start_frame)  # 動画の開始フレームを設定
     first_flag = True
-    file_strat_frame=0 # the first frame we use
-    file_frame_count=0
+    file_strat_frame = 0  # the first frame we use
+    file_frame_count = 0
     # print("0")
-    for i in range (0,len(rst[0])):
-        if rst[0][i].frame_number>=start_frame:
-            file_strat_frame=rst[0][i].frame_number  ## the first frame we use
-            file_frame_count=i  ##record the index
+    for i in range(0, len(rst[0])):
+        if rst[0][i].frame_number >= start_frame:
+            file_strat_frame = rst[0][i].frame_number  ## the first frame we use
+            file_frame_count = i  ##record the index
             break
-    write_flg=False
-    gesture_threshold=0 ##tmp
+    write_flg = False
+    gesture_threshold = 0  ##tmp
     for frame_number in range(start_frame, stop_frame):
         # 動画を読み込む
         ret, frame = input_movie.read()
@@ -157,9 +169,9 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
         # フレームのサイズを調整する
         # frame = cv2.resize(frame, (w, h)) ## no need to modify the size in this new method
 
-        print("frame_num",frame_number,file_strat_frame)
+        print("frame_num", frame_number, file_strat_frame)
 
-        if frame_number!= file_strat_frame:
+        if frame_number != file_strat_frame:
             if write_flg:
                 for face_index in range(person_number):
 
@@ -172,7 +184,7 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                         box_label(frame, int(rec_face[face_index][2]), int(rec_face[face_index][0]),
                                   int(rec_face[face_index][3]), int(rec_face[face_index][1]),
                                   "{}:{}".format(face_index, emotion[face_index]), color=(0, 255, 0))
-                        print(frame_number,"draw",face_index)
+                        print(frame_number, "draw", face_index)
             output_movie.write(frame)
             continue  ## make sure we use the same frame with the .pt file
 
@@ -180,11 +192,11 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
         else:
             write_flg = True
             for face_index in range(person_number):
-                if rst[face_index][file_frame_count].location==None:
+                if rst[face_index][file_frame_count].location == None:
                     continue
                 else:
-                    top, right, bottom, left=rst[face_index][file_frame_count].location
-                    top,bottom = top,bottom
+                    top, right, bottom, left = rst[face_index][file_frame_count].location
+                    top, bottom = top, bottom
 
                     rec_face[face_index] = [top, bottom, left, right]
                     # 顔領域を切り取る
@@ -239,9 +251,9 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                     break
                 elif first_face_recog_flag[face_index]:
                     p1[face_index] = np.array([[eye_center[face_index]]], np.float32)
-                    if face_recog_flag[face_index]: ##
+                    if face_recog_flag[face_index]:  ##
                         p1[face_index] = np.array([[eye_center[face_index]]], np.float32)
-                    else: ## copy the codes from perious method  (unclear)
+                    else:  ## copy the codes from perious method  (unclear)
                         # オプティカルフローのパラメータ設定
                         lk_params = dict(winSize=(int(rec_face[face_index][1] - rec_face[face_index][0]),
                                                   int(rec_face[face_index][1] - rec_face[face_index][0])), maxLevel=2,
@@ -259,13 +271,12 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                     decay_number = int((rec_face[face_index][1] - rec_face[face_index][0]) * 0.08)
                     x_movement[face_index] = max(0, int((x_movement[face_index] + abs(a[0] - b[0])) - decay_number))
                     y_movement[face_index] = max(0, int((y_movement[face_index] + abs(a[1] - b[1])) - decay_number))
-                    if y_movement[face_index]!=0:
-                        y_movement[face_index]=y_movement[face_index]+decay_number*0.5
-
+                    if y_movement[face_index] != 0:
+                        y_movement[face_index] = y_movement[face_index] + decay_number * 0.5
 
                     gesture_threshold = int((rec_face[face_index][1] - rec_face[face_index][0]) * 0.2)
 
-                    if y_movement[face_index] > gesture_threshold :
+                    if y_movement[face_index] > gesture_threshold:
                         gesture[face_index] = 1
                         y_movement[face_index] = 0
                         gesture_show[face_index] = gesture_show_frame  # number of frames a gesture is shown
@@ -285,7 +296,7 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                                 cv2.FONT_HERSHEY_COMPLEX, 1.0, (0, 0, 0), 25)
 
                     p0[face_index] = p1[face_index]
-                    top_for_lastframe[face_index]=rec_face[face_index][0]
+                    top_for_lastframe[face_index] = rec_face[face_index][0]
                 else:
                     pass
             frame_gray_old = frame_gray
@@ -307,9 +318,9 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
             face_recog_flag = [False] * person_number
             output_movie.write(frame)
             first_flag = False
-        if(file_frame_count+k_prame)<=len(rst[0]):
-            file_strat_frame=rst[0][file_frame_count+k_prame].frame_number
-            file_frame_count=file_frame_count+k_prame
+        if (file_frame_count + k_prame) <= len(rst[0]):
+            file_strat_frame = rst[0][file_frame_count + k_prame].frame_number
+            file_frame_count = file_frame_count + k_prame
         else:
             break
 
@@ -322,6 +333,7 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
         with open(join(path_result, 'result{}.csv'.format(i)), "w", encoding="Shift_jis") as f:
             writer = csv.writer(f, lineterminator="\n")  # writerオブジェクトの作成 改行記号で行を区切る
             writer.writerows(csv_saving_list[i])  # csvファイルに書き込み
+
 
 # a=emotion_recognition("file/out1.mp4",3,128,"file/detect_face.csv")
 
@@ -336,12 +348,13 @@ if __name__ == '__main__':
     # #     print(len(rst[0]))
 
     #
-    target_video_path="test_video/out1.mp4"
-    path_result="output_0309-4/"
-    k_resolution=3
+    target_video_path = "test_video/out1.mp4"
+    path_result = "output_0309-4/"
+    k_resolution = 3
     emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
-    split_video_index=0
-    split_video_num=1
-    file_path="utils/"
-    file_name="60s-1.pt"
-    emotion_recognition_new(target_video_path,3,path_result,emotions,split_video_index,split_video_num,file_path,file_name)
+    split_video_index = 0
+    split_video_num = 1
+    file_path = "utils/"
+    file_name = "60s-1.pt"
+    emotion_recognition_new(target_video_path, 3, path_result, emotions, split_video_index, split_video_num, file_path,
+                            file_name)

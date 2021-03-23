@@ -4,6 +4,7 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 from utils.face import Face
 from multiprocessing import Process
+import pandas as pd
 
 
 def get_video_capture(video_path: str) -> cv2.VideoCapture:
@@ -135,7 +136,8 @@ def output_video(interpolated_result: dict, video_path: str, output_path: str):
     video_writer.release()
 
 
-def output_video_final(interpolated_result: dict, video_path: str, output_path: str, parallel_num=1, rank=0):
+def output_video_final(interpolated_result: dict, emotion_csv_path_list: list, video_path: str, output_path: str,
+                       parallel_num=1, rank=0):
     from tqdm import tqdm
 
     """
@@ -208,6 +210,10 @@ def output_video_final(interpolated_result: dict, video_path: str, output_path: 
     video_writer = cv2.VideoWriter(output_path, fourcc, get_video_framerate(video_path),
                                    get_video_dimension(video_path))
 
+    # Read emotion recognition CSV
+    emotion_df_list = [pd.read_csv(path) for path in emotion_csv_path_list]
+    emotion_recognition_k_frame = emotion_df_list[0]["frame_number"][1] - emotion_df_list[0]["frame_number"][0]
+
     frame_index = start
     set_frame_position(video_capture, start)  # Move position
     while video_capture.isOpened() and get_frame_position(video_capture) in range(start, end):
@@ -216,12 +222,20 @@ def output_video_final(interpolated_result: dict, video_path: str, output_path: 
         bar.update(1)
         bar.refresh()
 
-        # if not ret:
-        #     break
-
         for key in interpolated_result.keys():
             # Assume fill_blank = True
             face: Face = interpolated_result[key][frame_index]
+            df = emotion_df_list[key]
+            emotion = \
+                df[df["frame_number"] == (frame_index - frame_index % emotion_recognition_k_frame)][
+                    "prediction"].values[0]
+            gesture = \
+                df[df["frame_number"] == (frame_index - frame_index % emotion_recognition_k_frame)][
+                    "gesture"].values[0]
+            emo_x = df[df["frame_number"] == (frame_index - frame_index % emotion_recognition_k_frame)][
+                "x"].values[0]
+            emo_y = df[df["frame_number"] == (frame_index - frame_index % emotion_recognition_k_frame)][
+                "y"].values[0]
             if face.location is not None:
                 top, right, bottom, left = face.location
                 # BBox
@@ -229,10 +243,16 @@ def output_video_final(interpolated_result: dict, video_path: str, output_path: 
                 p2 = (right, bottom)
                 if face.is_detected:
                     frame = drawrect(frame, p1, p2, color=np.array(cmap(key / len(interpolated_result))) * 255,
-                                     thickness=8, style="line")
+                                     thickness=8, style="line", label=emotion)
                 else:
                     frame = drawrect(frame, p1, p2, color=np.array(cmap(key / len(interpolated_result))) * 255,
-                                     thickness=8, style="dotted")
+                                     thickness=8, style="dotted", label=emotion)
+                # Draw circle when gesture flag == 1
+                if gesture:
+                    mid = (np.array(p1) + np.array(p2)) // 2
+                    frame = cv2.circle(frame, tuple(mid), radius=100, color=(0, 0, 255), thickness=5)
+                # Draw (x,y) from emotion recognition (center of eyes?)
+                frame = cv2.circle(frame, (emo_x, emo_y), radius=3, color=(255, 0, 255), thickness=-1)
 
         video_writer.write(frame)
         frame_index += 1
@@ -241,12 +261,14 @@ def output_video_final(interpolated_result: dict, video_path: str, output_path: 
     video_writer.release()
 
 
-def output_video_multiprocess(interpolated_result: dict, video_path: str, output_path: str, parallel_num=32):
+def output_video_multiprocess(interpolated_result: dict, emotion_csv_path_list: list, video_path: str, output_path: str,
+                              parallel_num=32):
     print(f"\nOutput to {output_path}")
     print("Using", parallel_num, "Process(es)")
     process_list = []
     for i in range(parallel_num):
         kwargs = {"interpolated_result": interpolated_result,
+                  "emotion_csv_path_list": emotion_csv_path_list,
                   "video_path": video_path,
                   "output_path": f"{output_path[:-4]}_{i:02}{output_path[-4:]}",
                   "parallel_num": parallel_num,

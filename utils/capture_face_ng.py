@@ -6,7 +6,7 @@ from collections import defaultdict
 from utils.video_utils import *
 
 config = {
-    "debug": False
+    "debug": True
 }
 
 
@@ -341,10 +341,18 @@ def main(video_path, face_num=None, face_video_list=None):
     result = interpolate_result(
         match_result(detect_face_multiprocess(video_path, roi=roi), method="reidentification",
                      face_video_list=face_video_list), video_path=video_path)
+
     # result = interpolate_result(
     #     match_result(detect_face_multiprocess(video_path, roi=roi), video_path=video_path, face_num=face_num),
     #     video_path=video_path)
-    output_video_multiprocess(result, video_path, output_path="test_out_long_cluster_test.avi")
+    from emotion_recognition_new import emotion_recognition_new
+    # with open("20210323111636_interpolated_face.pt", "rb") as f:
+    #     result = pickle.load(f)
+    # TODO create emo dir
+    emotion_recognition_new(video_path, 3, "output_emo/",
+                            ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal'), 0, 1, result)
+    output_video_multiprocess(result, [f"output_emo/result{i}.csv" for i in range(6)], video_path,
+                              output_path="test_out_emo.avi")
     print('capture_face_ng elapsed time:', time.time() - start, '[sec]')
 
 
@@ -382,6 +390,8 @@ def test():
 
 
 if __name__ == "__main__":
-    main("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4",
+    # main("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4",
+    #      face_video_list=[f"reid_test/untitled{i}.mp4" for i in range(1, 7)])
+    main("test2.mp4",
          face_video_list=[f"reid_test/untitled{i}.mp4" for i in range(1, 7)])
     # test()
