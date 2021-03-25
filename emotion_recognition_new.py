@@ -274,7 +274,7 @@ def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: 
             writer.writerows(csv_saving_list[face_index])  # csvファイルに書き込み
 
 
-def emotion_recognition_multiprocess(interpolated_result: dict, video_path: str, output_dir: str, parallel_num=1,
+def emotion_recognition_multiprocess(interpolated_result: dict, video_path: str, output_dir: str, parallel_num=3,
                                      k_frame=3,
                                      emotion_label=(
                                              'Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal',
