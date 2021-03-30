@@ -2,9 +2,9 @@ import sys
 import os
 
 from PyQt5.QtCore import Qt, QRectF
-from PyQt5.QtGui import QBrush, QColor, QPen, QPixmap, QPainterPath, QPainter
+from PyQt5.QtGui import QBrush, QColor, QPen, QPixmap, QPainterPath, QPainter, QImage
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsItem, QGraphicsPathItem, QApplication, QGraphicsView, \
-    QGraphicsScene, QPushButton
+    QGraphicsScene
 
 
 class HandleItem(QGraphicsRectItem):
@@ -42,7 +42,6 @@ class HandleItem(QGraphicsRectItem):
                 self.parentItem().setBottomLeft(pos)
             elif self.positionflags() == SizeGripItem.Left:
                 self.parentItem().setLeft(pos.x())
-            print(pos)
         return retVal
 
     def restrictPosition(self, newPos):
@@ -206,7 +205,7 @@ class CropItem(QGraphicsPathItem):
         self.create_path()
 
 
-if __name__ == '__main__':
+def selectROI(img):
     # hidpi support
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
     app = QApplication(sys.argv)
@@ -214,11 +213,35 @@ if __name__ == '__main__':
     view = QGraphicsView()
     scene = QGraphicsScene()
     view.setScene(scene)
-    pixmapItem = scene.addPixmap(QPixmap("obama.jpeg"))
+
+    height, width, channel = img.shape
+    bytesPerLine = 3 * width
+    qImg = QImage(img.data, width, height, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+
+    pixmapItem = scene.addPixmap(QPixmap.fromImage(qImg))
     cropItem = CropItem(pixmapItem)
-    view.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
+    # view.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
+    view.fitInView(QRectF(QApplication.desktop().availableGeometry(-1)), Qt.KeepAspectRatio)
     view.show()
     view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     view.setFixedSize(view.size())
-    sys.exit(app.exec_())
+    app.exec_()
+    return cropItem.rect()
+
+# if __name__ == '__main__':
+#     # hidpi support
+#     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+#     app = QApplication(sys.argv)
+#
+#     view = QGraphicsView()
+#     scene = QGraphicsScene()
+#     view.setScene(scene)
+#     pixmapItem = scene.addPixmap(QPixmap("obama.jpeg"))
+#     cropItem = CropItem(pixmapItem)
+#     view.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
+#     view.show()
+#     view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+#     view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+#     view.setFixedSize(view.size())
+#     sys.exit(app.exec_())

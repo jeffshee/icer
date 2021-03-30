@@ -18,7 +18,7 @@ from main_util import concat_csv
 from match_speaker import match_speaker
 from overlay_video import overlay_all_results
 from transcript import transcript
-from emotion_recognition_new import emotion_recognition_new
+from face_utils.emotion_recognition_new import emotion_recognition_new
 
 
 config = {

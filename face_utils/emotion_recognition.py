@@ -274,7 +274,7 @@ def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: 
             writer.writerows(csv_saving_list[face_index])  # csvファイルに書き込み
 
 
-def emotion_recognition_multiprocess(interpolated_result: dict, video_path: str, output_dir: str, parallel_num=1,
+def emotion_recognition_multiprocess(interpolated_result: dict, video_path: str, output_dir: str, parallel_num=3,
                                      k_frame=3,
                                      emotion_label=(
                                              'Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal',
@@ -320,15 +320,15 @@ def emotion_recognition_multiprocess(interpolated_result: dict, video_path: str,
             writer.writerows(concat_csv)  # csvファイルに書き込み
 
 
-def test():
-    import time
-    import pickle
-    start = time.time()
-    with open("utils/20210323111636_interpolated_face.pt", "rb") as f:
-        result = pickle.load(f)
-    emotion_recognition_multiprocess(result, "utils/test2.mp4", "./")
-    print('\ncapture_face_ng elapsed time:', time.time() - start, '[sec]')
-
-
-if __name__ == '__main__':
-    test()
+# def test():
+#     import time
+#     import pickle
+#     start = time.time()
+#     with open("utils/20210323111636_interpolated_face.pt", "rb") as f:
+#         result = pickle.load(f)
+#     emotion_recognition_multiprocess(result, "utils/test2.mp4", "./")
+#     print('\ncapture_face_ng elapsed time:', time.time() - start, '[sec]')
+#
+#
+# if __name__ == '__main__':
+#     test()
