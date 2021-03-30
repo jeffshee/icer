@@ -184,8 +184,7 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
             # Calculate the size ratio of the 4K and the ROI, then adjust the heuristic such that it doesn't cause OOM
             heuristic = 0.65
             ratio = four_k_size / roi_size * heuristic
-            batch_size = int(batch_size * ratio)
-            if batch_size < 8:
+            if int(batch_size * ratio) < 8:
                 # ROI is too large, fallback
                 kwargs = {"video_path": video_path,
                           "gpu_index": i,
