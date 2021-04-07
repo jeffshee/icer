@@ -244,10 +244,10 @@ def get_roi(video_path: str):
 def match_result(result_from_detect_face: list, method="cluster_face", **kwargs) -> defaultdict:
     print(f"\nMatching result")
     if method == "cluster_face":
-        from face_utils.matching import cluster_face
+        from face_utils.match_face import cluster_face
         return cluster_face(result_from_detect_face, **kwargs)
     elif method == "match_frame":
-        from face_utils.matching import match_frame
+        from face_utils.match_face import match_frame
         return match_frame(result_from_detect_face, **kwargs)
     elif method == "reidentification":
         # Detect face for all single person face video
@@ -255,9 +255,9 @@ def match_result(result_from_detect_face: list, method="cluster_face", **kwargs)
         face_video_list = kwargs["face_video_list"]
         face_video_result = []
         for face_video in face_video_list:
-            temp = detect_face_multiprocess(face_video, k_resolution=1, batch_size=32)
+            temp = detect_face_multiprocess(face_video, k_resolution=None, batch_size=32)
             face_video_result.append([t[0] for t in temp])
-        from face_utils.matching import reidentification
+        from face_utils.match_face import reidentification
         return reidentification(result_from_detect_face, face_video_result)
     else:
         raise ValueError("Unknown method")
@@ -387,17 +387,15 @@ def main(video_path: str, output_dir: str, face_num=None, face_video_list=None):
         os.makedirs(face_cluster_dir)
         result = match_result(result, method="cluster_face", face_num=face_num, video_path=video_path,
                               output_dir=face_cluster_dir)
-    result = interpolate_result(result, video_path=video_path)
+    result = interpolate_result(result, video_path=video_path, output_dir=face_cluster_dir)
     print('capture_face elapsed time:', time.time() - start, '[sec]')
     return result
 
-# def test():
-#     # Prepare short ver. for testing
-#     # from edit_video import trim_video
-#     # trim_video("../datasets/Videos_new_200929/200221_expt12_video.mp4", ['00:00:00', '00:00:16'], "test.mp4")
-#     pass
-#
-#
-# if __name__ == "__main__":
-#     main("../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4", "../output",
-#          face_video_list=[f"reid_test/untitled{i}.mp4" for i in range(1, 7)])
+
+def test():
+    main("../datasets/test/test_video.mp4", "../output/face_capture", 6,
+         ["../datasets/test/reid/reid_{:02d}.mp4".format(i) for i in range(1, 7)])
+
+
+if __name__ == "__main__":
+    test()

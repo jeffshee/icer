@@ -4,13 +4,23 @@ import datetime
 
 config = {
     # Run mode
-    "run_capture_face": True,  # 動画から顔領域の切り出し
-    "run_emotion_recognition": True,  # 切り出した顔画像の表情・頷き・口の開閉認識
+    "run_capture_face": False,  # 動画から顔領域の切り出し
+    "run_emotion_recognition": False,  # 切り出した顔画像の表情・頷き・口の開閉認識
     "run_transcript": True,  # Diarization・音声認識
     "run_overlay": True,  # 表情・頷き・発話情報を動画にまとめて可視化
 
     "capture_face_pt_path": None  # Pickle to load when run_capture_face is false
 }
+
+"""
+Issue:
+1. Python multiprocessing error 'ForkAwareLocal' object has no attribute 'connection'
+https://stackoverflow.com/questions/60795412/python-multiprocessing-error-forkawarelocal-object-has-no-attribute-connectio
+
+TODO
+1. Restrict ROI so that no negative value can be selected
+2. Filter misleading warning
+"""
 
 
 def timeit(method):
@@ -98,10 +108,10 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
 
 if __name__ == "__main__":
     main_kwargs = {
-        "video_path": "datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4",
+        "video_path": "datasets/test/test_video.mp4",
         "output_dir": "output",
-        "audio_path_list": [f"datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23voice{i}.mp4" for i in range(1, 7)],
+        "audio_path_list": ["datasets/test/test_voice_{:02d}.wav".format(i) for i in range(1, 7)],
         "face_num": 6,
-        "face_video_list": [f"datasets/200225_芳賀先生_実験23/reid/untitled{i}.mp4" for i in range(1, 7)]
+        "face_video_list": ["datasets/test/reid/reid_{:02d}.mp4".format(i) for i in range(1, 7)]
     }
     main(**main_kwargs)
