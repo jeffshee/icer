@@ -34,6 +34,20 @@ def get_video_framerate(video_path: str) -> float:
     return float(video_capture.get(cv2.CAP_PROP_FPS))
 
 
+def get_roi(video_path: str, **kwargs):
+    video_capture = get_video_capture(video_path)
+    ret, frame = video_capture.read()
+    # Custom GUI
+    from gui.qt_cropper import selectROI
+    roi = selectROI(frame, **kwargs)
+    # OpenCV
+    # roi = cv2.selectROI(frame)
+    # if roi == (0, 0, 0, 0):
+    #     roi = None
+    print("ROI:", roi)
+    return roi
+
+
 def concat_video(input_video_list, concat_video_path, use_gpu=False):
     import subprocess
     import os

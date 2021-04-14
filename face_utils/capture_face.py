@@ -225,22 +225,6 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
     return combined
 
 
-def get_roi(video_path: str):
-    video_capture = get_video_capture(video_path)
-    ret, frame = video_capture.read()
-    # Custom GUI
-    from gui.qt_cropper import selectROI
-    roi = selectROI(frame)
-    x, y, w, h = int(roi.x()), int(roi.y()), int(roi.width()), int(roi.height())
-    roi = (x, y, w, h)
-    # OpenCV
-    # roi = cv2.selectROI(frame)
-    # if roi == (0, 0, 0, 0):
-    #     roi = None
-    print("ROI:", roi)
-    return roi
-
-
 def match_result(result_from_detect_face: list, method="cluster_face", **kwargs) -> defaultdict:
     print(f"\nMatching result")
     if method == "cluster_face":
@@ -377,7 +361,7 @@ def main(video_path: str, output_dir: str, face_num=None, face_video_list=None):
         ...
     }
     """
-    roi = get_roi(video_path)
+    roi = get_roi(video_path, message="顔検出を行う領域を指定してください。\n精度向上と計算を省くため、指定された領域内だけ顔検出します。")
     start = time.time()
     result = detect_face_multiprocess(video_path, roi=roi, output_dir=output_dir)
     if face_video_list is not None:

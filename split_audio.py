@@ -1,10 +1,3 @@
-import warnings
-
-warnings.simplefilter(action='ignore', category=FutureWarning)
-import tensorflow as tf
-
-# tf.get_logger().setLevel('INFO')
-
 from os.path import join, basename
 from pydub import AudioSegment
 
@@ -115,10 +108,11 @@ def optimized_segment_audio(input_path, output_dir, max_duration_sec=60):
 
     output_path_list = []
     origin_filename = basename(input_path)[:-4]  # remove extension
-    for i, (start, end) in enumerate(optimized_split()):
+    optimized_split_list = optimized_split()
+    for i, (start, end) in enumerate(optimized_split_list):
         trim_ms_range = (start, end)
         output_path = join(output_dir, '{}_seg_{:03d}.wav'.format(origin_filename, i))
         output_path_list.append(output_path)
         trim_audio(input_path, output_path, trim_ms_range)
         i += 1
-    return output_path_list
+    return output_path_list, optimized_split_list

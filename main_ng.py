@@ -4,12 +4,13 @@ import datetime
 
 config = {
     # Run mode
-    "run_capture_face": False,  # 動画から顔領域の切り出し
-    "run_emotion_recognition": False,  # 切り出した顔画像の表情・頷き・口の開閉認識
+    "run_capture_face": True,  # 動画から顔領域の切り出し
+    "run_emotion_recognition": True,  # 切り出した顔画像の表情・頷き・口の開閉認識
     "run_transcript": True,  # Diarization・音声認識
     "run_overlay": True,  # 表情・頷き・発話情報を動画にまとめて可視化
 
-    "capture_face_pt_path": None  # Pickle to load when run_capture_face is false
+    "capture_face_pt_path": None,  # Pickle to load when run_capture_face is false
+    "tensorflow_log_level": str(2)
 }
 
 """
@@ -19,8 +20,14 @@ https://stackoverflow.com/questions/60795412/python-multiprocessing-error-forkaw
 
 TODO
 1. Restrict ROI so that no negative value can be selected
-2. Filter misleading warning
 """
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = config["tensorflow_log_level"]
+import warnings
+from matplotlib import MatplotlibDeprecationWarning
+
+warnings.simplefilter(action='ignore', category=MatplotlibDeprecationWarning)
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 def timeit(method):

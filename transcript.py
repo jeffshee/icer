@@ -1,12 +1,7 @@
-import warnings
-
-warnings.simplefilter(action='ignore', category=FutureWarning)
-import tensorflow as tf
-
-# tf.get_logger().setLevel('INFO')
-
 import os
 from os.path import join, basename
+from pprint import pprint
+
 import pandas as pd
 import speech_recognition
 from pydub import AudioSegment
@@ -32,7 +27,7 @@ from main_util import cleanup_directory
 
 config = {
     # NOTE:（　）の中はデフォルト
-    'use_run_speaker_diarization': True,  # run_speaker_diarizationを実行するか、loudness-basedの手法を使用するか (False)
+    'use_run_speaker_diarization': True,  # run_speaker_diarizationを実行するか、loudness-basedの手法を使用するか (True)
 
     # run_speaker_diarization関連設定
     'use_spectral_cluster': False,  # run_speaker_diarizationを実行する際、SpectralClusteringを使用するか、UIS-RNNを使用するか (False)
@@ -54,6 +49,9 @@ config = {
     'skip_run_speaker_diarization': False,  # (Debug) Skip run_speaker_diarization (False)
     'skip_split': False,  # (Debug) Skip split (False)
     'skip_transcript': False,  # (Debug) Skip transcript (False)
+
+    # Output
+    'output_format': 'segment'  # segment|split
 }
 
 
@@ -89,7 +87,7 @@ def transcript(output_dir, audio_path_list, transcript_config=None):
         cleanup_directory(diarization_dir)
 
     with open(join(output_dir, 'transcript_config.txt'), 'w') as f:
-        print(transcript_config, file=f)
+        pprint(transcript_config, stream=f)
 
     mix_audio(audio_path_list, mixed_audio_path)
 
@@ -97,6 +95,7 @@ def transcript(output_dir, audio_path_list, transcript_config=None):
     if transcript_config['use_run_speaker_diarization']:
         if not transcript_config['skip_run_speaker_diarization']:
             from run_speaker_diarization_v2 import run_speaker_diarization
+            print("\nRunning speaker diarization")
             run_speaker_diarization(output_dir + os.sep, mixed_audio_name, diarization_dir + os.sep,
                                     people_num=transcript_config['people_num'],
                                     embedding_per_second=transcript_config['embedding_per_second'],
@@ -127,14 +126,21 @@ def transcript(output_dir, audio_path_list, transcript_config=None):
     """ 3. Segmentation -> Speech2Text """
     if transcript_config['skip_transcript']:
         return
+    print("\nRunning Speech2Text")
     output_csv = []
+    order = 0
     for i, split_path in enumerate(sorted(split_path_list)):
-        segment_path_list = optimized_segment_audio(input_path=split_path, output_dir=segment_audio_dir,
-                                                    max_duration_sec=transcript_config['max_split_duration_sec'])
+        segment_path_list, segment_split_list = optimized_segment_audio(input_path=split_path,
+                                                                        output_dir=segment_audio_dir,
+                                                                        max_duration_sec=transcript_config[
+                                                                            'max_split_duration_sec'])
         if len(segment_path_list) == 0:
             continue
         segment_transcript_list = []
         split_progress = '[{}/{}]'.format(i, len(split_path_list))
+
+        origin_filename = basename(split_path)
+        speaker_class = int(origin_filename.split('_')[2][:-4])
 
         for j, segment_path in enumerate(segment_path_list):
             attempt = 0
@@ -160,12 +166,20 @@ def transcript(output_dir, audio_path_list, transcript_config=None):
                             segment_transcript_list.append('')
                         print(split_progress, segment_progress, segment_path, 'RequestError: {}'.format(e))
                     attempt += 1
+            if transcript_config['output_format'] == 'segment':
+                start_time, end_time = start_time_list[i] + segment_split_list[j][0], start_time_list[i] + \
+                                       segment_split_list[j][1]
+                output_csv.append(
+                    [order, get_hms(start_time), get_hms(end_time), segment_transcript_list[-1],
+                     speaker_class, int(start_time), int(end_time)])
+                order += 1
 
-        origin_filename = basename(split_path)
-        order, speaker_class = int(origin_filename.split('_')[0]), int(origin_filename.split('_')[2][:-4])
-        output_csv.append(
-            [order, get_hms(start_time_list[i]), get_hms(end_time_list[i]), '; '.join(segment_transcript_list),
-             speaker_class, start_time_list[i], end_time_list[i]])
+        if transcript_config['output_format'] == 'split':
+            output_csv.append(
+                [order, get_hms(start_time_list[i]), get_hms(end_time_list[i]), '; '.join(segment_transcript_list),
+                 speaker_class, start_time_list[i], end_time_list[i]])
+            order += 1
+
     df = pd.DataFrame(output_csv,
                       columns=['Order', 'Start time(HH:MM:SS)', 'End time(HH:MM:SS)', 'Text', 'Speaker',
                                'Start time(ms)', 'End time(ms)'])
