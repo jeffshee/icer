@@ -237,6 +237,7 @@ def selectROI(img, title="ROI Selector", message=None):
     pixmapItem = scene.addPixmap(QPixmap.fromImage(qImg))
     cropItem = CropItem(pixmapItem)
 
+    # view.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
     view.fitInView(QRectF(QApplication.desktop().availableGeometry(-1)), Qt.KeepAspectRatio)
     view.show()
     view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -254,23 +255,10 @@ def selectROI(img, title="ROI Selector", message=None):
     app.exec_()
     if enter_flag:
         roi = cropItem.rect()
-        return int(roi.x()), int(roi.y()), int(roi.width()), int(roi.height())
+        x, y, w, h = int(roi.x()), int(roi.y()), int(roi.width()), int(roi.height())
+        # In-bound check
+        x, y = max(0, min(x, width)), max(0, min(y, height))
+        w, h = max(0, min(w, width - x)), max(0, min(h, height - y))
+        return x, y, w, h
     else:
         return int(0), int(0), width, height
-
-# if __name__ == '__main__':
-#     # hidpi support
-#     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-#     app = QApplication(sys.argv)
-#
-#     view = QGraphicsView()
-#     scene = QGraphicsScene()
-#     view.setScene(scene)
-#     pixmapItem = scene.addPixmap(QPixmap("obama.jpeg"))
-#     cropItem = CropItem(pixmapItem)
-#     view.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
-#     view.show()
-#     view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-#     view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-#     view.setFixedSize(view.size())
-#     sys.exit(app.exec_())

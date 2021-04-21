@@ -255,11 +255,7 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
     :return:
     """
     print(f"\nInterpolating result")
-    import warnings
-    # Ignore weird RuntimeWarning when importing SciPy
-    warnings.simplefilter('ignore', RuntimeWarning)
     from scipy.interpolate import interp1d
-    warnings.resetwarnings()
 
     # Miss detected face
     ghosts = []
@@ -361,7 +357,7 @@ def main(video_path: str, output_dir: str, face_num=None, face_video_list=None):
         ...
     }
     """
-    roi = get_roi(video_path, message="顔検出を行う領域を指定してください。\n精度向上と計算を省くため、指定された領域内だけ顔検出します。")
+    roi = get_roi(video_path, message="顔検出を行う領域を指定し、ENTERキーを押してください。指定しない場合はそのままウインドウを閉じてください。")
     start = time.time()
     result = detect_face_multiprocess(video_path, roi=roi, output_dir=output_dir)
     if face_video_list is not None:
@@ -371,7 +367,7 @@ def main(video_path: str, output_dir: str, face_num=None, face_video_list=None):
         os.makedirs(face_cluster_dir)
         result = match_result(result, method="cluster_face", face_num=face_num, video_path=video_path,
                               output_dir=face_cluster_dir)
-    result = interpolate_result(result, video_path=video_path, output_dir=face_cluster_dir)
+    result = interpolate_result(result, video_path=video_path, output_dir=output_dir)
     print('capture_face elapsed time:', time.time() - start, '[sec]')
     return result
 

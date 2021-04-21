@@ -17,17 +17,14 @@ config = {
 Issue:
 1. Python multiprocessing error 'ForkAwareLocal' object has no attribute 'connection'
 https://stackoverflow.com/questions/60795412/python-multiprocessing-error-forkawarelocal-object-has-no-attribute-connectio
-
-TODO
-1. Restrict ROI so that no negative value can be selected
 """
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = config["tensorflow_log_level"]
 import warnings
-from matplotlib import MatplotlibDeprecationWarning
 
-warnings.simplefilter(action='ignore', category=MatplotlibDeprecationWarning)
-warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
 
 
 def timeit(method):
@@ -46,13 +43,13 @@ def timeit(method):
 
 
 @timeit
-def run_capture_face(kwargs):
+def run_capture_face(**kwargs):
     from face_utils.capture_face import main
     return main(**kwargs)
 
 
 @timeit
-def run_emotion_recognition(kwargs):
+def run_emotion_recognition(**kwargs):
     from face_utils.emotion_recognition import emotion_recognition_multiprocess
     from utils.video_utils import output_video_emotion_multiprocess
     # Emotion Recognition
@@ -68,9 +65,13 @@ def run_emotion_recognition(kwargs):
 
 
 @timeit
-def run_transcript(kwargs):
+def run_transcript(**kwargs):
     from transcript import transcript
     transcript(**kwargs)
+
+
+def run_overlay(**kwargs):
+    pass
 
 
 @timeit
@@ -80,11 +81,11 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
         capture_face_dir = os.path.join(output_dir, "face_capture")
         os.makedirs(capture_face_dir, exist_ok=True)
         capture_face_result = run_capture_face(
-            {"video_path": video_path,
-             "output_dir": capture_face_dir,
-             "face_num": face_num,
-             "face_video_list": face_video_list
-             }
+            **{"video_path": video_path,
+               "output_dir": capture_face_dir,
+               "face_num": face_num,
+               "face_video_list": face_video_list
+               }
         )
     else:
         import pickle
@@ -97,28 +98,39 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
         emotion_dir = os.path.join(output_dir, "emotion")
         os.makedirs(emotion_dir, exist_ok=True)
         run_emotion_recognition(
-            {"interpolated_result": capture_face_result,
-             "video_path": video_path,
-             "output_dir": emotion_dir
-             }
+            **{"interpolated_result": capture_face_result,
+               "video_path": video_path,
+               "output_dir": emotion_dir
+               }
         )
 
     if config["run_transcript"]:
         transcript_dir = os.path.join(output_dir, "transcript")
         os.makedirs(transcript_dir, exist_ok=True)
         run_transcript(
-            {"output_dir": transcript_dir,
-             "audio_path_list": audio_path_list
-             }
+            **{"output_dir": transcript_dir,
+               "audio_path_list": audio_path_list
+               }
         )
+
+    if config["run_overlay"]:
+        run_overlay()
 
 
 if __name__ == "__main__":
+    # main_kwargs = {
+    #     "video_path": "datasets/test/test_video.mp4",
+    #     "output_dir": "output",
+    #     "audio_path_list": ["datasets/test/test_voice_{:02d}.wav".format(i) for i in range(1, 7)],
+    #     "face_num": 6,
+    #     "face_video_list": ["datasets/test/reid/reid_{:02d}.mp4".format(i) for i in range(1, 7)]
+    # }
+
     main_kwargs = {
-        "video_path": "datasets/test/test_video.mp4",
-        "output_dir": "output",
-        "audio_path_list": ["datasets/test/test_voice_{:02d}.wav".format(i) for i in range(1, 7)],
-        "face_num": 6,
-        "face_video_list": ["datasets/test/reid/reid_{:02d}.mp4".format(i) for i in range(1, 7)]
+        "video_path": "datasets/test2/200221_expt12_video.mp4",
+        "output_dir": "output2",
+        "audio_path_list": ["datasets/test2/200221_expt12_voice1{}.wav".format(i) for i in range(1, 4)],
+        "face_num": 3,
+        "face_video_list": ["datasets/test2/reid/{}.mp4".format(i) for i in range(1, 4)]
     }
     main(**main_kwargs)

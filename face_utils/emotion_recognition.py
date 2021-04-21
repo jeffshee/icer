@@ -82,11 +82,13 @@ def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: 
 
     face_num = len(interpolated_result)  # Previously person_number, number of person
 
-    # TODO
-    model_dir = 'model'
-    model_name = 'mini_XCEPTION'
-    model = model_from_json(open(os.path.join(model_dir, 'model_{}.json'.format(model_name)), 'r').read())
-    model.load_weights(os.path.join(model_dir, 'model_{}.h5'.format(model_name)))
+    model_dir = "model"
+    if not os.path.isdir(model_dir):
+        model_dir = "../model"
+    model_name = "mini_XCEPTION"
+    with open(os.path.join(model_dir, f"model_{model_name}.json"), 'r') as f:
+        model = model_from_json(f.read())
+    model.load_weights(os.path.join(model_dir, f"model_{model_name}.h5"))
 
     video_capture = get_video_capture(video_path)
     video_framerate = get_video_framerate(video_path)
