@@ -10,10 +10,10 @@ from os.path import join
 import tensorflow as tf
 import face_recognition
 
-from capture_face import detect_face, cluster_face
+from deprecated.capture_face import detect_face, cluster_face
 from edit_audio import set_audio
 from edit_video import concat_video
-from emotion_recognition import cleanup_directory, emotion_recognition
+from deprecated.emotion_recognition import cleanup_directory, emotion_recognition
 from main_util import concat_csv
 from match_speaker import match_speaker
 from overlay_video import overlay_all_results

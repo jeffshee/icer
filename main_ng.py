@@ -131,6 +131,6 @@ if __name__ == "__main__":
         "output_dir": "output2",
         "audio_path_list": ["datasets/test2/200221_expt12_voice1{}.wav".format(i) for i in range(1, 4)],
         "face_num": 3,
-        "face_video_list": ["datasets/test2/reid/{}.mp4".format(i) for i in range(1, 4)]
+        "face_video_list": ["datasets/test2/reid/{}.mp4".format(i) for i in range(0, 3)]
     }
     main(**main_kwargs)
