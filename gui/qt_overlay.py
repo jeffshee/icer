@@ -1,3 +1,4 @@
+import os
 import datetime
 from typing import List
 
@@ -12,6 +13,7 @@ from pyqtgraph.Qt import QtGui
 from pyqtgraph.dockarea import *
 import pandas as pd
 from PIL import Image
+import collections
 
 
 class VLCWidget(QFrame):
@@ -206,20 +208,78 @@ class TranscriptWidget(QScrollArea):
             self.label.setText(f"<b>{speaker}</b>: {text}")
 
 
-class SummaryWidget(pg.TableWidget):
-    def __init__(self, *args, **kwds):
+class DataFrameWidget(pg.TableWidget):
+    """
+    A widget to display pandas dataframe
+    """
+
+    def __init__(self, dataframe, *args, **kwds):
         super().__init__(*args, **kwds)
-        data = np.array([
-            (1, 1.6, 'x'),
-            (3, 5.4, 'y'),
-            (8, 12.5, 'z'),
-            (443, 1e-12, 'w'),
-        ], dtype=[('Column 1', int), ('Column 2', float), ('Column 3', object)])
-        # TODO convert dataframe
-        # for index, row in data.iterrows():
-        #     print(row)
-        # data = pd.read_csv("transcript.csv")
+        data = []
+        for index, row in dataframe.iterrows():
+            data.append(row.to_dict())
         self.setData(data)
+
+
+def del_continual_value(target_list):
+    ret_list = []
+    last_value = None
+    for x in target_list:
+        if x != last_value:
+            ret_list.append(x)
+            last_value = x
+    return ret_list
+
+
+def create_summary(emotion_dir, diarization_dir):
+    result_list = sorted([os.path.join(emotion_dir, d) for d in os.listdir(emotion_dir) if d.endswith(".csv")])
+    data_summary = [[] for _ in range(len(result_list))]
+    new_columns_name = ['発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数"]
+
+    if os.path.isfile(os.path.join(diarization_dir, "result_loudness.csv")):
+        diarization_csv = os.path.join(diarization_dir, "result_loudness.csv")
+    elif os.path.isfile(os.path.join(diarization_dir, "result.csv")):
+        diarization_csv = os.path.join(diarization_dir, "result.csv")
+    else:
+        raise OSError("Diarization result not found")
+    df_diarization = pd.read_csv(diarization_csv)
+
+    num_of_utterances = collections.Counter(del_continual_value(df_diarization["speaker class"].to_list()))
+    speech_time = df_diarization["speaker class"].value_counts() / 1000
+    time_occupancy = df_diarization["speaker class"].value_counts(normalize=True)
+    for x in range(len(result_list)):
+        try:
+            data_summary[x].append(int(num_of_utterances[x]))
+        except KeyError:
+            data_summary[x].append(0)
+
+        try:
+            data_summary[x].append(int(speech_time[x]))
+        except KeyError:
+            data_summary[x].append(0)
+
+        try:
+            data_summary[x].append(int(speech_time[x] / num_of_utterances[x]))
+        except KeyError:
+            data_summary[x].append(0)
+
+        try:
+            data_summary[x].append(int(time_occupancy[x] * 100))
+        except KeyError:
+            data_summary[x].append(0)
+
+        df_gesture_tmp = pd.read_csv(os.path.join(emotion_dir, f"result{x}.csv"), encoding="shift_jis", header=0,
+                                     usecols=["gesture"])
+        df_gesture_tmp = df_gesture_tmp[df_gesture_tmp.diff()["gesture"] != 0]
+        gesture_count = df_gesture_tmp["gesture"].value_counts()
+        try:
+            data_summary[x].append(int(gesture_count[1]))
+        except KeyError:
+            data_summary[x].append(0)
+    # rows_summary = [f"{index_to_name_dict[index]}" for index in range(len(result_list))]
+    rows_summary = [f"{index}" for index in range(len(result_list))]
+    df_summary = pd.DataFrame(data_summary, index=rows_summary, columns=new_columns_name)
+    return df_summary
 
 
 app = pg.mkQApp("Overlay")
@@ -269,7 +329,7 @@ d3.addWidget(TranscriptWidget(vlc_widget1, transcript_csv="transcript.csv"))
 # summary.ui.menuBtn.hide()
 # d5.addWidget(summary)
 
-summary = SummaryWidget()
+summary = DataFrameWidget(create_summary("output/emotion", "output/transcript/diarization"))
 d5.addWidget(summary)
 # w5 = pg.ImageView()
 # w5.setImage(np.random.normal(size=(100, 100)))

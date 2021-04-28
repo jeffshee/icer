@@ -8,7 +8,7 @@
       <sourceFolder url="file://$MODULE_DIR$/speaker_diarization/uisrnn" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/test" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.8 (icer)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.8 (ml-ng)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">
