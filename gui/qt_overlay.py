@@ -5,11 +5,13 @@ import numpy as np
 import pyqtgraph as pg
 import vlc
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, \
-    QVBoxLayout, QLabel, QScrollArea
+    QVBoxLayout, QLabel, QScrollArea, QSizePolicy
 from pyqtgraph.Qt import QtGui
 from pyqtgraph.dockarea import *
 import pandas as pd
+from PIL import Image
 
 
 class VLCWidget(QFrame):
@@ -176,12 +178,13 @@ class TranscriptWidget(QScrollArea):
 
         self.setWidgetResizable(True)
 
-        vbox = QVBoxLayout()
+        content = QWidget()
+        self.setWidget(content)
+        vbox = QVBoxLayout(content)
         self.label = QLabel()
+        self.label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         self.label.setWordWrap(True)
         vbox.addWidget(self.label)
-
-        self.setLayout(vbox)
 
         self.timer = QTimer(self)
         self.timer.setInterval(200)
@@ -203,6 +206,22 @@ class TranscriptWidget(QScrollArea):
             self.label.setText(f"<b>{speaker}</b>: {text}")
 
 
+class SummaryWidget(pg.TableWidget):
+    def __init__(self, *args, **kwds):
+        super().__init__(*args, **kwds)
+        data = np.array([
+            (1, 1.6, 'x'),
+            (3, 5.4, 'y'),
+            (8, 12.5, 'z'),
+            (443, 1e-12, 'w'),
+        ], dtype=[('Column 1', int), ('Column 2', float), ('Column 3', object)])
+        # TODO convert dataframe
+        # for index, row in data.iterrows():
+        #     print(row)
+        # data = pd.read_csv("transcript.csv")
+        self.setData(data)
+
+
 app = pg.mkQApp("Overlay")
 win = QtGui.QMainWindow()
 area = DockArea()
@@ -215,14 +234,14 @@ d2 = Dock("Control", size=(1600, 100))
 d3 = Dock("Transcript", size=(1600, 100))
 
 # d4 = Dock("Dock4 (tabbed) - Plot", size=(500, 200))
-# d5 = Dock("Dock5 - Image", size=(500, 200))
+d5 = Dock("Summary", size=(800, 400))
 # d6 = Dock("Dock6 (tabbed) - Plot", size=(500, 200))
 
 area.addDock(d1, 'left')
 area.addDock(d2, 'bottom', d1)
 area.addDock(d3, 'right', d2)
 # area.addDock(d4, 'right')
-# area.addDock(d5, 'left', d1)
+area.addDock(d5, 'right', d1)
 # area.addDock(d6, 'top', d4)
 
 vlc_widget_list = []
@@ -239,13 +258,19 @@ vlc_widget1.play()
 # vlc_widget2.play()
 
 d2.addWidget(VLCControl(vlc_widget_list))
-
 d3.addWidget(TranscriptWidget(vlc_widget1, transcript_csv="transcript.csv"))
 
-# w4 = pg.PlotWidget(title="Dock 4 plot")
-# w4.plot(np.random.normal(size=100))
-# d4.addWidget(w4)
-#
+# summary = pg.ImageView()
+# img = np.array(Image.open("summary_dummy.png")).T
+# summary.setImage(img)
+# summary.ui.histogram.hide()
+# summary.ui.roiBtn.hide()
+# summary.ui.roiPlot.hide()
+# summary.ui.menuBtn.hide()
+# d5.addWidget(summary)
+
+summary = SummaryWidget()
+d5.addWidget(summary)
 # w5 = pg.ImageView()
 # w5.setImage(np.random.normal(size=(100, 100)))
 # d5.addWidget(w5)
