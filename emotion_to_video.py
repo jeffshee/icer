@@ -9,6 +9,8 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path):
     video_length = int(input_movie.get(cv2.CAP_PROP_FRAME_COUNT))
     video_frame_rate = input_movie.get(cv2.CAP_PROP_FPS)  # 動画のフレームレートを取得
 
+    print(video_length,video_frame_rate)
+
     face_dir_copy=face_dir
     num_dirs=0
     for _,dirs,_ in os.walk(face_dir_copy):
@@ -39,4 +41,4 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path):
 
 
 
-emo_to_video("main_test (copy)/face/cluster/",1,1,"main_test (copy)/emotion/output.avi")
+emo_to_video("main_test (copy)/face/cluster/",1,"main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi")
