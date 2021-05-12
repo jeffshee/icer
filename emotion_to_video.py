@@ -155,6 +155,7 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
             output_movie.write(frame)
 
     # 動画を保存
+    #test
     input_movie.release()
     cv2.destroyAllWindows()
 
