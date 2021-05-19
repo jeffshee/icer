@@ -53,10 +53,10 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
     resize_rate = (1080 * k_resolution) / original_w
     embedded_video_width = int(original_w * resize_rate)
     embedded_video_height = int(original_h * resize_rate)
-    w_padding = int(embedded_video_width // 2) ##宽度补充
+    w_padding = int(embedded_video_width // 2) ##出力動画の幅
 
     output_movie = cv2.VideoWriter(output_movie_path, fourcc, video_frame_rate,
-                                   (w_padding, embedded_video_height))##输出视频格式
+                                   (w_padding, embedded_video_height))
 
     face_dir_copy=face_dir
     num_dirs=0
@@ -64,6 +64,9 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
         for _ in dirs:
             num_dirs=num_dirs+1
     per_num=num_dirs
+    ##debug
+    print("per_num",per_num)
+    return 0
 
     # diarizationの結果を読み込む
     df_diarization = pd.read_csv(dia_dir, encoding="shift_jis", header=0,
@@ -100,7 +103,10 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
         ### 顔画像と感情を表示 ###
         #######################
         fig, axes = plt.subplots(nrows=per_num, ncols=3, figsize=(20, 20))
-        for face_index, face_path in enumerate(face_dir):
+        clustered_face_list = os.listdir(face_dir)
+        faces_path = [join(face_dir, name, 'closest.PNG') for name in clustered_face_list]
+
+        for face_index, face_path in enumerate(faces_path):
             # 顔を表示
             if face_index == current_speaker:
                 img = np.array(add_border(face_path, border=5, color='rgb(255,215,0)')) ##当前讲话人添加边界
@@ -161,4 +167,4 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
 
 
 
-emo_to_video("main_test (copy)/face/cluster/",1,"main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi")
+emo_to_video("main_test (copy)/face/cluster/","main_test (copy)/emotion/","main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi","output/",3)
