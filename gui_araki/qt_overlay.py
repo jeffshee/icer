@@ -237,32 +237,33 @@ class DiarizationWidget(QWidget):
         self.setLayout(hbox)
 
     def update_ui(self):
-        self.ax.clear()
         cur_time = self.get_current_time()  # in ms
+        if cur_time >= 0.0:
+            self.ax.clear()
 
-        self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
-        self.ax.get_yaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
-        self.ax.set_xlabel("Time [s]", fontsize=self.fontsize)
-        self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
+            self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+            self.ax.get_yaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+            self.ax.set_xlabel("Time [s]", fontsize=self.fontsize)
+            self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
 
-        self.x_lim = [self.ms_to_s(cur_time) - self.x_margin, self.ms_to_s(cur_time) + self.x_margin]
-        self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin]
-        self.ax.set_xlim(self.x_lim)
-        self.ax.set_ylim(self.y_lim)
-        self.ax.tick_params(axis='x', labelsize=self.fontsize)
-        self.ax.tick_params(axis='y', labelsize=self.fontsize)
+            self.x_lim = [self.ms_to_s(cur_time) - self.x_margin, self.ms_to_s(cur_time) + self.x_margin]
+            self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin]
+            self.ax.set_xlim(self.x_lim)
+            self.ax.set_ylim(self.y_lim)
+            self.ax.tick_params(axis='x', labelsize=self.fontsize)
+            self.ax.tick_params(axis='y', labelsize=self.fontsize)
 
-        # current time bar
-        self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=3)
-        self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current time", va='bottom', ha='center', fontsize=self.fontsize, color="blue", weight='bold')
+            # current time bar
+            self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=3)
+            self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current time", va='bottom', ha='center', fontsize=self.fontsize, color="blue", weight='bold')
 
-        # plot all diarizations
-        rows = self.diarization
-        for i in range(len(rows)):
-            row = rows.iloc[i]
-            self.plot_diarization(row)
+            # plot all diarizations
+            rows = self.diarization
+            for i in range(len(rows)):
+                row = rows.iloc[i]
+                self.plot_diarization(row)
 
-        self.mpl_widget.draw()
+            self.mpl_widget.draw()
 
     def ms_to_s(self, x):
         return x / 1000
