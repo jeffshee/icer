@@ -64,9 +64,6 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
         for _ in dirs:
             num_dirs=num_dirs+1
     per_num=num_dirs
-    ##debug
-    print("per_num",per_num)
-    return 0
 
     # diarizationの結果を読み込む
     df_diarization = pd.read_csv(dia_dir, encoding="shift_jis", header=0,
@@ -156,9 +153,9 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
         face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
         plt.close(fig)
 
+        frame = cv2.hconcat([face_and_index_img_resized])
         for frame_index in range(talk_end_frame-talk_start_frame):
-            frame = cv2.hconcat([frame, face_and_index_img_resized])
-            output_movie.write(frame)
+            output_movie.write(face_and_index_img_resized)
 
     # 動画を保存
     #test
@@ -167,4 +164,4 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
 
 
 
-emo_to_video("main_test (copy)/face/cluster/","main_test (copy)/emotion/","main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi","output/",3)
+emo_to_video("main_test (copy)/face/cluster/","main_test (copy)/emotion/","main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi","outputs/test.avi",3)
