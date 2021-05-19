@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import cv2
 import matplotlib.pyplot as plt
+from match_speaker import match_speaker
 import numpy as np
 from os.path import join
 from PIL import Image, ImageOps, ImageFont, ImageDraw
@@ -42,6 +43,7 @@ def resize_with_original_aspect(img, base_w, base_h):
     return resize_img
 
 def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_path,k_resolution):
+    matching_index_list, per_num = match_speaker(dia_dir, emo_files_dir, th_matching=0.0)
     # 出力動画の詳細を設定する
     fourcc = cv2.VideoWriter_fourcc(*'XVID')  # 動画コーデック指定
     input_movie = cv2.VideoCapture(input_video_path)  # 動画を読み込む
@@ -58,12 +60,12 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
     output_movie = cv2.VideoWriter(output_movie_path, fourcc, video_frame_rate,
                                    (w_padding, embedded_video_height))
 
-    face_dir_copy=face_dir
-    num_dirs=0
-    for _,dirs,_ in os.walk(face_dir_copy):
-        for _ in dirs:
-            num_dirs=num_dirs+1
-    per_num=num_dirs
+    # face_dir_copy=face_dir
+    # num_dirs=0
+    # for _,dirs,_ in os.walk(face_dir_copy):
+    #     for _ in dirs:
+    #         num_dirs=num_dirs+1
+    # per_num=num_dirs
 
     # diarizationの結果を読み込む
     df_diarization = pd.read_csv(dia_dir, encoding="shift_jis", header=0,
@@ -102,7 +104,8 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
         fig, axes = plt.subplots(nrows=per_num, ncols=3, figsize=(20, 20))
         clustered_face_list = os.listdir(face_dir)
         faces_path = [join(face_dir, name, 'closest.PNG') for name in clustered_face_list]
-
+        ##
+        current_speaker=matching_index_list[current_speaker]
         for face_index, face_path in enumerate(faces_path):
             # 顔を表示
             if face_index == current_speaker:
