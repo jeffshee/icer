@@ -2,6 +2,9 @@ import os
 import datetime
 from typing import List
 
+import matplotlib
+import matplotlib.pyplot as plt
+
 import numpy as np
 from numpy.testing._private.utils import KnownFailureTest
 import pyqtgraph as pg
@@ -16,9 +19,6 @@ from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
 import pandas as pd
 from PIL import Image
 import collections
-
-import matplotlib
-import matplotlib.pyplot as plt
 
 
 class VLCWidget(QFrame):
@@ -214,14 +214,16 @@ class TranscriptWidget(QScrollArea):
 
 
 class DiarizationWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, diarization_csv: str):
+    def __init__(self, vlc_widget: VLCWidget, diarization_csv: str, speaker_num: int = 6):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
+        self.mpl_widget.toolbar.hide()
         self.diarization = pd.read_csv(diarization_csv)
-        self.x_margin = 2.5  # second
-        self.y_num = 5  # num of speakers
+        self.x_margin = 10.0  # second
+        self.y_num = speaker_num  # num of speakers (need to think)
         self.y_margin = 0.25
+        self.fontsize = 16
 
         # Settings of matplotlib graph
         self.ax = self.mpl_widget.getFigure().add_subplot(111)
@@ -237,29 +239,28 @@ class DiarizationWidget(QWidget):
     def update_ui(self):
         self.ax.clear()
         cur_time = self.get_current_time()  # in ms
-        # self.ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(index_to_name(index_to_name_dict)))
-        # self.ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(self.ms_to_s))
+
+        self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
         self.ax.get_yaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
-        self.ax.set_xlabel("time [s]")
-        self.ax.set_ylabel("Speaker ID")
+        self.ax.set_xlabel("Time [s]", fontsize=self.fontsize)
+        self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
 
         self.x_lim = [self.ms_to_s(cur_time) - self.x_margin, self.ms_to_s(cur_time) + self.x_margin]
-        self.y_lim = [1 - self.y_margin, self.y_num + self.y_margin]
+        self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin]
         self.ax.set_xlim(self.x_lim)
         self.ax.set_ylim(self.y_lim)
-        # self.ax.plot([10, 10])
+        self.ax.tick_params(axis='x', labelsize=self.fontsize)
+        self.ax.tick_params(axis='y', labelsize=self.fontsize)
 
+        # current time bar
         self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=3)
+        self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current time", va='bottom', ha='center', fontsize=self.fontsize, color="blue", weight='bold')
 
-        rows = self.diarization[
-            (self.diarization["Start time(ms)"] <= cur_time) & (cur_time < self.diarization["End time(ms)"])]
-        if len(rows) >= 1:
-            if len(rows) == 1:
-                row = rows
-                self.plot_diarization(row)
-            else:
-                for row in rows:
-                    self.plot_diarization(row)
+        # plot all diarizations
+        rows = self.diarization
+        for i in range(len(rows)):
+            row = rows.iloc[i]
+            self.plot_diarization(row)
 
         self.mpl_widget.draw()
 
@@ -276,15 +277,15 @@ class DiarizationWidget(QWidget):
         speaker = row["Speaker"].item()
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
-        if (start_time_s - self.x_lim[0]) > 0.0:
+        if (start_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0]) > 0.0:
             x_min = (start_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0])
         else:
             x_min = 0.0
-        if (end_time_s - self.x_lim[0]) < 1.0:
+        if (end_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0]) < 1.0:
             x_max = (end_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0])
         else:
             x_max = 1.0
-        self.ax.axhline(y=speaker, xmin=x_min, xmax=x_max, color="red")
+        self.ax.axhline(y=speaker, xmin=x_min, xmax=x_max, color="black", linewidth=4.0)
 
 
 class DataFrameWidget(pg.TableWidget):
@@ -362,6 +363,8 @@ def create_summary(emotion_dir, diarization_dir):
 
 
 dataset_dir = "/home/icer/Project/dataset/"
+# data_dir = "./gui_araki/data/"
+data_dir = "../gui_araki/data/"
 
 app = pg.mkQApp("Overlay")
 win = QtGui.QMainWindow()
@@ -373,7 +376,7 @@ win.setWindowTitle("Overlay")
 d1 = Dock("Emotion", size=(1600, 900))
 d2 = Dock("Control", size=(1600, 100))
 d3 = Dock("Transcript", size=(1600, 100))
-d7 = Dock("Diarization", size=(800, 400))
+d7 = Dock("Diarization", size=(1600, 500))
 
 # d4 = Dock("Dock4 (tabbed) - Plot", size=(500, 200))
 d5 = Dock("Summary", size=(800, 400))
@@ -385,13 +388,13 @@ area.addDock(d3, 'right', d2)
 # area.addDock(d4, 'right')
 area.addDock(d5, 'right', d1)
 # area.addDock(d6, 'top', d4)
-area.addDock(d7, 'right', d1)
+area.addDock(d7, 'top', d2)
 
 vlc_widget_list = []
 vlc_widget1 = VLCWidget()
 vlc_widget_list.append(vlc_widget1)
 d1.addWidget(vlc_widget1)
-vlc_widget1.media = "./gui_araki/data/test_video_emotion.avi"
+vlc_widget1.media = data_dir + "test_video_emotion.avi"
 vlc_widget1.play()
 
 # vlc_widget2 = VLCWidget()
@@ -401,7 +404,7 @@ vlc_widget1.play()
 # vlc_widget2.play()
 
 d2.addWidget(VLCControl(vlc_widget_list))
-d3.addWidget(TranscriptWidget(vlc_widget1, transcript_csv="./gui_araki/data/transcript.csv"))
+d3.addWidget(TranscriptWidget(vlc_widget1, transcript_csv=data_dir + "transcript.csv"))
 
 # summary = pg.ImageView()
 # img = np.array(Image.open("summary_dummy.png")).T
@@ -422,7 +425,7 @@ d5.addWidget(summary)
 # w6.plot(np.random.normal(size=100))
 # d6.addWidget(w6)
 
-d7.addWidget(DiarizationWidget(vlc_widget1, diarization_csv="./gui_araki/data/transcript.csv"))
+d7.addWidget(DiarizationWidget(vlc_widget1, diarization_csv=data_dir + "transcript.csv"))
 
 win.showMaximized()
 
