@@ -225,12 +225,13 @@ class DiarizationWidget(QWidget):
         self.y_num = speaker_num  # num of speakers (need to think)
         self.y_margin = 0.25
         self.fontsize = 16
+        self.init_flag = True  # for update_ui
 
-        # Settings of matplotlib graph
+        # settings of matplotlib graph
         self.ax = self.mpl_widget.getFigure().add_subplot(111)
 
         self.timer = QTimer(self)
-        self.timer.setInterval(200)
+        self.timer.setInterval(50)
         self.timer.timeout.connect(self.update_ui)
         self.timer.start()
         hbox = QHBoxLayout()
@@ -239,30 +240,36 @@ class DiarizationWidget(QWidget):
 
     def update_ui(self):
         cur_time = self.get_current_time()  # in ms
-        if cur_time >= 0.0:  # To prevent xlim turning into minus values
-            self.ax.clear()
-
-            self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
-            self.ax.get_yaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
-            self.ax.set_xlabel("Time [s]", fontsize=self.fontsize)
-            self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
-
+        if cur_time >= 0.0:  # to prevent xlim turning into minus values
             self.x_lim = [self.ms_to_s(cur_time) - self.x_margin, self.ms_to_s(cur_time) + self.x_margin]
             self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin]
             self.ax.set_xlim(self.x_lim)
             self.ax.set_ylim(self.y_lim)
-            self.ax.tick_params(axis='x', labelsize=self.fontsize)
-            self.ax.tick_params(axis='y', labelsize=self.fontsize)
 
-            # current time bar
-            self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=3)
-            self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current time", va='bottom', ha='center', fontsize=self.fontsize, color="blue", weight='bold')
+            if self.init_flag:
+                self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+                self.ax.get_yaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+                self.ax.set_xlabel("Time [s]", fontsize=self.fontsize)
+                self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
 
-            # plot all diarizations
-            rows = self.diarization
-            for i in range(len(rows)):
-                row = rows.iloc[i]
-                self.plot_diarization(row)
+                self.ax.tick_params(axis='x', labelsize=self.fontsize)
+                self.ax.tick_params(axis='y', labelsize=self.fontsize)
+
+                # plot current time bar
+                self.ax_line = self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=3)
+                self.ax_text = self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current Time", va='bottom', ha='center', fontsize=self.fontsize, color="blue", weight='bold')
+
+                # plot all diarizations
+                rows = self.diarization
+                for i in range(len(rows)):
+                    row = rows.iloc[i]
+                    self.plot_diarization(row)
+
+                self.init_flag = False
+            else:
+                # update current time bar
+                self.ax_line.set_xdata([self.ms_to_s(cur_time)])
+                self.ax_text.set_x(self.ms_to_s(cur_time))
 
             self.mpl_widget.draw()
 
@@ -279,15 +286,7 @@ class DiarizationWidget(QWidget):
         speaker = row["Speaker"].item()
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
-        if (start_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0]) > 0.0:
-            x_min = (start_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0])
-        else:
-            x_min = 0.0
-        if (end_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0]) < 1.0:
-            x_max = (end_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0])
-        else:
-            x_max = 1.0
-        self.ax.axhline(y=speaker, xmin=x_min, xmax=x_max, color="black", linewidth=4.0)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4.0, zorder=1)
 
 
 class OverviewDiarizationWidget(QWidget):
@@ -302,14 +301,18 @@ class OverviewDiarizationWidget(QWidget):
         self.y_num = speaker_num  # num of speakers (need to think)
         self.y_margin = 0.25
         self.fontsize = 16
+        self.init_flag = True
 
-        # To get each person's gesture
+        # get each person's gesture
         self.emotion_list = []
         for emotion_csv in emotion_csv_list:
             emotion = pd.read_csv(emotion_csv)
             self.emotion_list.append(emotion)
 
-        # Settings of matplotlib graph
+        # get gesture list
+        self.gesture_x, self.gesture_y = self.get_gesture(self.emotion_list)
+
+        # settings of matplotlib graph
         self.ax = self.mpl_widget.getFigure().add_subplot(111)
 
         self.timer = QTimer(self)
@@ -322,36 +325,38 @@ class OverviewDiarizationWidget(QWidget):
 
     def update_ui(self):
         cur_time = self.get_current_time()  # in ms
-        if cur_time >= 0.0:  # To prevent xlim turning into minus values
-            self.ax.clear()
+        if cur_time >= 0.0:  # to prevent xlim turning into minus values
+            if self.init_flag:
+                self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+                self.ax.get_yaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+                self.ax.set_xlabel("Time [s]", fontsize=self.fontsize)
+                self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
 
-            self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
-            self.ax.get_yaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
-            self.ax.set_xlabel("Time [s]", fontsize=self.fontsize)
-            self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
+                self.x_lim = [self.ms_to_s(self.video_begin_time), self.ms_to_s(self.video_end_time)]
+                self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin]
+                self.ax.set_xlim(self.x_lim)
+                self.ax.set_ylim(self.y_lim)
+                self.ax.tick_params(axis='x', labelsize=self.fontsize)
+                self.ax.tick_params(axis='y', labelsize=self.fontsize)
 
-            self.x_lim = [self.ms_to_s(self.video_begin_time), self.ms_to_s(self.video_end_time)]
-            self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin]
-            self.ax.set_xlim(self.x_lim)
-            self.ax.set_ylim(self.y_lim)
-            self.ax.tick_params(axis='x', labelsize=self.fontsize)
-            self.ax.tick_params(axis='y', labelsize=self.fontsize)
+                # plot current time bar
+                self.ax_line = self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=3)
+                self.ax_text = self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current Time", va='bottom', ha='center', fontsize=self.fontsize, color="blue", weight='bold')
 
-            # current time bar
-            self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=3)
-            self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current time", va='bottom', ha='center', fontsize=self.fontsize, color="blue", weight='bold')
+                # plot all diarizations
+                rows = self.diarization
+                for i in range(len(rows)):
+                    row = rows.iloc[i]
+                    self.plot_diarization(row)
 
-            # plot all diarizations
-            rows = self.diarization
-            for i in range(len(rows)):
-                row = rows.iloc[i]
-                self.plot_diarization(row)
+                # plot gesture
+                self.ax.scatter(self.gesture_x, self.gesture_y, c='red', marker='o', zorder=2)
 
-            # plot all gestures
-            for speaker_id, emotion_rows in enumerate(self.emotion_list):
-                for i in range(len(emotion_rows)):
-                    emotion_row = emotion_rows.iloc[i]
-                    self.plot_gesture(emotion_row, speaker_id=speaker_id)
+                self.init_flag = False
+            else:
+                # update current time bar
+                self.ax_line.set_xdata([self.ms_to_s(cur_time)])
+                self.ax_text.set_x(self.ms_to_s(cur_time))
 
             self.mpl_widget.draw()
 
@@ -368,21 +373,18 @@ class OverviewDiarizationWidget(QWidget):
         speaker = row["Speaker"].item()
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
-        if (start_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0]) > 0.0:
-            x_min = (start_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0])
-        else:
-            x_min = 0.0
-        if (end_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0]) < 1.0:
-            x_max = (end_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0])
-        else:
-            x_max = 1.0
-        self.ax.axhline(y=speaker, xmin=x_min, xmax=x_max, color="black", linewidth=4.0)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4.0, zorder=1)
 
-    def plot_gesture(self, row, speaker_id):
-        if row["gesture"] == 1:
-            time = row["time(ms)"].item()
-            time_s = self.ms_to_s(time)
-            self.ax.plot(time_s, speaker_id, color='red', marker='o')
+    def get_gesture(self, emotion_list: list):
+        gesture_x, gesture_y = [], []
+        for speaker_id, emotion_rows in enumerate(emotion_list):
+            for i in range(len(emotion_rows)):
+                emotion_row = emotion_rows.iloc[i]
+                if emotion_row["gesture"] == 1:
+                    time = emotion_row["time(ms)"].item()
+                    time_s = self.ms_to_s(time)
+                    gesture_x.append(time_s), gesture_y.append(speaker_id)
+        return gesture_x, gesture_y
 
 
 class DataFrameWidget(pg.TableWidget):
