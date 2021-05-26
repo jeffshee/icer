@@ -1,6 +1,7 @@
 import os
 import datetime
 from typing import List
+from PyQt5 import QtWidgets
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -238,7 +239,7 @@ class DiarizationWidget(QWidget):
 
     def update_ui(self):
         cur_time = self.get_current_time()  # in ms
-        if cur_time >= 0.0:
+        if cur_time >= 0.0:  # To prevent xlim turning into minus values
             self.ax.clear()
 
             self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
@@ -268,7 +269,7 @@ class DiarizationWidget(QWidget):
     def ms_to_s(self, x):
         return x / 1000
 
-    def get_current_time(self, convert_second=False):
+    def get_current_time(self):
         position = self.vlc_widget.position
         duration = self.vlc_widget.duration
         cur_time = duration * position  # in ms
@@ -287,6 +288,101 @@ class DiarizationWidget(QWidget):
         else:
             x_max = 1.0
         self.ax.axhline(y=speaker, xmin=x_min, xmax=x_max, color="black", linewidth=4.0)
+
+
+class OverviewDiarizationWidget(QWidget):
+    def __init__(self, vlc_widget: VLCWidget, diarization_csv: str, emotion_csv_list: list, speaker_num: int = 6):
+        super().__init__()
+        self.vlc_widget = vlc_widget
+        self.mpl_widget = MatplotlibWidget()
+        self.mpl_widget.toolbar.hide()
+        self.diarization = pd.read_csv(diarization_csv)
+        self.video_begin_time = 0  # video's begin time (ms)
+        self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
+        self.y_num = speaker_num  # num of speakers (need to think)
+        self.y_margin = 0.25
+        self.fontsize = 16
+
+        # To get each person's gesture
+        self.emotion_list = []
+        for emotion_csv in emotion_csv_list:
+            emotion = pd.read_csv(emotion_csv)
+            self.emotion_list.append(emotion)
+
+        # Settings of matplotlib graph
+        self.ax = self.mpl_widget.getFigure().add_subplot(111)
+
+        self.timer = QTimer(self)
+        self.timer.setInterval(200)
+        self.timer.timeout.connect(self.update_ui)
+        self.timer.start()
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.mpl_widget)
+        self.setLayout(hbox)
+
+    def update_ui(self):
+        cur_time = self.get_current_time()  # in ms
+        if cur_time >= 0.0:  # To prevent xlim turning into minus values
+            self.ax.clear()
+
+            self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+            self.ax.get_yaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+            self.ax.set_xlabel("Time [s]", fontsize=self.fontsize)
+            self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
+
+            self.x_lim = [self.ms_to_s(self.video_begin_time), self.ms_to_s(self.video_end_time)]
+            self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin]
+            self.ax.set_xlim(self.x_lim)
+            self.ax.set_ylim(self.y_lim)
+            self.ax.tick_params(axis='x', labelsize=self.fontsize)
+            self.ax.tick_params(axis='y', labelsize=self.fontsize)
+
+            # current time bar
+            self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=3)
+            self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current time", va='bottom', ha='center', fontsize=self.fontsize, color="blue", weight='bold')
+
+            # plot all diarizations
+            rows = self.diarization
+            for i in range(len(rows)):
+                row = rows.iloc[i]
+                self.plot_diarization(row)
+
+            # plot all gestures
+            for speaker_id, emotion_rows in enumerate(self.emotion_list):
+                for i in range(len(emotion_rows)):
+                    emotion_row = emotion_rows.iloc[i]
+                    self.plot_gesture(emotion_row, speaker_id=speaker_id)
+
+            self.mpl_widget.draw()
+
+    def ms_to_s(self, x):
+        return x / 1000
+
+    def get_current_time(self):
+        position = self.vlc_widget.position
+        duration = self.vlc_widget.duration
+        cur_time = duration * position  # in ms
+        return cur_time
+
+    def plot_diarization(self, row):
+        speaker = row["Speaker"].item()
+        start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
+        start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
+        if (start_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0]) > 0.0:
+            x_min = (start_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0])
+        else:
+            x_min = 0.0
+        if (end_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0]) < 1.0:
+            x_max = (end_time_s - self.x_lim[0]) / (self.x_lim[1] - self.x_lim[0])
+        else:
+            x_max = 1.0
+        self.ax.axhline(y=speaker, xmin=x_min, xmax=x_max, color="black", linewidth=4.0)
+
+    def plot_gesture(self, row, speaker_id):
+        if row["gesture"] == 1:
+            time = row["time(ms)"].item()
+            time_s = self.ms_to_s(time)
+            self.ax.plot(time_s, speaker_id, color='red', marker='o')
 
 
 class DataFrameWidget(pg.TableWidget):
@@ -378,6 +474,7 @@ d1 = Dock("Emotion", size=(1600, 900))
 d2 = Dock("Control", size=(1600, 100))
 d3 = Dock("Transcript", size=(1600, 100))
 d7 = Dock("Diarization", size=(1600, 500))
+d8 = Dock("OverviewDiarization", size=(1600, 500))
 
 # d4 = Dock("Dock4 (tabbed) - Plot", size=(500, 200))
 d5 = Dock("Summary", size=(800, 400))
@@ -385,11 +482,14 @@ d5 = Dock("Summary", size=(800, 400))
 
 area.addDock(d1, 'left')
 area.addDock(d2, 'bottom', d1)
-area.addDock(d3, 'right', d2)
+# area.addDock(d3, 'right', d2)
 # area.addDock(d4, 'right')
 area.addDock(d5, 'right', d1)
 # area.addDock(d6, 'top', d4)
+
+area.addDock(d3, 'bottom', d1)
 area.addDock(d7, 'top', d2)
+area.addDock(d8, 'right', d7)
 
 vlc_widget_list = []
 vlc_widget1 = VLCWidget()
@@ -427,6 +527,15 @@ d5.addWidget(summary)
 # d6.addWidget(w6)
 
 d7.addWidget(DiarizationWidget(vlc_widget1, diarization_csv=data_dir + "transcript.csv"))
+
+emotion_csv_list = [
+    dataset_dir + "emotion/" + "result0.csv",
+    dataset_dir + "emotion/" + "result1.csv",
+    dataset_dir + "emotion/" + "result2.csv",
+    dataset_dir + "emotion/" + "result3.csv",
+    dataset_dir + "emotion/" + "result4.csv"
+]
+d8.addWidget(OverviewDiarizationWidget(vlc_widget1, diarization_csv=data_dir + "transcript.csv", emotion_csv_list=emotion_csv_list))
 
 win.showMaximized()
 
