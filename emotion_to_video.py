@@ -43,7 +43,10 @@ def resize_with_original_aspect(img, base_w, base_h):
     return resize_img
 
 def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_path,k_resolution):
-    matching_index_list, per_num = match_speaker(dia_dir, emo_files_dir, th_matching=0.0)
+    # matching_index_list, per_num = match_speaker(dia_dir, emo_files_dir, th_matching=0.0)
+    list_file = pd.read_csv("main_test (copy)/index.txt"    , sep=",", encoding="utf-8", engine="python", header=None)
+    list_file = np.array(list_file)
+    matching_index_list,per_num = list_file.tolist()[0],len(list_file.tolist()[0])
     # 出力動画の詳細を設定する
     fourcc = cv2.VideoWriter_fourcc(*'XVID')  # 動画コーデック指定
     input_movie = cv2.VideoCapture(input_video_path)  # 動画を読み込む
@@ -104,6 +107,7 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
         fig, axes = plt.subplots(nrows=per_num, ncols=3, figsize=(20, 20))
         clustered_face_list = os.listdir(face_dir)
         faces_path = [join(face_dir, name, 'closest.PNG') for name in clustered_face_list]
+        faces_path = sorted(faces_path)
         ##
         current_speaker=matching_index_list[current_speaker]
         for face_index, face_path in enumerate(faces_path):
