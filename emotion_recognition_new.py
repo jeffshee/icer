@@ -256,11 +256,12 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                     absolute_y[face_index] = abs(a[1] - b[1])
                     relative_x[face_index] = a[0] - b[0]
                     relative_y[face_index] = a[1] - b[1]
-                    decay_number = int((rec_face[face_index][1] - rec_face[face_index][0]) * 0.08)
+                    decay_number = int((rec_face[face_index][1] - rec_face[face_index][0]) * 0.05
+                                       )
                     x_movement[face_index] = max(0, int((x_movement[face_index] + abs(a[0] - b[0])) - decay_number))
                     y_movement[face_index] = max(0, int((y_movement[face_index] + abs(a[1] - b[1])) - decay_number))
-                    if y_movement[face_index]!=0:
-                        y_movement[face_index]=y_movement[face_index]+decay_number*0.5
+                    # if y_movement[face_index]!=0:
+                    #     y_movement[face_index]=y_movement[face_index]+decay_number*0.5
 
 
                     gesture_threshold = int((rec_face[face_index][1] - rec_face[face_index][0]) * 0.2)

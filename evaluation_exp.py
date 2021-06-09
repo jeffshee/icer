@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import torch.nn as nn
 import torch
 
 def read_from_excel(file_dir):
@@ -60,7 +61,7 @@ class LstmRNN(nn.Module):
 
 lstm_model = LstmRNN(3, 16, 1, num_layers=1)
 
-input,point=read_from_excel("result1.csv")
+input,point=read_from_excel("output_0309-4/test.csv")
 rsz_tensor=input.reshape(-1,5,3)
 p_tensor=point.reshape(-1,5,1)
 
