@@ -20,6 +20,7 @@ from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
 import pandas as pd
 from PIL import Image
 import collections
+from emotion_to_video import emo_to_video
 
 
 class VLCWidget(QFrame):
@@ -460,6 +461,10 @@ def create_summary(emotion_dir, diarization_dir):
     df_summary = pd.DataFrame(data_summary, index=rows_summary, columns=new_columns_name)
     return df_summary
 
+##
+def emotion_statistics()
+
+
 
 dataset_dir = "/home/user/icer/Project/dataset/"
 # dataset_dir = "/home/icer/Project/dataset"
@@ -482,6 +487,8 @@ d8 = Dock("OverviewDiarization", size=(1600, 500))
 # d4 = Dock("Dock4 (tabbed) - Plot", size=(500, 200))
 d5 = Dock("Summary", size=(800, 400))
 # d6 = Dock("Dock6 (tabbed) - Plot", size=(500, 200))
+d6 = Dock("Emotion_Statistics", size=(800,800)) ##
+
 
 area.addDock(d1, 'left')
 area.addDock(d2, 'bottom', d1)
@@ -493,6 +500,8 @@ area.addDock(d5, 'right', d1)
 area.addDock(d3, 'bottom', d1)
 area.addDock(d7, 'top', d2)
 area.addDock(d8, 'right', d7)
+
+area.addDock(d6, 'right',d1)##
 
 vlc_widget_list = []
 vlc_widget1 = VLCWidget()
@@ -539,6 +548,14 @@ emotion_csv_list = [
     dataset_dir + "emotion/" + "result4.csv"
 ]
 d8.addWidget(OverviewDiarizationWidget(vlc_widget1, diarization_csv=data_dir + "transcript.csv", emotion_csv_list=emotion_csv_list))
+
+##
+vlc_widget2 = VLCWidget()
+vlc_widget_list.append(vlc_widget2)
+d6.addWidge()
+vlc_widget2.media = data_dir + emo_to_video("main_test (copy)/face/cluster/","main_test (copy)/emotion/","main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi","outputs/test3.avi",3)
+vlc_widget2.play()
+
 
 win.showMaximized()
 

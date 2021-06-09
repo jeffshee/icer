@@ -165,6 +165,7 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
     #test
     input_movie.release()
     cv2.destroyAllWindows()
+    return output_movie_path
 
 
 
