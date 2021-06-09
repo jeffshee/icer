@@ -44,7 +44,7 @@ def resize_with_original_aspect(img, base_w, base_h):
 
 def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_path,k_resolution):
     # matching_index_list, per_num = match_speaker(dia_dir, emo_files_dir, th_matching=0.0)
-    list_file = pd.read_csv("main_test (copy)/index.txt"    , sep=",", encoding="utf-8", engine="python", header=None)
+    list_file = pd.read_csv("main_test (copy)/index.txt", sep=",", encoding="utf-8", engine="python", header=None)
     list_file = np.array(list_file)
     matching_index_list,per_num = list_file.tolist()[0],len(list_file.tolist()[0])
     # 出力動画の詳細を設定する
@@ -63,13 +63,6 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
     output_movie = cv2.VideoWriter(output_movie_path, fourcc, video_frame_rate,
                                    (w_padding, embedded_video_height))
 
-    # face_dir_copy=face_dir
-    # num_dirs=0
-    # for _,dirs,_ in os.walk(face_dir_copy):
-    #     for _ in dirs:
-    #         num_dirs=num_dirs+1
-    # per_num=num_dirs
-
     # diarizationの結果を読み込む
     df_diarization = pd.read_csv(dia_dir, encoding="shift_jis", header=0,
                                  usecols=["time(ms)", "speaker class"])
@@ -82,13 +75,14 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
     speaker_swith = {}
     speaker_swith[buff["time(ms)"][0]] = [None, None]
     for prev_t, next_t, prev_speaker, next_speaker in zip(buff["time(ms)"][:-1], buff["time(ms)"][1:],
-                                                          buff["speaker class"][:-1], buff["speaker class"][1:]):##从第一位到倒数第二位 从第二位到倒数第一位的数据
-        speaker_swith[next_t] = [prev_speaker, next_speaker] ##获取切换时间点前一个人和后一个人的转换顺序
+                                                          buff["speaker class"][:-1], buff["speaker class"][1:]):
+        speaker_swith[next_t] = [prev_speaker, next_speaker]
 
     # 動画として保存
     split_frame_list = [int(split_ms * video_frame_rate / 1000) for split_ms in df_split_ms["time(ms)"]]
     split_frame_list = [0] + split_frame_list + [video_length]
-
+    found_flg = False
+    tmp=-1
     for split_index,split_frame in enumerate(split_frame_list):
         if split_index==0:
             continue
@@ -99,8 +93,11 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
         current_speaker_series = df_diarization_sorted[df_diarization_sorted["time(ms)"] == time_ms]["speaker class"]
         if current_speaker_series.tolist():
             current_speaker = current_speaker_series.tolist()[0]
+            tmp=current_speaker
+            found_flg = True
         else:
-            current_speaker = -1
+            # current_speaker = -1
+            current_speaker=tmp
         #######################
         ### 顔画像と感情を表示 ###
         #######################
@@ -112,7 +109,7 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
         current_speaker=matching_index_list[current_speaker]
         for face_index, face_path in enumerate(faces_path):
             # 顔を表示
-            if face_index == current_speaker:
+            if face_index == current_speaker and found_flg:
                 img = np.array(add_border(face_path, border=5, color='rgb(255,215,0)')) ##当前讲话人添加边界
             else:
                 img = np.array(Image.open(face_path))
@@ -171,4 +168,4 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
 
 
 
-emo_to_video("main_test (copy)/face/cluster/","main_test (copy)/emotion/","main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi","outputs/test.avi",3)
+emo_to_video("main_test (copy)/face/cluster/","main_test (copy)/emotion/","main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi","outputs/test3.avi",3)
