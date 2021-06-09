@@ -462,7 +462,6 @@ def create_summary(emotion_dir, diarization_dir):
     return df_summary
 
 ##
-def emotion_statistics()
 
 
 
@@ -552,8 +551,9 @@ d8.addWidget(OverviewDiarizationWidget(vlc_widget1, diarization_csv=data_dir + "
 ##
 vlc_widget2 = VLCWidget()
 vlc_widget_list.append(vlc_widget2)
-d6.addWidge()
-vlc_widget2.media = data_dir + emo_to_video("main_test (copy)/face/cluster/","main_test (copy)/emotion/","main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi","outputs/test3.avi",3)
+d6.addWidget(vlc_widget2)
+vlc_widget2.media = data_dir + emo_to_video("/home/user/icer/icer/main_test (copy)/face/cluster/","/home/user/icer/icer/main_test (copy)/emotion/","/home/user/icer/icer/main_test (copy)/transcript/diarization/result.csv","/home/user/icer/icer/main_test (copy)/emotion/output.avi","/home/user/icer/icer/outputs/test3.avi",3)
+# vlc_widget2.media="/home/user/icer/icer/outputs/test3.avi"
 vlc_widget2.play()
 
 

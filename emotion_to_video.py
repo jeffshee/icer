@@ -44,18 +44,19 @@ def resize_with_original_aspect(img, base_w, base_h):
 
 def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_path,k_resolution):
     # matching_index_list, per_num = match_speaker(dia_dir, emo_files_dir, th_matching=0.0)
-    list_file = pd.read_csv("main_test (copy)/index.txt", sep=",", encoding="utf-8", engine="python", header=None)
+    list_file = pd.read_csv("/home/user/icer/icer/main_test (copy)/index.txt", sep=",", encoding="utf-8", engine="python", header=None)
     list_file = np.array(list_file)
     matching_index_list,per_num = list_file.tolist()[0],len(list_file.tolist()[0])
     # 出力動画の詳細を設定する
     fourcc = cv2.VideoWriter_fourcc(*'XVID')  # 動画コーデック指定
     input_movie = cv2.VideoCapture(input_video_path)  # 動画を読み込む
-
+    print("input_video_path",input_video_path)
     video_length = int(input_movie.get(cv2.CAP_PROP_FRAME_COUNT))
     video_frame_rate = input_movie.get(cv2.CAP_PROP_FPS)  # 動画のフレームレートを取得
     original_w = int(input_movie.get(cv2.CAP_PROP_FRAME_WIDTH))  # 動画の幅を取得
     original_h = int(input_movie.get(cv2.CAP_PROP_FRAME_HEIGHT))  # 動画の高さを取得
     resize_rate = (1080 * k_resolution) / original_w
+
     embedded_video_width = int(original_w * resize_rate)
     embedded_video_height = int(original_h * resize_rate)
     w_padding = int(embedded_video_width // 2) ##出力動画の幅
@@ -169,4 +170,4 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
 
 
 
-emo_to_video("main_test (copy)/face/cluster/","main_test (copy)/emotion/","main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi","outputs/test3.avi",3)
+# emo_to_video("main_test (copy)/face/cluster/","main_test (copy)/emotion/","main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi","outputs/test3.avi",3)
