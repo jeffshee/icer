@@ -2,10 +2,11 @@ import os
 import datetime
 from typing import List
 from PyQt5 import QtWidgets
-
+import cv2
 import matplotlib
 import matplotlib.pyplot as plt
-
+from PIL import Image, ImageOps, ImageFont, ImageDraw
+from os.path import join
 import numpy as np
 from numpy.testing._private.utils import KnownFailureTest
 import pyqtgraph as pg
@@ -386,6 +387,125 @@ class OverviewDiarizationWidget(QWidget):
                     time_s = self.ms_to_s(time)
                     gesture_x.append(time_s), gesture_y.append(speaker_id)
         return gesture_x, gesture_y
+
+def add_border(input_image, border, color):
+    img = Image.open(input_image)
+
+    if isinstance(border, int) or isinstance(border, tuple):
+        bimg = ImageOps.expand(img, border=border, fill=color)
+    else:
+        raise RuntimeError('Border is not an integer or tuple!')
+
+    return bimg
+
+class EmotionStatisticsWidget(QWidget):
+    def __init__(self,vlc_widget: VLCWidget,emo_files_dir,face_dir,diarization_csv,list_file_dir,input_video_path):
+        super().__init__()
+        self.vlc_widget = vlc_widget
+        self.mpl_widget = MatplotlibWidget()
+        self.mpl_widget.toolbar.hide()
+        self.emo_files_dir=emo_files_dir
+        self.face_dir=face_dir
+        self.diarization = pd.read_csv(diarization_csv)
+        self.video_begin_time = 0  # video's begin time (ms)
+        self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
+        list_file=np.array(pd.read_csv(list_file_dir, sep=",", encoding="utf-8", engine="python", header=None))
+        self.matching_index_list=list_file.tolist()[0]
+        self.y_num = len(list_file.tolist()[0])
+        self.input_video_path=input_video_path
+        # settings of matplotlib graph
+        self.ax = self.mpl_widget.getFigure().add_subplot(111)
+
+        self.timer = QTimer(self)
+        self.timer.setInterval(200)
+        self.timer.timeout.connect(self.update_ui)
+        self.timer.start()
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.mpl_widget)
+        self.setLayout(hbox)
+
+    def get_current_time(self):
+        position = self.vlc_widget.position
+        duration = self.vlc_widget.duration
+        cur_time = duration * position  # in ms
+        return cur_time
+
+    def update_ui(self):
+        # diarizationの結果を読み込む
+        df_diarization = pd.read_csv(self.diarization, encoding="shift_jis", header=0,
+                                     usecols=["time(ms)", "speaker class"])
+        df_diarization_sorted = df_diarization.copy()
+        df_diarization_sorted.sort_values(by=["time(ms)"], ascending=True, inplace=True)
+        df_diarization_sorted_diff = df_diarization_sorted.copy()
+        df_diarization_sorted_diff["speaker class"] = df_diarization_sorted_diff["speaker class"].diff()
+        df_split_ms = df_diarization_sorted_diff[df_diarization_sorted_diff["speaker class"] != 0]
+        buff = df_diarization_sorted[df_diarization_sorted_diff["speaker class"] != 0].copy()
+        speaker_swith = {}
+        speaker_swith[buff["time(ms)"][0]] = [None, None]
+        for prev_t, next_t, prev_speaker, next_speaker in zip(buff["time(ms)"][:-1], buff["time(ms)"][1:],
+                                                              buff["speaker class"][:-1], buff["speaker class"][1:]):
+            speaker_swith[next_t] = [prev_speaker, next_speaker]
+
+        input_movie = cv2.VideoCapture(self.input_video_path)  # 動画を読み込む
+        video_length = int(input_movie.get(cv2.CAP_PROP_FRAME_COUNT))
+        video_frame_rate = input_movie.get(cv2.CAP_PROP_FPS)  # 動画のフレームレートを取得
+        split_frame_list = [int(split_ms * video_frame_rate / 1000) for split_ms in df_split_ms["time(ms)"]]
+        split_frame_list = [0] + split_frame_list + [video_length]
+
+        cur_time = self.get_current_time()  # in ms
+        cur_frame=cur_time*video_frame_rate / 1000
+        for split_index, split_frame in enumerate(split_frame_list):
+            if split_index == 0:
+                continue
+            if split_frame_list[split_index]>cur_frame:
+                talk_start_frame = split_frame_list[split_index - 1]
+                talk_end_frame = split_frame_list[split_index]
+                now_frame=split_frame
+                break
+
+        # 現在のスピーカーを取得
+        time_ms = int((1000 * now_frame) // video_frame_rate)
+        current_speaker_series = df_diarization_sorted[df_diarization_sorted["time(ms)"] == time_ms]["speaker class"]
+        if current_speaker_series.tolist():
+            current_speaker = current_speaker_series.tolist()[0]
+        else:
+            current_speaker = -1
+        #######################
+        ### 顔画像と感情を表示 ###
+        #######################
+        fig, axes = self.ax.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
+        clustered_face_list = os.listdir(self.face_dir)
+        faces_path = [join(self.face_dir, name, 'closest.PNG') for name in clustered_face_list]
+        faces_path = sorted(faces_path)
+        current_speaker=self.matching_index_list[current_speaker]
+        for face_index, face_path in enumerate(faces_path):
+        # 顔を表示
+            if face_index == current_speaker:
+                img = np.array(add_border(face_path, border=5, color='rgb(255,215,0)')) ##当前讲话人添加边界
+            else:
+                img = np.array(Image.open(face_path))
+
+            self.ax.subplot(self.y_num, 3, (face_index * 3) + 1)
+            self.ax.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False, labelleft=False,
+                            labelright=False, labeltop=False)  # 目盛りの表示を消す
+            self.ax.imshow(img, aspect="equal")
+        # 感情のヒストグラムを表示
+        df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
+                                 header=0,
+                                 usecols=["prediction"])
+
+
+
+        cur_time = self.get_current_time()  # in ms
+
+
+
+
+
+
+
+
+
 
 
 class DataFrameWidget(pg.TableWidget):
