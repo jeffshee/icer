@@ -4,10 +4,10 @@ import datetime
 
 config = {
     # Run mode
-    "run_capture_face": True,  # 動画から顔領域の切り出し
-    "run_emotion_recognition": True,  # 切り出した顔画像の表情・頷き・口の開閉認識
+    "run_capture_face": False,  # 動画から顔領域の切り出し
+    "run_emotion_recognition": False,  # 切り出した顔画像の表情・頷き・口の開閉認識
     "run_transcript": True,  # Diarization・音声認識
-    "run_overlay": True,  # 表情・頷き・発話情報を動画にまとめて可視化
+    "run_overlay": False,  # 表情・頷き・発話情報を動画にまとめて可視化
 
     "capture_face_pt_path": None,  # Pickle to load when run_capture_face is false
     "tensorflow_log_level": str(2)
@@ -71,6 +71,7 @@ def run_transcript(**kwargs):
 
 
 def run_overlay(**kwargs):
+
     pass
 
 
@@ -118,19 +119,30 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
 
 
 if __name__ == "__main__":
+    # expt12 s2t only
     # main_kwargs = {
-    #     "video_path": "datasets/test/test_video.mp4",
-    #     "output_dir": "output",
-    #     "audio_path_list": ["datasets/test/test_voice_{:02d}.wav".format(i) for i in range(1, 7)],
-    #     "face_num": 6,
-    #     "face_video_list": ["datasets/test/reid/reid_{:02d}.mp4".format(i) for i in range(1, 7)]
+    #     "video_path": "datasets/200221_expt12/video.mp4",
+    #     "output_dir": "output/exp12_s2t",
+    #     "audio_path_list": ["datasets/200221_expt12/voice{}.wav".format(i) for i in range(1, 4)],
+    #     "face_num": 3,
+    #     "face_video_list": []
     # }
 
+    # expt22 s2t only
     main_kwargs = {
-        "video_path": "datasets/test2/200221_expt12_video.mp4",
-        "output_dir": "output2",
-        "audio_path_list": ["datasets/test2/200221_expt12_voice1{}.wav".format(i) for i in range(1, 4)],
-        "face_num": 3,
-        "face_video_list": ["datasets/test2/reid/{}.mp4".format(i) for i in range(0, 3)]
+        "video_path": "datasets/200225_expt22/video.mp4",
+        "output_dir": "output/exp22_s2t",
+        "audio_path_list": ["datasets/200225_expt22/voice{}.wav".format(i) for i in range(1, 6)],
+        "face_num": 5,
+        "face_video_list": []
     }
+
+    # expt58 s2t only
+    # main_kwargs = {
+    #     "video_path": "datasets/200309_expt58/video.mp4",
+    #     "output_dir": "output/exp58_s2t",
+    #     "audio_path_list": ["datasets/200309_expt58/voice{}.wav".format(i) for i in range(1, 4)],
+    #     "face_num": 3,
+    #     "face_video_list": []
+    # }
     main(**main_kwargs)
