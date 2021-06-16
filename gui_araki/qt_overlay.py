@@ -231,7 +231,7 @@ class DiarizationWidget(QWidget):
         self.ax = self.mpl_widget.getFigure().add_subplot(111)
 
         self.timer = QTimer(self)
-        self.timer.setInterval(50)
+        self.timer.setInterval(200)
         self.timer.timeout.connect(self.update_ui)
         self.timer.start()
         hbox = QHBoxLayout()
@@ -461,85 +461,75 @@ def create_summary(emotion_dir, diarization_dir):
     return df_summary
 
 
-dataset_dir = "/home/icer/Project/dataset/"
-# data_dir = "./gui_araki/data/"
-data_dir = "../gui_araki/data/"
+def main_overlay(
+    video_path: str = "../gui_araki/data/test_video_emotion.avi",
+    emotion_dir: str = "/home/icer/Project/dataset/emotion",
+    diarization_dir: str = "/home/icer/Project/dataset/transcript/diarization",
+    transcript_csv_path: str = "../gui_araki/data/transcript.csv",
+    diarization_csv_path: str = "../gui_araki/data/transcript.csv",
+    emotion_csv_path_list: list = []
+):
+    # initialize qt_app
+    app = pg.mkQApp("Overlay")
+    win = QtGui.QMainWindow()
+    area = DockArea()
+    win.setCentralWidget(area)
+    win.resize(1920, 1080)
+    win.setWindowTitle("Overlay")
 
-app = pg.mkQApp("Overlay")
-win = QtGui.QMainWindow()
-area = DockArea()
-win.setCentralWidget(area)
-win.resize(1920, 1080)
-win.setWindowTitle("Overlay")
+    # initialize each dock
+    d1 = Dock("Emotion", size=(1600, 900))
+    d2 = Dock("Control", size=(1600, 100))
+    d3 = Dock("Transcript", size=(1600, 100))
+    d4 = Dock("Summary", size=(800, 400))
+    d5 = Dock("Diarization", size=(1600, 500))
+    d6 = Dock("OverviewDiarization", size=(1600, 500))
 
-d1 = Dock("Emotion", size=(1600, 900))
-d2 = Dock("Control", size=(1600, 100))
-d3 = Dock("Transcript", size=(1600, 100))
-d7 = Dock("Diarization", size=(1600, 500))
-d8 = Dock("OverviewDiarization", size=(1600, 500))
+    # set dock's position
+    area.addDock(d1, 'left')
+    area.addDock(d2, 'bottom', d1)
+    area.addDock(d4, 'right', d1)
+    area.addDock(d3, 'bottom', d1)
+    area.addDock(d5, 'top', d2)
+    area.addDock(d6, 'right', d5)
 
-# d4 = Dock("Dock4 (tabbed) - Plot", size=(500, 200))
-d5 = Dock("Summary", size=(800, 400))
-# d6 = Dock("Dock6 (tabbed) - Plot", size=(500, 200))
+    # settings for video
+    vlc_widget_list = []
+    vlc_widget1 = VLCWidget()
+    vlc_widget_list.append(vlc_widget1)
+    d1.addWidget(vlc_widget1)
+    vlc_widget1.media = video_path
+    vlc_widget1.play()
 
-area.addDock(d1, 'left')
-area.addDock(d2, 'bottom', d1)
-# area.addDock(d3, 'right', d2)
-# area.addDock(d4, 'right')
-area.addDock(d5, 'right', d1)
-# area.addDock(d6, 'top', d4)
+    # make widgets for each dock
+    d2.addWidget(VLCControl(vlc_widget_list))
+    d3.addWidget(TranscriptWidget(vlc_widget1, transcript_csv=transcript_csv_path))
+    summary = DataFrameWidget(
+        create_summary(emotion_dir=emotion_dir, diarization_dir=diarization_dir))
+    d4.addWidget(summary)
+    d5.addWidget(DiarizationWidget(vlc_widget1, diarization_csv=diarization_csv_path))
+    d6.addWidget(OverviewDiarizationWidget(
+        vlc_widget1,
+        diarization_csv=diarization_csv_path,
+        emotion_csv_list=emotion_csv_path_list)
+    )
 
-area.addDock(d3, 'bottom', d1)
-area.addDock(d7, 'top', d2)
-area.addDock(d8, 'right', d7)
+    # run displaying
+    win.showMaximized()
+    pg.mkQApp().exec_()
 
-vlc_widget_list = []
-vlc_widget1 = VLCWidget()
-vlc_widget_list.append(vlc_widget1)
-d1.addWidget(vlc_widget1)
-vlc_widget1.media = data_dir + "test_video_emotion.avi"
-vlc_widget1.play()
-
-# vlc_widget2 = VLCWidget()
-# d3.addWidget(vlc_widget2)
-# vlc_widget_list.append(vlc_widget2)
-# vlc_widget2.media = "low_fps.mp4"
-# vlc_widget2.play()
-
-d2.addWidget(VLCControl(vlc_widget_list))
-d3.addWidget(TranscriptWidget(vlc_widget1, transcript_csv=data_dir + "transcript.csv"))
-
-# summary = pg.ImageView()
-# img = np.array(Image.open("summary_dummy.png")).T
-# summary.setImage(img)
-# summary.ui.histogram.hide()
-# summary.ui.roiBtn.hide()
-# summary.ui.roiPlot.hide()
-# summary.ui.menuBtn.hide()
-# d5.addWidget(summary)
-
-summary = DataFrameWidget(create_summary(dataset_dir + "/emotion", dataset_dir + "/transcript/diarization"))
-d5.addWidget(summary)
-# w5 = pg.ImageView()
-# w5.setImage(np.random.normal(size=(100, 100)))
-# d5.addWidget(w5)
-#
-# w6 = pg.PlotWidget(title="Dock 6 plot")
-# w6.plot(np.random.normal(size=100))
-# d6.addWidget(w6)
-
-d7.addWidget(DiarizationWidget(vlc_widget1, diarization_csv=data_dir + "transcript.csv"))
-
-emotion_csv_list = [
-    dataset_dir + "emotion/" + "result0.csv",
-    dataset_dir + "emotion/" + "result1.csv",
-    dataset_dir + "emotion/" + "result2.csv",
-    dataset_dir + "emotion/" + "result3.csv",
-    dataset_dir + "emotion/" + "result4.csv"
-]
-d8.addWidget(OverviewDiarizationWidget(vlc_widget1, diarization_csv=data_dir + "transcript.csv", emotion_csv_list=emotion_csv_list))
-
-win.showMaximized()
 
 if __name__ == '__main__':
-    pg.mkQApp().exec_()
+    face_num = 5
+    emotion_csv_path_list = [
+        os.path.join("/home/icer/Project/dataset/emotion", f"result{face_index}.csv") for face_index in range(face_num)
+    ]
+    main_kwargs = {
+        "video_path": "./gui_araki/data/test_video_emotion.avi",
+        "emotion_dir": "/home/icer/Project/dataset/emotion",
+        "diarization_dir": "/home/icer/Project/dataset/transcript/diarization",
+        "transcript_csv_path": "./gui_araki/data/transcript.csv",
+        "diarization_csv_path": "./gui_araki/data/transcript.csv",
+        "emotion_csv_path_list": emotion_csv_path_list
+    }
+    main_overlay(**main_kwargs)
