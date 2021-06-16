@@ -4,9 +4,9 @@ import datetime
 
 config = {
     # Run mode
-    "run_capture_face": True,  # 動画から顔領域の切り出し
-    "run_emotion_recognition": True,  # 切り出した顔画像の表情・頷き・口の開閉認識
-    "run_transcript": True,  # Diarization・音声認識
+    "run_capture_face": False,  # 動画から顔領域の切り出し
+    "run_emotion_recognition": False,  # 切り出した顔画像の表情・頷き・口の開閉認識
+    "run_transcript": False,  # Diarization・音声認識
     "run_overlay": True,  # 表情・頷き・発話情報を動画にまとめて可視化
 
     "capture_face_pt_path": None,  # Pickle to load when run_capture_face is false
@@ -70,8 +70,10 @@ def run_transcript(**kwargs):
     transcript(**kwargs)
 
 
+@timeit
 def run_overlay(**kwargs):
-    pass
+    from gui_araki.qt_overlay import main_overlay
+    main_overlay(**kwargs)
 
 
 @timeit
@@ -114,7 +116,23 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
         )
 
     if config["run_overlay"]:
-        run_overlay()
+        emotion_dir = os.path.join(output_dir, "emotion")
+        transcript_dir = os.path.join(output_dir, "transcript")
+        diarization_dir = os.path.join(output_dir, "transcript/diarization")  # might be changed
+        transcript_csv_path = os.path.join(transcript_dir, "transcript.csv")
+        diarization_csv_path = transcript_csv_path
+        emotion_csv_path_list = [
+            os.path.join(emotion_dir, f"result{face_index}.csv") for face_index in range(face_num)
+        ]
+        run_overlay(
+            **{"video_path": video_path,
+               "emotion_dir": emotion_dir,
+               "diarization_dir": diarization_dir,
+               "transcript_csv_path": transcript_csv_path,
+               "diarization_csv_path": diarization_csv_path,
+               "emotion_csv_path_list": emotion_csv_path_list,
+               }
+        )
 
 
 if __name__ == "__main__":
