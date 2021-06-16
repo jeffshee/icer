@@ -168,10 +168,16 @@ def main():
     # Setting of command-line parameters
     # transcription: result of Speech to Text
     # answer: correct words
-    in_fpath = 'evaluation/s2t_result/expt58_transcript.csv'
+    # in_fpath = 'evaluation/s2t_result/expt58_transcript.csv'
+    in_fpath = 'evaluation/s2t_result/expt22_transcript.csv'
+    # in_fpath = 'evaluation/s2t_result/expt12_transcript.csv'
+
     transcription_list = separate_text(in_fpath)
 
-    in_fpath = 'evaluation/s2t_gt/200309_expt58_video_gt_reshaped.csv'
+    # in_fpath = 'evaluation/s2t_gt/200309_expt58_video_gt_reshaped.csv'
+    in_fpath = 'evaluation/s2t_gt/200225 expt22 video_gt_reshape.csv'
+    # in_fpath = 'evaluation/s2t_gt/200221_expt12_video_gt_reshaped.csv'
+
     answer_list = separate_text(in_fpath)
 
     evaluate = Levenshtein_distance(transcription_list, answer_list)

@@ -83,9 +83,8 @@ class UISRNN:
           args: Model configurations. See `arguments.py` for details.
         """
         self.observation_dim = args.observation_dim
-        self.device = 'cpu'
-        # self.device = torch.device(
-        #     'cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device(
+            'cuda:0' if torch.cuda.is_available() else 'cpu')
         self.rnn_model = CoreRNN(self.observation_dim, args.rnn_hidden_size,
                                  args.rnn_depth, self.observation_dim,
                                  args.rnn_dropout).to(self.device)
