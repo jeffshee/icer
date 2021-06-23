@@ -508,10 +508,10 @@ class EmotionStatisticsWidget(QWidget):
         axes[face_index, 1].set_title(title, fontsize=18)
         plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
         fig.canvas.draw()
-        face_and_index_img = np.array(
-            fig.canvas.renderer.buffer_rgba())
-        face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
-        face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
+        # face_and_index_img = np.array(
+        #     fig.canvas.renderer.buffer_rgba())
+        # face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
+        # face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
         plt.close(fig)
         self.mpl_widget.draw()
 
@@ -621,6 +621,7 @@ dataset_dir = "/home/user/icer/Project/dataset/"
 # dataset_dir = "/home/icer/Project/dataset"
 # data_dir = "./gui_araki/data/"
 data_dir = "../gui_araki/data/"
+data_test="/home/user/icer/icer/"
 
 app = pg.mkQApp("Overlay")
 win = QtGui.QMainWindow()
@@ -701,13 +702,13 @@ emotion_csv_list = [
 d8.addWidget(OverviewDiarizationWidget(vlc_widget1, diarization_csv=data_dir + "transcript.csv", emotion_csv_list=emotion_csv_list))
 
 ##
-vlc_widget2 = VLCWidget()
-vlc_widget_list.append(vlc_widget2)
-d6.addWidget(vlc_widget2)
-vlc_widget2.media = data_dir + emo_to_video("/home/user/icer/icer/main_test (copy)/face/cluster/","/home/user/icer/icer/main_test (copy)/emotion/","/home/user/icer/icer/main_test (copy)/transcript/diarization/result.csv","/home/user/icer/icer/main_test (copy)/emotion/output.avi","/home/user/icer/icer/outputs/test3.avi",3)
-# vlc_widget2.media="/home/user/icer/icer/outputs/test3.avi"
-vlc_widget2.play()
-
+# vlc_widget2 = VLCWidget()
+# vlc_widget_list.append(vlc_widget2)
+# d6.addWidget(vlc_widget2)
+# vlc_widget2.media = data_dir + emo_to_video("/home/user/icer/icer/main_test (copy)/face/cluster/","/home/user/icer/icer/main_test (copy)/emotion/","/home/user/icer/icer/main_test (copy)/transcript/diarization/result.csv","/home/user/icer/icer/main_test (copy)/emotion/output.avi","/home/user/icer/icer/outputs/test3.avi",3)
+# # vlc_widget2.media="/home/user/icer/icer/outputs/test3.avi"
+# vlc_widget2.play()
+d6.addWidget(EmotionStatisticsWidget(vlc_widget1, emo_files_dir=data_test+"main_test (copy)/emotion/",face_dir=data_test+"main_test (copy)/face/cluster/",diarization_csv=data_test+"main_test (copy)/transcript/diarization/result.csv",list_file_dir=data_test+"main_test (copy)/index.txt",input_video_path=data_test+"main_test (copy)/emotion/output.avi"))
 
 win.showMaximized()
 
