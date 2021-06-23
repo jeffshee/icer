@@ -406,7 +406,7 @@ class EmotionStatisticsWidget(QWidget):
         self.mpl_widget.toolbar.hide()
         self.emo_files_dir=emo_files_dir
         self.face_dir=face_dir
-        self.diarization = pd.read_csv(diarization_csv)
+        self.diarization_dir = diarization_csv
         self.video_begin_time = 0  # video's begin time (ms)
         self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
         list_file=np.array(pd.read_csv(list_file_dir, sep=",", encoding="utf-8", engine="python", header=None))
@@ -414,7 +414,8 @@ class EmotionStatisticsWidget(QWidget):
         self.y_num = len(list_file.tolist()[0])
         self.input_video_path=input_video_path
         # settings of matplotlib graph
-        self.fig = None
+        # self.ax = self.mpl_widget.getFigure().add_subplot(111)
+        self.fig = self.mpl_widget.getFigure().add_subplot(111)
         self.timer = QTimer(self)
         self.timer.setInterval(200)
         self.timer.timeout.connect(self.update_ui)
@@ -431,8 +432,7 @@ class EmotionStatisticsWidget(QWidget):
 
     def update_ui(self):
         # diarizationの結果を読み込む
-        df_diarization = pd.read_csv(self.diarization, encoding="shift_jis", header=0,
-                                     usecols=["time(ms)", "speaker class"])
+        df_diarization = pd.read_csv(self.diarization_dir, encoding="shift_jis", header=0,usecols=["time(ms)", "speaker class"])
         df_diarization_sorted = df_diarization.copy()
         df_diarization_sorted.sort_values(by=["time(ms)"], ascending=True, inplace=True)
         df_diarization_sorted_diff = df_diarization_sorted.copy()
@@ -472,7 +472,7 @@ class EmotionStatisticsWidget(QWidget):
         #######################
         ### 顔画像と感情を表示 ###
         #######################
-        fig, axes = self.ax.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
+        fig, axes = plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
         clustered_face_list = os.listdir(self.face_dir)
         faces_path = [join(self.face_dir, name, 'closest.PNG') for name in clustered_face_list]
         faces_path = sorted(faces_path)
@@ -484,27 +484,27 @@ class EmotionStatisticsWidget(QWidget):
             else:
                 img = np.array(Image.open(face_path))
 
-            self.ax.subplot(self.y_num, 3, (face_index * 3) + 1)
-            self.ax.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False, labelleft=False,
+            plt.subplot(self.y_num, 3, (face_index * 3) + 1)
+            plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False, labelleft=False,
                             labelright=False, labeltop=False)  # 目盛りの表示を消す
-            self.ax.imshow(img, aspect="equal")
-        # 感情のヒストグラムを表示
-        df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
-                                 header=0,
-                                 usecols=["prediction"])
-        # 1 speech あたりの感情
-        emotions = ['Negative', 'Normal', 'Positive', 'Unknown']
-        df_emotion_count = df_emotion['prediction'][talk_start_frame:talk_end_frame].value_counts()
-        no_emotions = list(set(emotions) - set(df_emotion_count.index.values))
-        for no_emotion in no_emotions:
-            df_emotion_count[no_emotion] = 0
-        df_emotion_count.sort_index(inplace=True)
-        title = "Current" if face_index == 0 else None
-        df_emotion_count.plot(kind="barh", ax=axes[face_index, 1], color=["blue", "green", "red", "gray"],
-                              xticks=[0, (talk_end_frame - talk_start_frame) // 2,
-                                      talk_end_frame - talk_start_frame],
-                              xlim=(0, talk_end_frame - talk_start_frame), fontsize=18)  ##図を作る
-        axes[face_index, 1].set_title(title, fontsize=18)
+            plt.imshow(img, aspect="equal")
+            # 感情のヒストグラムを表示
+            df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
+                                     header=0,
+                                     usecols=["prediction"])
+            # 1 speech あたりの感情
+            emotions = ['Negative', 'Normal', 'Positive', 'Unknown']
+            df_emotion_count = df_emotion['prediction'][talk_start_frame:talk_end_frame].value_counts()
+            no_emotions = list(set(emotions) - set(df_emotion_count.index.values))
+            for no_emotion in no_emotions:
+                df_emotion_count[no_emotion] = 0
+            df_emotion_count.sort_index(inplace=True)
+            title = "Current" if face_index == 0 else None
+            df_emotion_count.plot(kind="barh", ax=axes[face_index, 1], color=["blue", "green", "red", "gray"],
+                                  xticks=[0, (talk_end_frame - talk_start_frame) // 2,
+                                          talk_end_frame - talk_start_frame],
+                                  xlim=(0, talk_end_frame - talk_start_frame), fontsize=18)  ##図を作る
+            axes[face_index, 1].set_title(title, fontsize=18)
         plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
         fig.canvas.draw()
         face_and_index_img = np.array(

@@ -170,4 +170,4 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
 
 
 
-# emo_to_video("main_test (copy)/face/cluster/","main_test (copy)/emotion/","main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi","outputs/test3.avi",3)
+# emo_to_video("main_test (copy)/face/cluster/","main_test (copy)/emotion/","main_test (copy)/transcript/diarization/result.csv","main_test (copy)/emotion/output.avi","outputs/test4.avi",3)
