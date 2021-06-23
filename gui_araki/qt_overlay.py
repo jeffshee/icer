@@ -413,7 +413,7 @@ class EmotionStatisticsWidget(QWidget):
         self.y_num = len(list_file.tolist()[0])
         self.input_video_path=input_video_path
         # settings of matplotlib graph
-        self.fig = self.mpl_widget.getFigure().figure()
+        self.subplot = self.mpl_widget.getFigure()
         self.image_label = QLabel()
         self.timer = QTimer(self)
         self.timer.setInterval(200)
@@ -473,7 +473,7 @@ class EmotionStatisticsWidget(QWidget):
             #######################
             ### 顔画像と感情を表示 ###
             #######################
-            fig, axes = plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
+            fig, axes = self.subplot.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
             clustered_face_list = os.listdir(self.face_dir)
             faces_path = [join(self.face_dir, name, 'closest.PNG') for name in clustered_face_list]
             faces_path = sorted(faces_path)
@@ -485,10 +485,10 @@ class EmotionStatisticsWidget(QWidget):
                 else:
                     img = np.array(Image.open(face_path))
 
-                plt.subplot(self.y_num, 3, (face_index * 3) + 1)
-                plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False, labelleft=False,
+                self.subplot.subplot(self.y_num, 3, (face_index * 3) + 1)
+                self.subplot.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False, labelleft=False,
                                 labelright=False, labeltop=False)  # 目盛りの表示を消す
-                plt.imshow(img, aspect="equal")
+                self.subplot.imshow(img, aspect="equal")
                 # 感情のヒストグラムを表示
                 df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
                                          header=0,
@@ -506,12 +506,12 @@ class EmotionStatisticsWidget(QWidget):
                                               talk_end_frame - talk_start_frame],
                                       xlim=(0, talk_end_frame - talk_start_frame), fontsize=18)  ##図を作る
                 axes[face_index, 1].set_title(title, fontsize=18)
-            plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
-            fig.canvas.draw()
+            self.subplot.subplots_adjust(wspace=0.40)  # axe間の余白を調整
+            # fig.canvas.draw()
             face_and_index_img = np.array(
                 fig.canvas.renderer.buffer_rgba())
             face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
-            self.fig=face_and_index_img
+            # self.fig=face_and_index_img
             cv2.imwrite('test0623.png',face_and_index_img)
             self.mpl_widget.draw()
 
