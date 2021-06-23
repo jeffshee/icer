@@ -12,7 +12,7 @@ from numpy.testing._private.utils import KnownFailureTest
 import pyqtgraph as pg
 import vlc
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap,QImage
 from PyQt5.QtWidgets import QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, \
     QVBoxLayout, QLabel, QScrollArea, QSizePolicy
 from pyqtgraph.Qt import QtGui
@@ -516,7 +516,7 @@ class EmotionStatisticsWidget(QWidget):
                 fig.canvas.renderer.buffer_rgba())
             face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
 
-            pixmap = QPixmap(face_and_index_img)
+            pixmap = QImage(face_and_index_img)
             self.image_label.setPixmap(pixmap)
 
 
