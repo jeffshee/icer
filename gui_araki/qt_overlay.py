@@ -514,7 +514,8 @@ class EmotionStatisticsWidget(QWidget):
         # face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
         self.fig =fig
         plt.close(fig)
-        self.fig.canvas.draw()
+        # self.fig.canvas.draw()
+        return face_and_index_img
 
 
 def resize_with_original_aspect(img, base_w, base_h):
