@@ -431,91 +431,93 @@ class EmotionStatisticsWidget(QWidget):
         return cur_time
 
     def update_ui(self):
-        # diarizationの結果を読み込む
-        df_diarization = pd.read_csv(self.diarization_dir, encoding="shift_jis", header=0,usecols=["time(ms)", "speaker class"])
-        df_diarization_sorted = df_diarization.copy()
-        df_diarization_sorted.sort_values(by=["time(ms)"], ascending=True, inplace=True)
-        df_diarization_sorted_diff = df_diarization_sorted.copy()
-        df_diarization_sorted_diff["speaker class"] = df_diarization_sorted_diff["speaker class"].diff()
-        df_split_ms = df_diarization_sorted_diff[df_diarization_sorted_diff["speaker class"] != 0]
-        buff = df_diarization_sorted[df_diarization_sorted_diff["speaker class"] != 0].copy()
-        speaker_swith = {}
-        speaker_swith[buff["time(ms)"][0]] = [None, None]
-        for prev_t, next_t, prev_speaker, next_speaker in zip(buff["time(ms)"][:-1], buff["time(ms)"][1:],
-                                                              buff["speaker class"][:-1], buff["speaker class"][1:]):
-            speaker_swith[next_t] = [prev_speaker, next_speaker]
-
-        input_movie = cv2.VideoCapture(self.input_video_path)  # 動画を読み込む
-        video_length = int(input_movie.get(cv2.CAP_PROP_FRAME_COUNT))
-        video_frame_rate = input_movie.get(cv2.CAP_PROP_FPS)  # 動画のフレームレートを取得
-        split_frame_list = [int(split_ms * video_frame_rate / 1000) for split_ms in df_split_ms["time(ms)"]]
-        split_frame_list = [0] + split_frame_list + [video_length]
-
         cur_time = self.get_current_time()  # in ms
-        cur_frame=cur_time*video_frame_rate / 1000
-        for split_index, split_frame in enumerate(split_frame_list):
-            if split_index == 0:
-                continue
-            if split_frame_list[split_index]>cur_frame:
-                talk_start_frame = split_frame_list[split_index - 1]
-                talk_end_frame = split_frame_list[split_index]
-                now_frame=split_frame
-                break
+        if cur_time >= 0.0:  # to prevent xlim turning into minus values
+            # diarizationの結果を読み込む
+            df_diarization = pd.read_csv(self.diarization_dir, encoding="shift_jis", header=0,usecols=["time(ms)", "speaker class"])
+            df_diarization_sorted = df_diarization.copy()
+            df_diarization_sorted.sort_values(by=["time(ms)"], ascending=True, inplace=True)
+            df_diarization_sorted_diff = df_diarization_sorted.copy()
+            df_diarization_sorted_diff["speaker class"] = df_diarization_sorted_diff["speaker class"].diff()
+            df_split_ms = df_diarization_sorted_diff[df_diarization_sorted_diff["speaker class"] != 0]
+            buff = df_diarization_sorted[df_diarization_sorted_diff["speaker class"] != 0].copy()
+            speaker_swith = {}
+            speaker_swith[buff["time(ms)"][0]] = [None, None]
+            for prev_t, next_t, prev_speaker, next_speaker in zip(buff["time(ms)"][:-1], buff["time(ms)"][1:],
+                                                                  buff["speaker class"][:-1], buff["speaker class"][1:]):
+                speaker_swith[next_t] = [prev_speaker, next_speaker]
 
-        # 現在のスピーカーを取得
-        time_ms = int((1000 * now_frame) // video_frame_rate)
-        current_speaker_series = df_diarization_sorted[df_diarization_sorted["time(ms)"] == time_ms]["speaker class"]
-        if current_speaker_series.tolist():
-            current_speaker = current_speaker_series.tolist()[0]
-        else:
-            current_speaker = -1
-        #######################
-        ### 顔画像と感情を表示 ###
-        #######################
-        fig, axes = plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
-        clustered_face_list = os.listdir(self.face_dir)
-        faces_path = [join(self.face_dir, name, 'closest.PNG') for name in clustered_face_list]
-        faces_path = sorted(faces_path)
-        current_speaker=self.matching_index_list[current_speaker]
-        for face_index, face_path in enumerate(faces_path):
-        # 顔を表示
-            if face_index == current_speaker:
-                img = np.array(add_border(face_path, border=5, color='rgb(255,215,0)')) ##当前讲话人添加边界
+            input_movie = cv2.VideoCapture(self.input_video_path)  # 動画を読み込む
+            video_length = int(input_movie.get(cv2.CAP_PROP_FRAME_COUNT))
+            video_frame_rate = input_movie.get(cv2.CAP_PROP_FPS)  # 動画のフレームレートを取得
+            split_frame_list = [int(split_ms * video_frame_rate / 1000) for split_ms in df_split_ms["time(ms)"]]
+            split_frame_list = [0] + split_frame_list + [video_length]
+
+            cur_time = self.get_current_time()  # in ms
+            cur_frame=cur_time*video_frame_rate / 1000
+            for split_index, split_frame in enumerate(split_frame_list):
+                if split_index == 0:
+                    continue
+                if split_frame_list[split_index]>cur_frame:
+                    talk_start_frame = split_frame_list[split_index - 1]
+                    talk_end_frame = split_frame_list[split_index]
+                    now_frame=split_frame
+                    break
+
+            # 現在のスピーカーを取得
+            time_ms = int((1000 * now_frame) // video_frame_rate)
+            current_speaker_series = df_diarization_sorted[df_diarization_sorted["time(ms)"] == time_ms]["speaker class"]
+            if current_speaker_series.tolist():
+                current_speaker = current_speaker_series.tolist()[0]
             else:
-                img = np.array(Image.open(face_path))
+                current_speaker = -1
+            #######################
+            ### 顔画像と感情を表示 ###
+            #######################
+            fig, axes = self.mpl_widget.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
+            clustered_face_list = os.listdir(self.face_dir)
+            faces_path = [join(self.face_dir, name, 'closest.PNG') for name in clustered_face_list]
+            faces_path = sorted(faces_path)
+            current_speaker=self.matching_index_list[current_speaker]
+            for face_index, face_path in enumerate(faces_path):
+            # 顔を表示
+                if face_index == current_speaker:
+                    img = np.array(add_border(face_path, border=5, color='rgb(255,215,0)')) ##当前讲话人添加边界
+                else:
+                    img = np.array(Image.open(face_path))
 
-            plt.subplot(self.y_num, 3, (face_index * 3) + 1)
-            plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False, labelleft=False,
-                            labelright=False, labeltop=False)  # 目盛りの表示を消す
-            plt.imshow(img, aspect="equal")
-            # 感情のヒストグラムを表示
-            df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
-                                     header=0,
-                                     usecols=["prediction"])
-            # 1 speech あたりの感情
-            emotions = ['Negative', 'Normal', 'Positive', 'Unknown']
-            df_emotion_count = df_emotion['prediction'][talk_start_frame:talk_end_frame].value_counts()
-            no_emotions = list(set(emotions) - set(df_emotion_count.index.values))
-            for no_emotion in no_emotions:
-                df_emotion_count[no_emotion] = 0
-            df_emotion_count.sort_index(inplace=True)
-            title = "Current" if face_index == 0 else None
-            df_emotion_count.plot(kind="barh", ax=axes[face_index, 1], color=["blue", "green", "red", "gray"],
-                                  xticks=[0, (talk_end_frame - talk_start_frame) // 2,
-                                          talk_end_frame - talk_start_frame],
-                                  xlim=(0, talk_end_frame - talk_start_frame), fontsize=18)  ##図を作る
-            axes[face_index, 1].set_title(title, fontsize=18)
-        plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
-        fig.canvas.draw()
-        face_and_index_img = np.array(
-            fig.canvas.renderer.buffer_rgba())
-        face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
-        cv2.imwrite('test0623.png',face_and_index_img)
-        # face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
-        # self.fig =fig
-        # plt.close(fig)
-        plt.show()
-        # self.fig.canvas.draw()
+                self.mpl_widget.subplot(self.y_num, 3, (face_index * 3) + 1)
+                self.mpl_widget.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False, labelleft=False,
+                                labelright=False, labeltop=False)  # 目盛りの表示を消す
+                # self.mpl_widget.imshow(img, aspect="equal")
+                # 感情のヒストグラムを表示
+                df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
+                                         header=0,
+                                         usecols=["prediction"])
+                # 1 speech あたりの感情
+                emotions = ['Negative', 'Normal', 'Positive', 'Unknown']
+                df_emotion_count = df_emotion['prediction'][talk_start_frame:talk_end_frame].value_counts()
+                no_emotions = list(set(emotions) - set(df_emotion_count.index.values))
+                for no_emotion in no_emotions:
+                    df_emotion_count[no_emotion] = 0
+                df_emotion_count.sort_index(inplace=True)
+                title = "Current" if face_index == 0 else None
+                df_emotion_count.plot(kind="barh", ax=axes[face_index, 1], color=["blue", "green", "red", "gray"],
+                                      xticks=[0, (talk_end_frame - talk_start_frame) // 2,
+                                              talk_end_frame - talk_start_frame],
+                                      xlim=(0, talk_end_frame - talk_start_frame), fontsize=18)  ##図を作る
+                axes[face_index, 1].set_title(title, fontsize=18)
+            self.mpl_widget.subplots_adjust(wspace=0.40)  # axe間の余白を調整
+            fig.canvas.draw()
+            face_and_index_img = np.array(
+                fig.canvas.renderer.buffer_rgba())
+            face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
+            cv2.imwrite('test0623.png',face_and_index_img)
+            # face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
+            # self.fig =fig
+            # plt.close(fig)
+
+            self.mpl_widget.draw()
 
 
 def resize_with_original_aspect(img, base_w, base_h):
