@@ -414,8 +414,7 @@ class EmotionStatisticsWidget(QWidget):
         self.y_num = len(list_file.tolist()[0])
         self.input_video_path=input_video_path
         # settings of matplotlib graph
-        self.ax = self.mpl_widget.getFigure().add_subplot(111)
-
+        self.fig = None
         self.timer = QTimer(self)
         self.timer.setInterval(200)
         self.timer.timeout.connect(self.update_ui)
@@ -508,12 +507,13 @@ class EmotionStatisticsWidget(QWidget):
         axes[face_index, 1].set_title(title, fontsize=18)
         plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
         fig.canvas.draw()
-        # face_and_index_img = np.array(
-        #     fig.canvas.renderer.buffer_rgba())
-        # face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
+        face_and_index_img = np.array(
+            fig.canvas.renderer.buffer_rgba())
+        face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
         # face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
+        self.fig =fig
         plt.close(fig)
-        self.mpl_widget.draw()
+        self.fig.canvas.draw()
 
 
 def resize_with_original_aspect(img, base_w, base_h):
