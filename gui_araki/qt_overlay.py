@@ -513,9 +513,9 @@ class EmotionStatisticsWidget(QWidget):
         cv2.imwrite('test0623.png',face_and_index_img)
         # face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
         # self.fig =fig
-        plt.close(fig)
+        # plt.close(fig)
+        plt.show()
         # self.fig.canvas.draw()
-        return face_and_index_img
 
 
 def resize_with_original_aspect(img, base_w, base_h):
@@ -711,17 +711,7 @@ d8.addWidget(OverviewDiarizationWidget(vlc_widget1, diarization_csv=data_dir + "
 # # vlc_widget2.media="/home/user/icer/icer/outputs/test3.avi"
 # vlc_widget2.play()
 
-emotion_img=EmotionStatisticsWidget(vlc_widget1, emo_files_dir=data_test+"main_test (copy)/emotion/",face_dir=data_test+"main_test (copy)/face/cluster/",diarization_csv=data_test+"main_test (copy)/transcript/diarization/result.csv",list_file_dir=data_test+"main_test (copy)/index.txt",input_video_path=data_test+"main_test (copy)/emotion/output.avi")
-emo = pg.ImageView()
-img2 = np.array(emotion_img).T
-emo.setImage(img2)
-emo.ui.histogram.hide()
-emo.ui.roiBtn.hide()
-emo.ui.roiPlot.hide()
-emo.ui.menuBtn.hide()
-d6.addWidget(emo)
-
-
+d6.addWidget(EmotionStatisticsWidget(vlc_widget1, emo_files_dir=data_test+"main_test (copy)/emotion/",face_dir=data_test+"main_test (copy)/face/cluster/",diarization_csv=data_test+"main_test (copy)/transcript/diarization/result.csv",list_file_dir=data_test+"main_test (copy)/index.txt",input_video_path=data_test+"main_test (copy)/emotion/output.avi"))
 
 win.showMaximized()
 
