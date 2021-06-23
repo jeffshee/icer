@@ -119,7 +119,7 @@ def emo_to_video(face_dir,emo_files_dir,dia_dir,input_video_path,output_movie_pa
             plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False, labelleft=False,
                             labelright=False, labeltop=False)  # 目盛りの表示を消す
             plt.imshow(img, aspect="equal")
-            # plt.title(index_to_name_dict[face_index], loc="center", fontsize=18) ##后续修改
+            # plt.title(index_to_name_dict[face_index], loc="center", fontsize=18) ##
 
             # 感情のヒストグラムを表示
             df_emotion = pd.read_csv(join(emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",

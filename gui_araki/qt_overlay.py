@@ -21,7 +21,6 @@ from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
 import pandas as pd
 from PIL import Image
 import collections
-from emotion_to_video import emo_to_video
 
 
 class VLCWidget(QFrame):
@@ -415,12 +414,17 @@ class EmotionStatisticsWidget(QWidget):
         self.input_video_path=input_video_path
         # settings of matplotlib graph
         self.img=None
+        self.image_label = QLabel()
+
+
+
+
         self.timer = QTimer(self)
         self.timer.setInterval(200)
         self.timer.timeout.connect(self.update_ui)
         self.timer.start()
         hbox = QHBoxLayout()
-        hbox.addWidget(self.img)
+        hbox.addWidget(self.image_label)
         self.setLayout(hbox)
 
     def get_current_time(self):
@@ -511,14 +515,19 @@ class EmotionStatisticsWidget(QWidget):
             face_and_index_img = np.array(
                 fig.canvas.renderer.buffer_rgba())
             face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
+
+            pixmap = QPixmap(face_and_index_img)
+            self.image_label.setPixmap(pixmap)
+
+
             cv2.imwrite('test0623.png',face_and_index_img)
             # face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
             # self.fig =fig
             # plt.close(fig)
-            self.img=face_and_index_img
-            plt.show()
-
-            self.mpl_widget.draw()
+            # self.img=face_and_index_img
+            # plt.show()
+            #
+            # self.mpl_widget.draw()
 
 
 def resize_with_original_aspect(img, base_w, base_h):
