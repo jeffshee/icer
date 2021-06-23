@@ -516,7 +516,7 @@ class EmotionStatisticsWidget(QWidget):
                 fig.canvas.renderer.buffer_rgba())
             face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
 
-            pixmap = QImage(face_and_index_img)
+            pixmap = QImage(face_and_index_img,face_and_index_img.shape[1],face_and_index_img.shape[0],face_and_index_img.shape[1]*3,QImage.Format_RGB888)
             self.image_label.setPixmap(pixmap)
 
 
