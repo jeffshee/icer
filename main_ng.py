@@ -71,7 +71,7 @@ def run_transcript(**kwargs):
 
 
 def run_overlay(**kwargs):
-    from gui_araki.qt_overlay import main_overlay
+    from gui.qt_overlay import main_overlay
     main_overlay(**kwargs)
 
 
@@ -117,7 +117,7 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
     if config["run_overlay"]:
         emotion_dir = os.path.join(output_dir, "emotion")
         transcript_dir = os.path.join(output_dir, "transcript")
-        diarization_dir = os.path.join(output_dir, "transcript/diarization")  # might be changed
+        diarization_dir = os.path.join(output_dir, "transcript", "diarization")  # might be changed
         transcript_csv_path = os.path.join(transcript_dir, "transcript.csv")
         diarization_csv_path = transcript_csv_path
         emotion_csv_path_list = [
