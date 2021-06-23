@@ -413,7 +413,7 @@ class EmotionStatisticsWidget(QWidget):
         self.y_num = len(list_file.tolist()[0])
         self.input_video_path=input_video_path
         # settings of matplotlib graph
-        self.fig = self.mpl_widget.getFigure()
+        self.fig = self.mpl_widget.figure()
         self.image_label = QLabel()
         self.timer = QTimer(self)
         self.timer.setInterval(200)
