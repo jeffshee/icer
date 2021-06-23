@@ -710,7 +710,17 @@ d8.addWidget(OverviewDiarizationWidget(vlc_widget1, diarization_csv=data_dir + "
 # vlc_widget2.media = data_dir + emo_to_video("/home/user/icer/icer/main_test (copy)/face/cluster/","/home/user/icer/icer/main_test (copy)/emotion/","/home/user/icer/icer/main_test (copy)/transcript/diarization/result.csv","/home/user/icer/icer/main_test (copy)/emotion/output.avi","/home/user/icer/icer/outputs/test3.avi",3)
 # # vlc_widget2.media="/home/user/icer/icer/outputs/test3.avi"
 # vlc_widget2.play()
-d6.addWidget(EmotionStatisticsWidget(vlc_widget1, emo_files_dir=data_test+"main_test (copy)/emotion/",face_dir=data_test+"main_test (copy)/face/cluster/",diarization_csv=data_test+"main_test (copy)/transcript/diarization/result.csv",list_file_dir=data_test+"main_test (copy)/index.txt",input_video_path=data_test+"main_test (copy)/emotion/output.avi"))
+
+emotion_img=EmotionStatisticsWidget(vlc_widget1, emo_files_dir=data_test+"main_test (copy)/emotion/",face_dir=data_test+"main_test (copy)/face/cluster/",diarization_csv=data_test+"main_test (copy)/transcript/diarization/result.csv",list_file_dir=data_test+"main_test (copy)/index.txt",input_video_path=data_test+"main_test (copy)/emotion/output.avi")
+emo = pg.ImageView()
+emo.setImage(emotion_img)
+emo.ui.histogram.hide()
+emo.ui.roiBtn.hide()
+emo.ui.roiPlot.hide()
+emo.ui.menuBtn.hide()
+d6.addWidget(emo)
+
+
 
 win.showMaximized()
 
