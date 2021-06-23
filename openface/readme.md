@@ -1,5 +1,5 @@
 # OpenFace
-paper: https://www.cl.cam.ac.uk/research/rainbow/projects/openface/wacv2016.pdf\
+paper: https://www.cl.cam.ac.uk/research/rainbow/projects/openface/wacv2016.pdf \
 code: https://github.com/TadasBaltrusaitis/OpenFace
 
 
