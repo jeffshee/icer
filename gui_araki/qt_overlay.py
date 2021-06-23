@@ -414,14 +414,13 @@ class EmotionStatisticsWidget(QWidget):
         self.y_num = len(list_file.tolist()[0])
         self.input_video_path=input_video_path
         # settings of matplotlib graph
-        self.ax = self.mpl_widget.getFigure().add_subplot(111)
-        # self.fig = self.mpl_widget.getFigure().add_subplot(111)
+        self.img=None
         self.timer = QTimer(self)
         self.timer.setInterval(200)
         self.timer.timeout.connect(self.update_ui)
         self.timer.start()
         hbox = QHBoxLayout()
-        hbox.addWidget(self.mpl_widget)
+        hbox.addWidget(self.img)
         self.setLayout(hbox)
 
     def get_current_time(self):
@@ -516,7 +515,7 @@ class EmotionStatisticsWidget(QWidget):
             # face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
             # self.fig =fig
             # plt.close(fig)
-            self.ax=face_and_index_img
+            self.img=face_and_index_img
             plt.show()
 
             self.mpl_widget.draw()
