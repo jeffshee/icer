@@ -713,7 +713,8 @@ d8.addWidget(OverviewDiarizationWidget(vlc_widget1, diarization_csv=data_dir + "
 
 emotion_img=EmotionStatisticsWidget(vlc_widget1, emo_files_dir=data_test+"main_test (copy)/emotion/",face_dir=data_test+"main_test (copy)/face/cluster/",diarization_csv=data_test+"main_test (copy)/transcript/diarization/result.csv",list_file_dir=data_test+"main_test (copy)/index.txt",input_video_path=data_test+"main_test (copy)/emotion/output.avi")
 emo = pg.ImageView()
-emo.setImage(emotion_img)
+img2 = np.array(emotion_img).T
+emo.setImage(img2)
 emo.ui.histogram.hide()
 emo.ui.roiBtn.hide()
 emo.ui.roiPlot.hide()
