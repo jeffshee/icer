@@ -510,6 +510,7 @@ class EmotionStatisticsWidget(QWidget):
         face_and_index_img = np.array(
             fig.canvas.renderer.buffer_rgba())
         face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
+        cv2.imwrite('test0623.png',face_and_index_img)
         # face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
         self.fig =fig
         plt.close(fig)
