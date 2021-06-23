@@ -493,20 +493,52 @@ class EmotionStatisticsWidget(QWidget):
         df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
                                  header=0,
                                  usecols=["prediction"])
+        # 1 speech あたりの感情
+        emotions = ['Negative', 'Normal', 'Positive', 'Unknown']
+        df_emotion_count = df_emotion['prediction'][talk_start_frame:talk_end_frame].value_counts()
+        no_emotions = list(set(emotions) - set(df_emotion_count.index.values))
+        for no_emotion in no_emotions:
+            df_emotion_count[no_emotion] = 0
+        df_emotion_count.sort_index(inplace=True)
+        title = "Current" if face_index == 0 else None
+        df_emotion_count.plot(kind="barh", ax=axes[face_index, 1], color=["blue", "green", "red", "gray"],
+                              xticks=[0, (talk_end_frame - talk_start_frame) // 2,
+                                      talk_end_frame - talk_start_frame],
+                              xlim=(0, talk_end_frame - talk_start_frame), fontsize=18)  ##図を作る
+        axes[face_index, 1].set_title(title, fontsize=18)
+        plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
+        fig.canvas.draw()
+        face_and_index_img = np.array(
+            fig.canvas.renderer.buffer_rgba())
+        face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
+        face_and_index_img_resized = resize_with_original_aspect(face_and_index_img, w_padding, embedded_video_height)
+        plt.close(fig)
+        self.mpl_widget.draw()
 
 
+def resize_with_original_aspect(img, base_w, base_h):
+    base_ratio = base_w / base_h  # リサイズ画像サイズ縦横比
+    img_h, img_w = img.shape[:2]  # 画像サイズ
+    img_ratio = img_w / img_h  # 画像サイズ縦横比
 
-        cur_time = self.get_current_time()  # in ms
+    white_img = np.zeros((base_h, base_w, 3), np.uint8)  # 白塗り画像のベース作成
+    white_img[:, :] = [255, 255, 255]  # 白塗り
 
+    # 画像リサイズ, 白塗りにオーバーレイ
+    if img_ratio > base_ratio:
+        h = int(base_w / img_ratio)  # 横から縦を計算
+        w = base_w  # 横を合わせる
+        resize_img = cv2.resize(img, (w, h))  # リサイズ
+    else:
+        h = base_h  # 縦を合わせる
+        w = int(base_h * img_ratio)  # 縦から横を計算
+        resize_img = cv2.resize(img, (w, h))  # リサイズ
 
+    white_img[int(base_h / 2 - h / 2):int(base_h / 2 + h / 2),
+    int(base_w / 2 - w / 2):int(base_w / 2 + w / 2)] = resize_img  # オーバーレイ
+    resize_img = white_img  # 上書き
 
-
-
-
-
-
-
-
+    return resize_img
 
 class DataFrameWidget(pg.TableWidget):
     """
