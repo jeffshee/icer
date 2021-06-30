@@ -401,8 +401,8 @@ class EmotionStatisticsWidget(QWidget):
     def __init__(self,vlc_widget: VLCWidget,emo_files_dir,face_dir,diarization_csv,list_file_dir,input_video_path):
         super().__init__()
         self.vlc_widget = vlc_widget
-        self.mpl_widget = MatplotlibWidget()
-        self.mpl_widget.toolbar.hide()
+        # self.mpl_widget = MatplotlibWidget()
+        # self.mpl_widget.toolbar.hide()
         self.emo_files_dir=emo_files_dir
         self.face_dir=face_dir
         self.diarization_dir = diarization_csv
@@ -413,7 +413,7 @@ class EmotionStatisticsWidget(QWidget):
         self.y_num = len(list_file.tolist()[0])
         self.input_video_path=input_video_path
         # settings of matplotlib graph
-        self.subplot = self.mpl_widget.getFigure()
+        # self.subplot = self.mpl_widget.getFigure()
         self.image_label = QLabel()
         self.timer = QTimer(self)
         self.timer.setInterval(200)
@@ -522,7 +522,7 @@ class EmotionStatisticsWidget(QWidget):
             scaredPixmap = pmap.scaled(400, 400, aspectRatioMode=Qt.KeepAspectRatio)
             self.image_label.setPixmap(scaredPixmap)
             self.image_label.setScaledContents(True)
-            self.mpl_widget.draw()
+            # self.mpl_widget.draw()
 
 
 def resize_with_original_aspect(img, base_w, base_h):
