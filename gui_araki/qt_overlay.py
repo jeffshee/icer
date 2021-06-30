@@ -473,8 +473,8 @@ class EmotionStatisticsWidget(QWidget):
             #######################
             ### 顔画像と感情を表示 ###
             #######################
-            # fig, axes = self.subplot.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
-            fig, axes = plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
+            fig, axes = self.subplot.plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
+            # fig, axes = plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
             clustered_face_list = os.listdir(self.face_dir)
             faces_path = [join(self.face_dir, name, 'closest.PNG') for name in clustered_face_list]
             faces_path = sorted(faces_path)
@@ -490,11 +490,11 @@ class EmotionStatisticsWidget(QWidget):
                 # self.subplot.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False, labelleft=False,
                 #                 labelright=False, labeltop=False)  # 目盛りの表示を消す
                 # self.subplot.imshow(img, aspect="equal")
-                plt.subplot(self.y_num, 3, (face_index * 3) + 1)
-                plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False,
+                self.subplot.plt.subplot(self.y_num, 3, (face_index * 3) + 1)
+                self.subplot.plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False,
                                          labelleft=False,
                                          labelright=False, labeltop=False)  # 目盛りの表示を消す
-                plt.imshow(img, aspect="equal")
+                self.subplot.plt.imshow(img, aspect="equal")
                 # 感情のヒストグラムを表示
                 df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
                                          header=0,
@@ -512,7 +512,7 @@ class EmotionStatisticsWidget(QWidget):
                                               talk_end_frame - talk_start_frame],
                                       xlim=(0, talk_end_frame - talk_start_frame), fontsize=18)  ##図を作る
                 axes[face_index, 1].set_title(title, fontsize=18)
-            plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
+            self.subplot.plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
             # fig.canvas.draw()
             face_and_index_img = np.array(
                 fig.canvas.renderer.buffer_rgba())
