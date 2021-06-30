@@ -482,10 +482,10 @@ class EmotionStatisticsWidget(QWidget):
             for face_index, face_path in enumerate(faces_path):
             # 顔を表示
                 if face_index == current_speaker:
-                    axes[face_index,0] = np.array(add_border(face_path, border=5, color='rgb(255,215,0)')) ##当前讲话人添加边界
+                    img = np.array(add_border(face_path, border=5, color='rgb(255,215,0)')) ##当前讲话人添加边界
                 else:
-                    axes[face_index,0] = np.array(Image.open(face_path))
-
+                    img = np.array(Image.open(face_path))
+                axes[face_index,0].imshow(img)
                 # plt.subplot(self.y_num, 3, (face_index * 3) + 1)
                 # plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False,
                 #                          labelleft=False,
