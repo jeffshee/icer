@@ -98,7 +98,6 @@ class VLCWidget(QFrame):
         self.media_player.stop()
 
 
-# TODO
 class VLCTimeKeeper:
     def __init__(self, vlc_widget: VLCWidget):
         self._vlc_widget = vlc_widget
@@ -214,11 +213,6 @@ class VLCControl(QWidget):
 
     def update_ui(self):
         """updates the user interface"""
-        # setting the slider to the desired position
-        # position = self.vlc_widgets[0].position
-        # duration = self.vlc_widgets[0].duration
-        # cur_time = duration * position  # in ms
-
         cur_time = self.timekeeper.precise_cur_time
         position = cur_time / self.vlc_widgets[0].duration
 
@@ -266,9 +260,6 @@ class TranscriptWidget(QScrollArea):
         self.timekeeper = VLCTimeKeeper(vlc_widget)
 
     def update_ui(self):
-        # position = self.vlc_widget.position
-        # duration = self.vlc_widget.duration
-        # cur_time = duration * position  # in ms
         cur_time = self.timekeeper.precise_cur_time
 
         row = self.transcript[
@@ -318,7 +309,11 @@ class DiarizationWidget(QWidget):
             self.ax.set_ylim(self.y_lim)
 
             if self.init_flag:
-                self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+                # Fixed tick frequency
+                # https://stackoverflow.com/questions/12608788/changing-the-tick-frequency-on-x-or-y-axis-in-matplotlib
+                tick_spacing = 2
+                self.ax.xaxis.set_major_locator(matplotlib.ticker.MultipleLocator(tick_spacing))
+                # self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
                 self.ax.get_yaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
                 self.ax.set_xlabel("Time [s]", fontsize=self.fontsize)
                 self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
@@ -347,13 +342,6 @@ class DiarizationWidget(QWidget):
 
     def ms_to_s(self, x):
         return x / 1000
-
-    # def get_current_time(self):
-    #     position = self.vlc_widget.position
-    #     duration = self.vlc_widget.duration
-    #     cur_time = duration * position  # in ms
-    #     cur_time = self.timekeeper.precise_cur_time(cur_time)
-    #     return cur_time
 
     def plot_diarization(self, row):
         speaker = row["Speaker"].item()
@@ -398,7 +386,6 @@ class OverviewDiarizationWidget(QWidget):
         self.setLayout(hbox)
 
     def update_ui(self):
-        # cur_time = self.get_current_time()  # in ms
         cur_time = self.timekeeper.precise_cur_time
 
         if cur_time >= 0.0:  # to prevent xlim turning into minus values
@@ -439,13 +426,6 @@ class OverviewDiarizationWidget(QWidget):
 
     def ms_to_s(self, x):
         return x / 1000
-
-    # def get_current_time(self):
-    #     position = self.vlc_widget.position
-    #     duration = self.vlc_widget.duration
-    #     cur_time = duration * position  # in ms
-    #     cur_time = self.timekeeper.precise_cur_time(cur_time)
-    #     return cur_time
 
     def plot_diarization(self, row):
         speaker = row["Speaker"].item()
