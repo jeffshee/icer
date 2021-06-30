@@ -513,13 +513,13 @@ class EmotionStatisticsWidget(QWidget):
                                       xlim=(0, talk_end_frame - talk_start_frame), fontsize=18)  ##図を作る
                 axes[face_index, 1].set_title(title, fontsize=18)
             plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
-            # fig.canvas.draw()
+            fig.canvas.draw()
             face_and_index_img = np.array(
                 fig.canvas.renderer.buffer_rgba())
             face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
             cv2.imwrite('test0623.png', face_and_index_img)
             pmap=QPixmap('test0623.png')
-            scaredPixmap = pmap.scaled(400, 400, aspectRatioMode=Qt.KeepAspectRatio)
+            scaredPixmap = pmap.scaled(500, 800, aspectRatioMode=Qt.KeepAspectRatio)
             self.image_label.setPixmap(scaredPixmap)
             self.image_label.setScaledContents(True)
             # self.mpl_widget.draw()
