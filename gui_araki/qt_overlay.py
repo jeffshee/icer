@@ -517,8 +517,9 @@ class EmotionStatisticsWidget(QWidget):
             face_and_index_img = np.array(
                 fig.canvas.renderer.buffer_rgba())
             face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
+            cv2.imwrite('test0623.png', face_and_index_img)
             self.image_label.setPixmap(QPixmap(face_and_index_img))
-            cv2.imwrite('test0623.png',face_and_index_img)
+            self.image_label.setScaledContents(True)
             self.mpl_widget.draw()
 
 
