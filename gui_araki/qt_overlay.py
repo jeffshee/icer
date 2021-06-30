@@ -518,7 +518,9 @@ class EmotionStatisticsWidget(QWidget):
                 fig.canvas.renderer.buffer_rgba())
             face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
             cv2.imwrite('test0623.png', face_and_index_img)
-            self.image_label.setPixmap(QPixmap('test0623.png'))
+            pmap=QPixmap('test0623.png')
+            scaredPixmap = pmap.scaled(400, 400, aspectRatioMode=Qt.KeepAspectRatio)
+            self.image_label.setPixmap(scaredPixmap)
             self.image_label.setScaledContents(True)
             self.mpl_widget.draw()
 
