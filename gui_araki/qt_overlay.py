@@ -420,7 +420,7 @@ class EmotionStatisticsWidget(QWidget):
         self.timer.timeout.connect(self.update_ui)
         self.timer.start()
         hbox = QHBoxLayout()
-        hbox.addWidget(self.mpl_widget)
+        hbox.addWidget(self.image_label)
         self.setLayout(hbox)
 
     def get_current_time(self):
@@ -490,11 +490,11 @@ class EmotionStatisticsWidget(QWidget):
                 # self.subplot.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False, labelleft=False,
                 #                 labelright=False, labeltop=False)  # 目盛りの表示を消す
                 # self.subplot.imshow(img, aspect="equal")
-                self.subplot.plt.subplot(self.y_num, 3, (face_index * 3) + 1)
-                self.subplot.plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False,
+                plt.subplot(self.y_num, 3, (face_index * 3) + 1)
+                plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False,
                                          labelleft=False,
                                          labelright=False, labeltop=False)  # 目盛りの表示を消す
-                self.subplot.plt.imshow(img, aspect="equal")
+                plt.imshow(img, aspect="equal")
                 # 感情のヒストグラムを表示
                 df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
                                          header=0,
@@ -512,12 +512,12 @@ class EmotionStatisticsWidget(QWidget):
                                               talk_end_frame - talk_start_frame],
                                       xlim=(0, talk_end_frame - talk_start_frame), fontsize=18)  ##図を作る
                 axes[face_index, 1].set_title(title, fontsize=18)
-            self.subplot.plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
+            plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
             # fig.canvas.draw()
             face_and_index_img = np.array(
                 fig.canvas.renderer.buffer_rgba())
             face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
-            # self.fig=face_and_index_img
+            self.image_label.setPixmap(face_and_index_img)
             cv2.imwrite('test0623.png',face_and_index_img)
             self.mpl_widget.draw()
 
