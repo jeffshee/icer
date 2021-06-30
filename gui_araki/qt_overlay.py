@@ -486,6 +486,7 @@ class EmotionStatisticsWidget(QWidget):
                 else:
                     img = np.array(Image.open(face_path))
                 axes[face_index,0].imshow(img)
+                axes[face_index, 0].axis("off")
                 # plt.subplot(self.y_num, 3, (face_index * 3) + 1)
                 # plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False,
                 #                          labelleft=False,
