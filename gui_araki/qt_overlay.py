@@ -473,8 +473,8 @@ class EmotionStatisticsWidget(QWidget):
             #######################
             ### 顔画像と感情を表示 ###
             #######################
-            fig, axes = self.subplot.plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
-            # fig, axes = plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
+            # fig, axes = self.subplot.plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
+            fig, axes = plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
             clustered_face_list = os.listdir(self.face_dir)
             faces_path = [join(self.face_dir, name, 'closest.PNG') for name in clustered_face_list]
             faces_path = sorted(faces_path)
@@ -517,7 +517,7 @@ class EmotionStatisticsWidget(QWidget):
             face_and_index_img = np.array(
                 fig.canvas.renderer.buffer_rgba())
             face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
-            self.image_label.setPixmap(face_and_index_img)
+            self.image_label.setPixmap(QPixmap(face_and_index_img))
             cv2.imwrite('test0623.png',face_and_index_img)
             self.mpl_widget.draw()
 
