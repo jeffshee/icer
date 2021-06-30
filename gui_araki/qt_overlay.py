@@ -473,7 +473,7 @@ class EmotionStatisticsWidget(QWidget):
             #######################
             ### 顔画像と感情を表示 ###
             #######################
-            fig, axes = self.subplot.add_subplot(nrows=self.y_num, ncols=3, figsize=(20, 20))
+            axes = self.subplot.subplots(nrows=self.y_num, ncols=3)
             # fig, axes = plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
             clustered_face_list = os.listdir(self.face_dir)
             faces_path = [join(self.face_dir, name, 'closest.PNG') for name in clustered_face_list]
@@ -482,14 +482,10 @@ class EmotionStatisticsWidget(QWidget):
             for face_index, face_path in enumerate(faces_path):
             # 顔を表示
                 if face_index == current_speaker:
-                    img = np.array(add_border(face_path, border=5, color='rgb(255,215,0)')) ##当前讲话人添加边界
+                    axes[face_index,0] = np.array(add_border(face_path, border=5, color='rgb(255,215,0)')) ##当前讲话人添加边界
                 else:
-                    img = np.array(Image.open(face_path))
+                    axes[face_index,0] = np.array(Image.open(face_path))
 
-                self.subplot.subplot(self.y_num, 3, (face_index * 3) + 1)
-                self.subplot.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False, labelleft=False,
-                                labelright=False, labeltop=False)  # 目盛りの表示を消す
-                self.subplot.imshow(img, aspect="equal")
                 # plt.subplot(self.y_num, 3, (face_index * 3) + 1)
                 # plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False,
                 #                          labelleft=False,
@@ -510,20 +506,11 @@ class EmotionStatisticsWidget(QWidget):
                 df_emotion_count.plot(kind="barh", ax=axes[face_index, 1], color=["blue", "green", "red", "gray"],
                                       xticks=[0, (talk_end_frame - talk_start_frame) // 2,
                                               talk_end_frame - talk_start_frame],
-                                      xlim=(0, talk_end_frame - talk_start_frame), fontsize=18)  ##図を作る
-                axes[face_index, 1].set_title(title, fontsize=18)
+                                      xlim=(0, talk_end_frame - talk_start_frame), fontsize=6)  ##図を作る
+                axes[face_index, 1].set_title(title, fontsize=6)
             # plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
             self.subplot.subplots_adjust(wspace=0.40)  # axe間の余白を調整
-            fig.canvas.draw()
-            face_and_index_img = np.array(
-                fig.canvas.renderer.buffer_rgba())
-            face_and_index_img = cv2.cvtColor(face_and_index_img, cv2.COLOR_RGBA2BGR)
-            cv2.imwrite('test0623.png', face_and_index_img)
-            pmap=QPixmap('test0623.png')
-            # self.subplot=face_and_index_img
-            # scaredPixmap = pmap.scaled(400, 400, aspectRatioMode=Qt.KeepAspectRatio)
-            # self.image_label.setPixmap(scaredPixmap)
-            # self.image_label.setScaledContents(True)
+
             self.mpl_widget.draw()
 
 
