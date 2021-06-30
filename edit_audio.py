@@ -20,8 +20,8 @@ def split_wave_per_sentence(df_diarization, split_ms_list, wave_file_path, resul
         speaker_index = df_diarization[df_diarization["time(ms)"] == split_ms_list[i]]["speaker class"].values.tolist()[
             0]
         trim_audio(input_audio=wave_file_path,
-                    output_audio=result_path + "{}_SpeakerName{}.wav".format(i, speaker_index),
-                    trim_ms_range=trim_ms_range)
+                   output_audio=result_path + "{}_SpeakerName{}.wav".format(i, speaker_index),
+                   trim_ms_range=trim_ms_range)
 
 
 # 複数音声ファイルを混ぜた音声を出力
@@ -42,8 +42,15 @@ def extract_audio(original_video, extracted_audio):
 
 # 動画(音無しのもの)に音声を結合
 def set_audio(input_video, input_audio, output_video):
+    """
+    Add audio to output video.
+    :param input_video: Source (Video)
+    :param input_audio: Source (Audio) This can be a video, the audio track will be copied to the output.
+    :param output_video: Destination (Video)
+    :return:
+    """
     # Add audio to output video.
-    cmd = "ffmpeg -i {} -i {} {} -y".format(input_video, input_audio, output_video)
+    cmd = f"ffmpeg -i {input_video} -i {input_audio} -c copy -map 0:0 -map 1:1 -shortest {output_video} -y"
     subprocess.call(cmd, shell=True)
 
 
@@ -73,8 +80,8 @@ def wav_to_transcript(wav_path, split_ms_list, output_path=None):
                 txt = None
                 print(e.args)
         txt_list.append([int(wav_name.split("_")[0]), wav_name.split("SpeakerName")[1].split(".")[0], txt,
-                        split_ms_list[int(wav_name.split("_")[0])],
-                        split_ms_list[int(wav_name.split("_")[0]) + 1] - 1])
+                         split_ms_list[int(wav_name.split("_")[0])],
+                         split_ms_list[int(wav_name.split("_")[0]) + 1] - 1])
 
     if output_path:
         df = pd.DataFrame(txt_list, columns=["Order", "Speaker", "Text", "Start time(ms)", "End time(ms)"])
@@ -98,7 +105,8 @@ def wav_to_shortwav(wav_path, max_duration=10.0):  # max_duration[s] を最大�
                         trim_ms_range = (i * 1000 * max_duration, 1000 * src.DURATION)
                     else:
                         trim_ms_range = (i * 1000 * max_duration, (i + 1) * 1000 * max_duration)
-                    trim_audio(wav_path + wav_name, short_wave_path + wav_name.replace(".wav", "_{}.wav".format(i)), trim_ms_range)
+                    trim_audio(wav_path + wav_name, short_wave_path + wav_name.replace(".wav", "_{}.wav".format(i)),
+                               trim_ms_range)
             else:
                 shutil.copy(wav_path + wav_name, short_wave_path + wav_name)
 
@@ -126,4 +134,6 @@ def m4a_to_wav(m4a_path):
 
 
 if __name__ == "__main__":
-    pass
+    set_audio("/home/jeffshee/Developer/icer/output/test/emotion/test_video_emotion.avi",
+              "/home/jeffshee/Developer/icer/datasets/200309_expt58/video.mp4",
+              "/home/jeffshee/Developer/icer/output/test/emotion/test_video_emotion_audio_test.avi")

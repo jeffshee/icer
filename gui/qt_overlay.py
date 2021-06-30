@@ -23,7 +23,8 @@ config = {
     "win_title": "Overlay",
     "win_size": (1920, 1080),
     "plt_font_size": 12,
-    "update_ui_interval": 20
+    "update_ui_interval": 20,
+    "default_volume": 100
 }
 
 
@@ -96,6 +97,9 @@ class VLCWidget(QFrame):
 
     def stop(self):
         self.media_player.stop()
+
+    def add_audio_track(self, audio):
+        self.media_player.add_slave(vlc.MediaSlaveType(1), audio, True)
 
 
 class VLCTimeKeeper:
@@ -513,7 +517,8 @@ def main_overlay(output_dir: str):
     #    -- diarization
 
     emotion_dir = os.path.join(output_dir, "emotion")
-    transcript_csv_path = os.path.join(output_dir, "transcript", "transcript.csv")
+    transcript_dir = os.path.join(output_dir, "transcript")
+    transcript_csv_path = os.path.join(transcript_dir, "transcript.csv")
     emotion_dir_files = sorted([os.path.join(emotion_dir, f) for f in os.listdir(emotion_dir)])
     emotion_csv_path_list = list(filter(lambda x: x.endswith(".csv"), emotion_dir_files))
     video_path = list(filter(lambda x: x.endswith(".avi") or x.endswith(".mp4"), emotion_dir_files))[0]
@@ -549,6 +554,8 @@ def main_overlay(output_dir: str):
     vlc_widget_list.append(vlc_widget1)
     d1.addWidget(vlc_widget1)
     vlc_widget1.media = video_path
+    # set default volume
+    vlc_widget1.volume = config["default_volume"]
     vlc_widget1.play()
 
     # make widgets for each dock
@@ -566,6 +573,9 @@ def main_overlay(output_dir: str):
     # run displaying
     win.showMaximized()
     pg.mkQApp().exec_()
+
+    # Exit when window is destroyed
+    exit(0)
 
 
 if __name__ == '__main__':
