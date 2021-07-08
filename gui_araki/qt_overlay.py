@@ -513,12 +513,12 @@ class EmotionStatisticsWidget(QWidget):
                 # 累積感情
                 title="Total" if face_index==0 else None
                 df_emotion_count_total=df_emotion_count
-                df_emotion_count_total["Negative"]=df_emotion["negative"]
-                df_emotion_count_total["Normal"]=df_emotion["normal"]
-                df_emotion_count_total["Positive"]=df_emotion["positive"]
-                df_emotion_count_total["Unknown"]=df_emotion["unknown"]
+                df_emotion_count_total["Negative"]=df_emotion["negative"]["talk_end_frame"]
+                df_emotion_count_total["Normal"]=df_emotion["normal"]["talk_end_frame"]
+                df_emotion_count_total["Positive"]=df_emotion["positive"]["talk_end_frame"]
+                df_emotion_count_total["Unknown"]=df_emotion["unknown"]["talk_end_frame"]
                 df_emotion_count_total.sort_index(inplace=True)
-                df_emotion_count_total.plot(kind="barh", ax=axes[face_index, 1], color=["blue", "green", "red", "gray"],
+                df_emotion_count_total.plot(kind="barh", ax=axes[face_index, 2], color=["blue", "green", "red", "gray"],
                                   xticks=[0, talk_end_frame // 2,
                                           talk_end_frame ],
                                   xlim=(0, talk_end_frame ), fontsize=6)
