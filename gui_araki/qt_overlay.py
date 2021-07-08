@@ -511,6 +511,10 @@ class EmotionStatisticsWidget(QWidget):
                 axes[face_index, 1].set_title(title, fontsize=6)
 
                 # 累積感情
+                if talk_end_frame%3!=0:
+                    talk_end_frame=talk_end_frame+1
+                if talk_end_frame%3!=0:
+                    talk_end_frame=talk_end_frame+1
                 title="Total" if face_index==0 else None
                 df_emotion_count_total=df_emotion_count
                 df_emotion_count_total["Negative"]=df_emotion["negative"][talk_end_frame]
