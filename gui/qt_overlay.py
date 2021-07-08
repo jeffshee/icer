@@ -23,6 +23,7 @@ config = {
     "win_title": "Overlay",
     "win_size": (1920, 1080),
     "plt_font_size": 12,
+    "plt_font_size_small": 8,
     "update_ui_interval": 20,
     "default_volume": 100
 }
@@ -449,6 +450,95 @@ class OverviewDiarizationWidget(QWidget):
         return gesture_x, gesture_y
 
 
+class EmotionStatisticsWidget(QWidget):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, emotion_csv_list: list, speaker_num: int, **kwargs):
+        super().__init__()
+        self.vlc_widget = vlc_widget
+        self.mpl_widget = MatplotlibWidget()
+        self.mpl_widget.toolbar.hide()
+        self.diarization = pd.read_csv(transcript_csv)
+        self.video_begin_time = 0  # video's begin time (ms)
+        self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
+        # get each person's gesture
+        self.emotion_list = []
+        for emotion_csv in emotion_csv_list:
+            emotion = pd.read_csv(emotion_csv)
+            self.emotion_list.append(emotion)
+
+        self.y_num = speaker_num
+
+        # settings of matplotlib graph
+        self.fig = self.mpl_widget.getFigure()
+        self.fig.subplots_adjust(wspace=0.40, hspace=0.40)  # axe間の余白を調整
+        self.axes = self.fig.subplots(nrows=speaker_num, ncols=2)
+        self.axes[0, 0].set_title('Current', fontsize=config["plt_font_size"])
+        self.axes[0, 1].set_title('All', fontsize=config["plt_font_size"])
+        for ax in self.axes.flatten():
+            ax.tick_params(axis='both', labelsize=config["plt_font_size_small"])
+            ax.set_xlim(0, 1)
+        self.init_flag = True  # for update_ui
+
+        self.timer = QTimer(self)
+        self.timer.setInterval(config["update_ui_interval"])
+        self.timer.timeout.connect(self.update_ui)
+        self.timer.start()
+        self.timekeeper = VLCTimeKeeper(vlc_widget)
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.mpl_widget)
+        self.setLayout(hbox)
+
+        self.stat_all = self.get_stat_all()
+        self.stat_interval = self.get_stat_interval()
+        self.prev_interval_count = None
+
+    def update_ui(self):
+        cur_time = self.timekeeper.precise_cur_time
+
+        if cur_time >= 0.0:
+            emotions = ['Unknown', 'Positive', 'Normal', 'Negative']
+            emotions_abbr = ['Unk', 'Pos', 'Nor', 'Neg']
+            color = ["gray", "green", "blue", "red"]
+
+            if self.init_flag:
+                for i in range(self.y_num):
+                    counts = np.array([self.stat_all[i].get(emotion, 0) for emotion in emotions])
+                    counts = counts / np.sum(counts)
+                    self.axes[i, 1].barh(y=emotions_abbr, width=counts, color=color)
+                self.mpl_widget.draw()
+                self.init_flag = False
+            else:
+                for interval_count, (start, end, stat_interval_t) in enumerate(self.stat_interval):
+                    if not start <= cur_time < end:
+                        continue
+
+                    if self.prev_interval_count != interval_count:
+                        for i in range(self.y_num):
+                            counts = np.array([stat_interval_t[i].get(emotion, 0) for emotion in emotions])
+                            counts = counts / np.sum(counts)
+                            self.axes[i, 0].barh(y=emotions_abbr, width=counts, color=color)
+                        self.mpl_widget.draw()
+                        self.prev_interval_count = interval_count
+
+    def get_stat_all(self):
+        stat_all = []
+        for emotion in self.emotion_list:
+            stat_all.append(emotion['prediction'].value_counts())
+        return stat_all
+
+    def get_stat_interval(self):
+        stat_interval = []
+        rows = self.diarization
+        for i in range(len(rows)):
+            row = rows.iloc[i]
+            start = row["Start time(ms)"].item()
+            end = row["End time(ms)"].item()
+            stat_interval_t = []
+            for emotion in self.emotion_list:
+                stat_interval_t.append(emotion[emotion["time(ms)"].between(start, end)]['prediction'].value_counts())
+            stat_interval.append((start, end, stat_interval_t))
+        return stat_interval
+
+
 class DataFrameWidget(pg.TableWidget):
     """
     A widget to display pandas dataframe
@@ -533,20 +623,29 @@ def main_overlay(output_dir: str):
     win.setWindowTitle(config["win_title"])
 
     # initialize each dock
-    d1 = Dock("Emotion", size=(1600, 900))
-    d2 = Dock("Control", size=(1600, 100))
-    d3 = Dock("Transcript", size=(1600, 100))
-    d4 = Dock("Summary", size=(800, 400))
-    d5 = Dock("Diarization", size=(1600, 500))
-    d6 = Dock("OverviewDiarization", size=(1600, 500))
+    win_w, win_h = config["win_size"]
+    d1 = Dock("Emotion", size=(win_w * 2 / 3, win_h / 2))
+    d2 = Dock("Control", size=(win_w, win_h / 8))
+    d3 = Dock("Transcript", size=(win_w * 2 / 3, win_h / 8))
+    d4 = Dock("Summary", size=(win_w / 3, win_h / 4))
+    d5 = Dock("Diarization", size=(win_w / 3, win_h / 4))
+    d6 = Dock("OverviewDiarization", size=(win_w / 3, win_h / 4))
+    d7 = Dock("EmotionStatistics", size=(win_w / 3, win_h / 2))
 
     # set dock's position
     area.addDock(d1, 'left')
-    area.addDock(d2, 'bottom', d1)
-    area.addDock(d4, 'right', d1)
-    area.addDock(d3, 'bottom', d1)
-    area.addDock(d5, 'top', d2)
-    area.addDock(d6, 'right', d5)
+    area.addDock(d7, "right", d1)
+    area.addDock(d3, "bottom", d1)
+    area.addDock(d5, "bottom", d3)
+    area.addDock(d6, "right", d5)
+    area.addDock(d4, "right", d6)
+    area.addDock(d2, "bottom", d5)
+    # area.addDock(d2, 'bottom', d1)
+    # area.addDock(d4, 'right', d1)
+    # area.addDock(d3, 'bottom', d1)
+    # area.addDock(d5, 'top', d2)
+    # area.addDock(d6, 'right', d5)
+    # area.addDock(d7, 'right', d4)
 
     # settings for video
     vlc_widget_list = []
@@ -569,7 +668,7 @@ def main_overlay(output_dir: str):
     d4.addWidget(DataFrameWidget(create_summary(**common_kwargs)))
     d5.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))
     d6.addWidget(OverviewDiarizationWidget(vlc_widget1, **common_kwargs))
-
+    d7.addWidget(EmotionStatisticsWidget(vlc_widget1, **common_kwargs))
     # run displaying
     win.showMaximized()
     pg.mkQApp().exec_()

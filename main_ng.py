@@ -123,6 +123,7 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
         run_overlay(output_dir=output_dir)
 
 
+# TODO add filecheck
 if __name__ == "__main__":
     # expt12 s2t only
     # main_kwargs = {
@@ -157,6 +158,6 @@ if __name__ == "__main__":
         "output_dir": "output/exp12",
         "audio_path_list": ["datasets/200221_expt12/voice{}.wav".format(i) for i in range(1, 4)],
         "face_num": 3,
-        "face_video_list": ["datasets/200221_expt12/reid/reid{}.wav".format(i) for i in range(1, 4)]
+        "face_video_list": ["datasets/200221_expt12/reid/reid{}.mp4".format(i) for i in range(1, 4)]
     }
     main(**main_kwargs)
