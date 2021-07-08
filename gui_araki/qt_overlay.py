@@ -540,8 +540,8 @@ class EmotionStatisticsWidget(QWidget):
                 title = "Total" if face_index == 0 else None
                 df_emotion_count_t.plot(kind="barh", ax=axes[face_index, 2], color=["blue", "green", "red", "gray"],
                                       xticks=[0, (talk_end_frame) // 2, talk_end_frame], xlim=(0, talk_end_frame),
-                                      fontsize=18)
-                axes[face_index, 2].set_title(title, fontsize=18)
+                                      fontsize=6)
+                axes[face_index, 2].set_title(title, fontsize=6)
 
             # plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
             self.subplot.subplots_adjust(wspace=0.40)  # axe間の余白を調整
