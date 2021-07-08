@@ -495,7 +495,7 @@ class EmotionStatisticsWidget(QWidget):
                 # 感情のヒストグラムを表示
                 df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
                                          header=0,
-                                         usecols=["prediction"])
+                                         usecols=["prediction","negative","normal","positive","unknown"])
                 # 1 speech あたりの感情
                 emotions = ['Negative', 'Normal', 'Positive', 'Unknown']
                 df_emotion_count = df_emotion['prediction'][talk_start_frame:talk_end_frame].value_counts()
@@ -509,6 +509,21 @@ class EmotionStatisticsWidget(QWidget):
                                               talk_end_frame - talk_start_frame],
                                       xlim=(0, talk_end_frame - talk_start_frame), fontsize=6)  ##図を作る
                 axes[face_index, 1].set_title(title, fontsize=6)
+
+                # 累積感情
+                title="Total" if face_index==0 else None
+                df_emotion_count_total=df_emotion_count
+                df_emotion_count_total["Negative"]=df_emotion["negative"]
+                df_emotion_count_total["Normal"]=df_emotion["normal"]
+                df_emotion_count_total["Positive"]=df_emotion["positive"]
+                df_emotion_count_total["Unknown"]=df_emotion["unknown"]
+                df_emotion_count_total.sort_index(inplace=True)
+                df_emotion_count_total.plot(kind="barh", ax=axes[face_index, 1], color=["blue", "green", "red", "gray"],
+                                  xticks=[0, talk_end_frame // 2,
+                                          talk_end_frame ],
+                                  xlim=(0, talk_end_frame ), fontsize=6)
+                axes[face_index, 2].set_title(title, fontsize=6)
+
             # plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
             self.subplot.subplots_adjust(wspace=0.40)  # axe間の余白を調整
 
