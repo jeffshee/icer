@@ -127,6 +127,12 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
     # 感情
     emotion = ["Unknown"] * person_number
     mouse_opening_rate_list = [0] * person_number
+    ##累計感情
+    negative_emotion=[0] * person_number
+    normal_emotion=[0] * person_number
+    positive_emotion=[0] * person_number
+    unknown_emotion=[0] * person_number
+
     ##
     top_for_lastframe=[0] * person_number
 
@@ -201,6 +207,15 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
                     # if (rst[face_index][file_frame_count].is_detected):
                     predictions = model.predict(val, batch_size=1)  # 学習モデルから表情を特定
                     emotion[face_index] = emotions[int(np.argmax(predictions[0]))]
+
+                    ##
+                    if emotion[face_index]=="Negative":
+                        negative_emotion[face_index]=negative_emotion[face_index]+1
+                    elif emotion[face_index]=="Positive":
+                        positive_emotion[face_index]=positive_emotion[face_index]+1
+                    elif emotion[face_index]=="Normal":
+                        normal_emotion[face_index]=normal_emotion[face_index]+1
+
                     box_label(frame, left, top, right, bottom, "{}:{}".format(face_index, emotion[face_index]),
                               color=(0, 255, 0))
                     face_recog_flag[face_index] = True
@@ -231,7 +246,7 @@ def emotion_recognition_new(target_video_path,k_prame,path_result,emotions,split
             for face_index, flag in enumerate(face_recog_flag):
                 if not flag:
                     emotion[face_index] = "Unknown"
-
+                    unknown_emotion[face_index]=unknown_emotion[face_index]+1
             ## head movement judgement
             frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             for face_index in range(person_number):
