@@ -514,17 +514,17 @@ class EmotionStatisticsWidget(QWidget):
                 # for i in df_emotion["time(ms)"]:
                 #     if (i-cur_time
 
-
-                if talk_end_frame%3!=0:
-                    talk_end_frame=talk_end_frame+1
-                if talk_end_frame%3!=0:
-                    talk_end_frame=talk_end_frame+1
+                talk_end_frame_new=talk_end_frame
+                if talk_end_frame_new%3!=0:
+                    talk_end_frame_new=talk_end_frame_new+1
+                if talk_end_frame_new%3!=0:
+                    talk_end_frame_new=talk_end_frame_new+1
                 title="Total" if face_index==0 else None
                 df_emotion_count_total=df_emotion_count
-                df_emotion_count_total["Negative"]=df_emotion[df_emotion["frame_number"]==talk_end_frame]["negative"]
-                df_emotion_count_total["Normal"]=df_emotion[df_emotion["frame_number"]==talk_end_frame]["normal"]
-                df_emotion_count_total["Positive"]=df_emotion[df_emotion["frame_number"]==talk_end_frame]["positive"]
-                df_emotion_count_total["Unknown"]=df_emotion[df_emotion["frame_number"]==talk_end_frame]["unknown"]
+                df_emotion_count_total["Negative"]=df_emotion[df_emotion["frame_number"]==talk_end_frame_new]["negative"]*3
+                df_emotion_count_total["Normal"]=df_emotion[df_emotion["frame_number"]==talk_end_frame_new]["normal"]*3
+                df_emotion_count_total["Positive"]=df_emotion[df_emotion["frame_number"]==talk_end_frame_new]["positive"]*3
+                df_emotion_count_total["Unknown"]=df_emotion[df_emotion["frame_number"]==talk_end_frame_new]["unknown"]*3
                 df_emotion_count_total.sort_index(inplace=True)
                 df_emotion_count_total.plot(kind="barh", ax=axes[face_index, 2], color=["blue", "green", "red", "gray"],
                                   xticks=[0, talk_end_frame // 2,
