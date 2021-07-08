@@ -354,7 +354,7 @@ if __name__ == '__main__':
 
     #
     target_video_path="test_video/out1.mp4"
-    path_result="output_0309-4/"
+    path_result="output_0709-1/"
     k_resolution=3
     emotions = ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
     split_video_index=0
