@@ -495,7 +495,7 @@ class EmotionStatisticsWidget(QWidget):
                 # 感情のヒストグラムを表示
                 df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
                                          header=0,
-                                         usecols=["prediction","negative","normal","positive","unknown"])
+                                         usecols=["prediction","negative","normal","positive","unknown","frame_number"])
                 # 1 speech あたりの感情
                 emotions = ['Negative', 'Normal', 'Positive', 'Unknown']
                 df_emotion_count = df_emotion['prediction'][talk_start_frame:talk_end_frame].value_counts()
@@ -511,16 +511,20 @@ class EmotionStatisticsWidget(QWidget):
                 axes[face_index, 1].set_title(title, fontsize=6)
 
                 # 累積感情
+                # for i in df_emotion["time(ms)"]:
+                #     if (i-cur_time
+
+
                 if talk_end_frame%3!=0:
                     talk_end_frame=talk_end_frame+1
                 if talk_end_frame%3!=0:
                     talk_end_frame=talk_end_frame+1
                 title="Total" if face_index==0 else None
                 df_emotion_count_total=df_emotion_count
-                df_emotion_count_total["Negative"]=df_emotion["negative"][talk_end_frame]
-                df_emotion_count_total["Normal"]=df_emotion["normal"][talk_end_frame]
-                df_emotion_count_total["Positive"]=df_emotion["positive"][talk_end_frame]
-                df_emotion_count_total["Unknown"]=df_emotion["unknown"][talk_end_frame]
+                df_emotion_count_total["Negative"]=df_emotion[df_emotion["frame_number"]==talk_end_frame]["negative"]
+                df_emotion_count_total["Normal"]=df_emotion[df_emotion["frame_number"]==talk_end_frame]["normal"]
+                df_emotion_count_total["Positive"]=df_emotion[df_emotion["frame_number"]==talk_end_frame]["positive"]
+                df_emotion_count_total["Unknown"]=df_emotion[df_emotion["frame_number"]==talk_end_frame]["unknown"]
                 df_emotion_count_total.sort_index(inplace=True)
                 df_emotion_count_total.plot(kind="barh", ax=axes[face_index, 2], color=["blue", "green", "red", "gray"],
                                   xticks=[0, talk_end_frame // 2,
