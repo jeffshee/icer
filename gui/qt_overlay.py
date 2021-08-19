@@ -624,34 +624,30 @@ def main_overlay(output_dir: str):
 
     # initialize each dock
     win_w, win_h = config["win_size"]
-    d1 = Dock("Emotion", size=(win_w * 2 / 3, win_h / 2))
-    d2 = Dock("Control", size=(win_w, win_h / 8))
-    d3 = Dock("Transcript", size=(win_w * 2 / 3, win_h / 8))
-    d4 = Dock("Summary", size=(win_w / 3, win_h / 4))
-    d5 = Dock("Diarization", size=(win_w / 3, win_h / 4))
-    d6 = Dock("OverviewDiarization", size=(win_w / 3, win_h / 4))
-    d7 = Dock("EmotionStatistics", size=(win_w / 3, win_h / 2))
+    dock_emotion = Dock("Emotion", size=(win_w * 2 / 3, win_h * 9 / 16))
+    dock_control = Dock("Control", size=(win_w, win_h / 16))
+    dock_transcript = Dock("Transcript", size=(win_w * 2 / 3, win_h / 8))
+    dock_summary = Dock("Summary", size=(win_w / 3, win_h / 4))
+    dock_diarization = Dock("Diarization", size=(win_w / 3, win_h / 4))
+    dock_overview_diarization = Dock("OverviewDiarization", size=(win_w / 3, win_h / 4))
+    dock_emotion_stat = Dock("EmotionStatistics", size=(win_w / 3, win_h * 11 / 16))
 
     # set dock's position
-    area.addDock(d1, 'left')
-    area.addDock(d7, "right", d1)
-    area.addDock(d3, "bottom", d1)
-    area.addDock(d5, "bottom", d3)
-    area.addDock(d6, "right", d5)
-    area.addDock(d4, "right", d6)
-    area.addDock(d2, "bottom", d5)
-    # area.addDock(d2, 'bottom', d1)
-    # area.addDock(d4, 'right', d1)
-    # area.addDock(d3, 'bottom', d1)
-    # area.addDock(d5, 'top', d2)
-    # area.addDock(d6, 'right', d5)
-    # area.addDock(d7, 'right', d4)
+    area.addDock(dock_emotion, 'left')
+    area.addDock(dock_emotion_stat, "right", dock_emotion)
+    area.addDock(dock_transcript, "bottom", dock_emotion)
+
+    area.addDock(dock_diarization, "bottom", dock_transcript)
+    area.addDock(dock_overview_diarization, "right", dock_diarization)
+    area.addDock(dock_summary, "bottom", dock_emotion_stat)
+
+    area.addDock(dock_control, "bottom")
 
     # settings for video
     vlc_widget_list = []
     vlc_widget1 = VLCWidget()
     vlc_widget_list.append(vlc_widget1)
-    d1.addWidget(vlc_widget1)
+    dock_emotion.addWidget(vlc_widget1)
     vlc_widget1.media = video_path
     # set default volume
     vlc_widget1.volume = config["default_volume"]
@@ -663,12 +659,12 @@ def main_overlay(output_dir: str):
                          speaker_num=speaker_num,
                          name_list=None)
 
-    d2.addWidget(VLCControl(vlc_widget_list))
-    d3.addWidget(TranscriptWidget(vlc_widget1, **common_kwargs))
-    d4.addWidget(DataFrameWidget(create_summary(**common_kwargs)))
-    d5.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))
-    d6.addWidget(OverviewDiarizationWidget(vlc_widget1, **common_kwargs))
-    d7.addWidget(EmotionStatisticsWidget(vlc_widget1, **common_kwargs))
+    dock_control.addWidget(VLCControl(vlc_widget_list))
+    dock_transcript.addWidget(TranscriptWidget(vlc_widget1, **common_kwargs))
+    dock_summary.addWidget(DataFrameWidget(create_summary(**common_kwargs)))
+    dock_diarization.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))
+    dock_overview_diarization.addWidget(OverviewDiarizationWidget(vlc_widget1, **common_kwargs))
+    dock_emotion_stat.addWidget(EmotionStatisticsWidget(vlc_widget1, **common_kwargs))
     # run displaying
     win.showMaximized()
     pg.mkQApp().exec_()
