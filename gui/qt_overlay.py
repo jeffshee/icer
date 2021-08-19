@@ -516,6 +516,7 @@ class EmotionStatisticsWidget(QWidget):
                             counts = np.array([stat_interval_t[i].get(emotion, 0) for emotion in emotions])
                             counts = counts / np.sum(counts)
                             self.axes[i, 0].barh(y=emotions_abbr, width=counts, color=color)
+                            self.axes[i, 0].set_ylabel(i)
                         self.mpl_widget.draw()
                         self.prev_interval_count = interval_count
 
