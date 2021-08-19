@@ -309,7 +309,7 @@ class DiarizationWidget(QWidget):
 
         if cur_time >= 0.0:  # to prevent xlim turning into minus values
             self.x_lim = [self.ms_to_s(cur_time) - self.x_margin, self.ms_to_s(cur_time) + self.x_margin]
-            self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin]
+            self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin][::-1]  # Inverse y-axis
             self.ax.set_xlim(self.x_lim)
             self.ax.set_ylim(self.y_lim)
 
@@ -327,7 +327,7 @@ class DiarizationWidget(QWidget):
                 self.ax.tick_params(axis='y', labelsize=self.fontsize)
 
                 # plot current time bar
-                self.ax_line = self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=3)
+                self.ax_line = self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=1)
                 self.ax_text = self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current Time", va='bottom',
                                             ha='center', fontsize=self.fontsize, color="blue", weight='bold')
 
@@ -352,7 +352,7 @@ class DiarizationWidget(QWidget):
         speaker = row["Speaker"].item()
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
-        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4.0, zorder=1)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
 
 
 class OverviewDiarizationWidget(QWidget):
@@ -401,14 +401,14 @@ class OverviewDiarizationWidget(QWidget):
                 self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
 
                 self.x_lim = [self.ms_to_s(self.video_begin_time), self.ms_to_s(self.video_end_time)]
-                self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin]
+                self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin][::-1]  # Inverse y-axis
                 self.ax.set_xlim(self.x_lim)
                 self.ax.set_ylim(self.y_lim)
                 self.ax.tick_params(axis='x', labelsize=self.fontsize)
                 self.ax.tick_params(axis='y', labelsize=self.fontsize)
 
                 # plot current time bar
-                self.ax_line = self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=3)
+                self.ax_line = self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=1)
                 self.ax_text = self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current Time", va='bottom',
                                             ha='center', fontsize=self.fontsize, color="blue", weight='bold')
 
@@ -419,7 +419,7 @@ class OverviewDiarizationWidget(QWidget):
                     self.plot_diarization(row)
 
                 # plot gesture
-                self.ax.scatter(self.gesture_x, self.gesture_y, c='red', marker='o', zorder=2)
+                self.ax.scatter(self.gesture_x, self.gesture_y, c='red', marker='s', zorder=2, s=4)
 
                 self.init_flag = False
             else:
@@ -436,7 +436,7 @@ class OverviewDiarizationWidget(QWidget):
         speaker = row["Speaker"].item()
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
-        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4.0, zorder=1)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
 
     def get_gesture(self, emotion_list: list):
         gesture_x, gesture_y = [], []
@@ -470,12 +470,7 @@ class EmotionStatisticsWidget(QWidget):
         # settings of matplotlib graph
         self.fig = self.mpl_widget.getFigure()
         self.fig.subplots_adjust(wspace=0.40, hspace=0.40)  # axe間の余白を調整
-        self.axes = self.fig.subplots(nrows=speaker_num, ncols=2)
-        self.axes[0, 0].set_title('Current', fontsize=config["plt_font_size"])
-        self.axes[0, 1].set_title('All', fontsize=config["plt_font_size"])
-        for ax in self.axes.flatten():
-            ax.tick_params(axis='both', labelsize=config["plt_font_size_small"])
-            ax.set_xlim(0, 1)
+        self.axes = self.fig.subplots(nrows=speaker_num + 1, ncols=2)  # +1 row for mean
         self.init_flag = True  # for update_ui
 
         self.timer = QTimer(self)
@@ -491,6 +486,14 @@ class EmotionStatisticsWidget(QWidget):
         self.stat_interval = self.get_stat_interval()
         self.prev_interval_count = None
 
+    def axes_basic_setup(self):
+        # Should call this once after ax.clear()
+        self.axes[0, 0].set_title('Current', fontsize=config["plt_font_size"])
+        self.axes[0, 1].set_title('All', fontsize=config["plt_font_size"])
+        for ax in self.axes.flatten():
+            ax.tick_params(axis='both', labelsize=config["plt_font_size_small"])
+            ax.set_xlim(0, 1)
+
     def update_ui(self):
         cur_time = self.timekeeper.precise_cur_time
 
@@ -500,10 +503,24 @@ class EmotionStatisticsWidget(QWidget):
             color = ["gray", "green", "blue", "red"]
 
             if self.init_flag:
-                for i in range(self.y_num):
-                    counts = np.array([self.stat_all[i].get(emotion, 0) for emotion in emotions])
-                    counts = counts / np.sum(counts)
+                counts_list = []
+                for i in range(self.y_num + 1):
+                    # Clear figure
+                    self.axes[i, 0].clear()
+                    if i < self.y_num:
+                        counts = np.array([self.stat_all[i].get(emotion, 0) for emotion in emotions])
+                        counts = counts / np.sum(counts)
+                        counts_list.append(counts)
+                    else:
+                        # Mean emotion stat
+                        counts = np.mean(counts_list, axis=0)
+                    # Draw barh
                     self.axes[i, 1].barh(y=emotions_abbr, width=counts, color=color)
+                    # Show values
+                    for j, v in enumerate(counts):
+                        self.axes[i, 1].text(v + 0.01, j - 0.3, "{:.1f}%".format(v * 100), color='black',
+                                             fontsize=config["plt_font_size_small"])
+                self.axes_basic_setup()
                 self.mpl_widget.draw()
                 self.init_flag = False
             else:
@@ -512,11 +529,26 @@ class EmotionStatisticsWidget(QWidget):
                         continue
 
                     if self.prev_interval_count != interval_count:
-                        for i in range(self.y_num):
-                            counts = np.array([stat_interval_t[i].get(emotion, 0) for emotion in emotions])
-                            counts = counts / np.sum(counts)
+                        counts_list = []
+                        for i in range(self.y_num + 1):
+                            # Clear figure
+                            self.axes[i, 0].clear()
+                            if i < self.y_num:
+                                counts = np.array([stat_interval_t[i].get(emotion, 0) for emotion in emotions])
+                                counts = counts / np.sum(counts)
+                                counts_list.append(counts)
+                                self.axes[i, 0].set_ylabel(i)
+                            else:
+                                # Mean emotion stat
+                                counts = np.mean(counts_list, axis=0)
+                                self.axes[i, 0].set_ylabel("Mean")
+                            # Draw barh
                             self.axes[i, 0].barh(y=emotions_abbr, width=counts, color=color)
-                            self.axes[i, 0].set_ylabel(i)
+                            # Show values
+                            for j, v in enumerate(counts):
+                                self.axes[i, 0].text(v + 0.01, j - 0.3, "{:.1f}%".format(v * 100), color='black',
+                                                     fontsize=config["plt_font_size_small"])
+                        self.axes_basic_setup()
                         self.mpl_widget.draw()
                         self.prev_interval_count = interval_count
 
