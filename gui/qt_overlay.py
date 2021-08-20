@@ -1,19 +1,56 @@
-import os
+import collections
 import datetime
+import os
+import sys
 from typing import List
+import time
 
+import matplotlib
 import numpy as np
+import pandas as pd
 import pyqtgraph as pg
 import vlc
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import Qt, QTimer, QUrl
 from PyQt5.QtWidgets import QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, \
-    QVBoxLayout, QLabel, QScrollArea, QSizePolicy
+    QVBoxLayout, QLabel, QScrollArea, QMainWindow, QDialog
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 from pyqtgraph.Qt import QtGui
 from pyqtgraph.dockarea import *
-import pandas as pd
-from PIL import Image
-import collections
+from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
+from pyvis import network as net
+import networkx as nx
+
+# Disable VLC error messages
+os.environ['VLC_VERBOSE'] = '-1'
+
+config = {
+    "win_title": "Overlay",
+    "win_size": (1920, 1080),
+    "plt_font_size": 12,
+    "plt_font_size_small": 8,
+    "update_ui_interval": 20,
+    "default_volume": 100
+}
+
+
+def current_milli_time():
+    return round(time.time() * 1000)
+
+
+class Slider(QSlider):
+    def __init__(self, *args, **kwargs):
+        super(Slider, self).__init__(*args, **kwargs)
+
+    # Override default mouse press behaviour
+    def mousePressEvent(self, e):
+        super().mousePressEvent(e)
+        if e.button() == Qt.LeftButton:
+            e.accept()
+            x = e.pos().x()
+            value = (self.maximum() - self.minimum()) * x / self.width() + self.minimum()
+            self.setValue(int(value))
+            # Emit signal
+            self.sliderMoved.emit(int(value))
 
 
 class VLCWidget(QFrame):
@@ -66,6 +103,39 @@ class VLCWidget(QFrame):
     def stop(self):
         self.media_player.stop()
 
+    def add_audio_track(self, audio):
+        self.media_player.add_slave(vlc.MediaSlaveType(1), audio, True)
+
+
+class VLCTimeKeeper:
+    def __init__(self, vlc_widget: VLCWidget):
+        self._vlc_widget = vlc_widget
+        self._prev_sys_time = None
+        self._prev_vlc_time = None
+        self._accum_delta = 0
+
+    @property
+    def precise_cur_time(self):
+        position = self._vlc_widget.position
+        duration = self._vlc_widget.duration
+        cur_time = duration * position  # in ms
+        # Workaround for vlc low pooling rate
+        cur_sys_time = current_milli_time()
+
+        if self._prev_sys_time is None:
+            self._prev_sys_time = cur_sys_time
+        if self._prev_vlc_time is None:
+            self._prev_vlc_time = cur_time
+
+        if self._vlc_widget.is_playing:
+            self._accum_delta += cur_sys_time - self._prev_sys_time
+        if self._prev_vlc_time != cur_time:
+            self._accum_delta = 0
+        self._prev_sys_time = cur_sys_time
+        self._prev_vlc_time = cur_time
+        cur_time += self._accum_delta
+        return cur_time
+
 
 class VLCControl(QWidget):
     def __init__(self, vlc_widgets: List[VLCWidget]):
@@ -73,7 +143,7 @@ class VLCControl(QWidget):
         self.is_paused = False
         self.vlc_widgets = vlc_widgets
 
-        self.slider_position = QSlider(Qt.Horizontal, self)
+        self.slider_position = Slider(Qt.Horizontal, self)
         self.slider_position.setToolTip("Position")
         self.slider_position.setMaximum(1000)
         self.slider_position.sliderMoved.connect(self.set_position)
@@ -87,9 +157,13 @@ class VLCControl(QWidget):
         self.hbox.addWidget(self.button_stop)
         self.button_stop.clicked.connect(self.stop)
 
+        self.button_interaction = QPushButton("Interaction")
+        self.hbox.addWidget(self.button_interaction)
+        self.button_interaction.clicked.connect(show_interaction)
+
         self.hbox.addStretch(1)
         self.hbox.addWidget(QLabel("Volume"))
-        self.slider_volume = QSlider(Qt.Horizontal, self)
+        self.slider_volume = Slider(Qt.Horizontal, self)
         self.slider_volume.setMaximum(100)
         self.slider_volume.setValue(vlc_widgets[0].volume)
         self.slider_volume.setToolTip("Volume")
@@ -107,9 +181,9 @@ class VLCControl(QWidget):
         self.setLayout(self.vboxlayout)
 
         self.timer = QTimer(self)
-        self.timer.setInterval(200)
+        self.timer.setInterval(config["update_ui_interval"])
         self.timer.timeout.connect(self.update_ui)
-
+        self.timekeeper = VLCTimeKeeper(vlc_widgets[0])
         self.play_pause()
 
     def set_position(self, position):
@@ -152,10 +226,9 @@ class VLCControl(QWidget):
 
     def update_ui(self):
         """updates the user interface"""
-        # setting the slider to the desired position
-        position = self.vlc_widgets[0].position
-        duration = self.vlc_widgets[0].duration
-        cur_time = duration * position  # in ms
+        cur_time = self.timekeeper.precise_cur_time
+        position = cur_time / self.vlc_widgets[0].duration
+
         self.slider_position.setValue(int(position * 1000))
         if cur_time > 0:
             self.label_time.setText(str(datetime.timedelta(seconds=cur_time / 1000)).split(".")[0])
@@ -173,10 +246,15 @@ class VLCControl(QWidget):
 
 
 class TranscriptWidget(QScrollArea):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, speaker_num: int, name_list: list = None, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.transcript = pd.read_csv(transcript_csv)
+
+        if name_list is None:
+            name_list = [f"Speaker {i}" for i in range(speaker_num)]
+        assert len(name_list) == speaker_num
+        self._name_list = name_list
 
         self.setWidgetResizable(True)
 
@@ -189,23 +267,317 @@ class TranscriptWidget(QScrollArea):
         vbox.addWidget(self.label)
 
         self.timer = QTimer(self)
-        self.timer.setInterval(200)
+        self.timer.setInterval(config["update_ui_interval"])
         self.timer.timeout.connect(self.update_ui)
         self.timer.start()
+        self.timekeeper = VLCTimeKeeper(vlc_widget)
 
     def update_ui(self):
-        position = self.vlc_widget.position
-        duration = self.vlc_widget.duration
-        cur_time = duration * position  # in ms
+        cur_time = self.timekeeper.precise_cur_time
+
         row = self.transcript[
             (self.transcript["Start time(ms)"] <= cur_time) & (cur_time < self.transcript["End time(ms)"])]
         if len(row) == 0:
             self.label.setText("")
         else:
-            speaker, text = row["Speaker"].item(), row["Text"].item()
+            speaker, text = self._name_list[row["Speaker"].item()], row["Text"].item()
             if text == np.nan:
                 text = ""
             self.label.setText(f"<b>{speaker}</b>: {text}")
+
+
+class DiarizationWidget(QWidget):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, speaker_num: int, **kwargs):
+        super().__init__()
+        self.vlc_widget = vlc_widget
+        self.mpl_widget = MatplotlibWidget()
+        self.mpl_widget.toolbar.hide()
+        self.diarization = pd.read_csv(transcript_csv)
+        self.x_margin = 10.0  # second
+        self.y_num = speaker_num  # num of speakers
+        self.y_margin = 0.25
+        self.fontsize = config["plt_font_size"]
+        self.init_flag = True  # for update_ui
+
+        # settings of matplotlib graph
+        self.ax = self.mpl_widget.getFigure().add_subplot(111)
+
+        self.timer = QTimer(self)
+        self.timer.setInterval(config["update_ui_interval"])
+        self.timer.timeout.connect(self.update_ui)
+        self.timer.start()
+        self.timekeeper = VLCTimeKeeper(vlc_widget)
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.mpl_widget)
+        self.setLayout(hbox)
+
+    def update_ui(self):
+        # cur_time = self.get_current_time()  # in ms
+        cur_time = self.timekeeper.precise_cur_time
+
+        if cur_time >= 0.0:  # to prevent xlim turning into minus values
+            self.x_lim = [self.ms_to_s(cur_time) - self.x_margin, self.ms_to_s(cur_time) + self.x_margin]
+            self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin][::-1]  # Inverse y-axis
+            self.ax.set_xlim(self.x_lim)
+            self.ax.set_ylim(self.y_lim)
+
+            if self.init_flag:
+                # Fixed tick frequency
+                # https://stackoverflow.com/questions/12608788/changing-the-tick-frequency-on-x-or-y-axis-in-matplotlib
+                tick_spacing = 2
+                self.ax.xaxis.set_major_locator(matplotlib.ticker.MultipleLocator(tick_spacing))
+                # self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+                self.ax.get_yaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+                self.ax.set_xlabel("Time [s]", fontsize=self.fontsize)
+                self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
+
+                self.ax.tick_params(axis='x', labelsize=self.fontsize)
+                self.ax.tick_params(axis='y', labelsize=self.fontsize)
+
+                # plot current time bar
+                self.ax_line = self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=1)
+                self.ax_text = self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current Time", va='bottom',
+                                            ha='center', fontsize=self.fontsize, color="blue", weight='bold')
+
+                # plot all diarizations
+                rows = self.diarization
+                for i in range(len(rows)):
+                    row = rows.iloc[i]
+                    self.plot_diarization(row)
+
+                self.init_flag = False
+            else:
+                # update current time bar
+                self.ax_line.set_xdata([self.ms_to_s(cur_time)])
+                self.ax_text.set_x(self.ms_to_s(cur_time))
+
+            self.mpl_widget.draw()
+
+    def ms_to_s(self, x):
+        return x / 1000
+
+    def plot_diarization(self, row):
+        speaker = row["Speaker"].item()
+        start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
+        start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
+
+
+class OverviewDiarizationWidget(QWidget):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, emotion_csv_list: list, speaker_num: int, **kwargs):
+        super().__init__()
+        self.vlc_widget = vlc_widget
+        self.mpl_widget = MatplotlibWidget()
+        self.mpl_widget.toolbar.hide()
+        self.diarization = pd.read_csv(transcript_csv)
+        self.video_begin_time = 0  # video's begin time (ms)
+        self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
+        self.y_num = speaker_num  # num of speakers
+        self.y_margin = 0.25
+        self.fontsize = config["plt_font_size"]
+        self.init_flag = True
+
+        # get each person's gesture
+        self.emotion_list = []
+        for emotion_csv in emotion_csv_list:
+            emotion = pd.read_csv(emotion_csv)
+            self.emotion_list.append(emotion)
+
+        # get gesture list
+        self.gesture_x, self.gesture_y = self.get_gesture(self.emotion_list)
+
+        # settings of matplotlib graph
+        self.ax = self.mpl_widget.getFigure().add_subplot(111)
+
+        self.timer = QTimer(self)
+        self.timer.setInterval(config["update_ui_interval"])
+        self.timer.timeout.connect(self.update_ui)
+        self.timer.start()
+        self.timekeeper = VLCTimeKeeper(vlc_widget)
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.mpl_widget)
+        self.setLayout(hbox)
+
+    def update_ui(self):
+        cur_time = self.timekeeper.precise_cur_time
+
+        if cur_time >= 0.0:  # to prevent xlim turning into minus values
+            if self.init_flag:
+                self.ax.get_xaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+                self.ax.get_yaxis().set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+                self.ax.set_xlabel("Time [s]", fontsize=self.fontsize)
+                self.ax.set_ylabel("Speaker ID", fontsize=self.fontsize)
+
+                self.x_lim = [self.ms_to_s(self.video_begin_time), self.ms_to_s(self.video_end_time)]
+                self.y_lim = [0 - self.y_margin, (self.y_num - 1) + self.y_margin][::-1]  # Inverse y-axis
+                self.ax.set_xlim(self.x_lim)
+                self.ax.set_ylim(self.y_lim)
+                self.ax.tick_params(axis='x', labelsize=self.fontsize)
+                self.ax.tick_params(axis='y', labelsize=self.fontsize)
+
+                # plot current time bar
+                self.ax_line = self.ax.axvline(self.ms_to_s(cur_time), color='blue', linestyle='dashed', linewidth=1)
+                self.ax_text = self.ax.text(self.ms_to_s(cur_time), self.y_lim[1], "Current Time", va='bottom',
+                                            ha='center', fontsize=self.fontsize, color="blue", weight='bold')
+
+                # plot all diarizations
+                rows = self.diarization
+                for i in range(len(rows)):
+                    row = rows.iloc[i]
+                    self.plot_diarization(row)
+
+                # plot gesture
+                self.ax.scatter(self.gesture_x, self.gesture_y, c='red', marker='s', zorder=2, s=4)
+
+                self.init_flag = False
+            else:
+                # update current time bar
+                self.ax_line.set_xdata([self.ms_to_s(cur_time)])
+                self.ax_text.set_x(self.ms_to_s(cur_time))
+
+            self.mpl_widget.draw()
+
+    def ms_to_s(self, x):
+        return x / 1000
+
+    def plot_diarization(self, row):
+        speaker = row["Speaker"].item()
+        start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
+        start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
+
+    def get_gesture(self, emotion_list: list):
+        gesture_x, gesture_y = [], []
+        for speaker_id, emotion_rows in enumerate(emotion_list):
+            for i in range(len(emotion_rows)):
+                emotion_row = emotion_rows.iloc[i]
+                if emotion_row["gesture"] == 1:
+                    time = emotion_row["time(ms)"].item()
+                    time_s = self.ms_to_s(time)
+                    gesture_x.append(time_s), gesture_y.append(speaker_id)
+        return gesture_x, gesture_y
+
+
+class EmotionStatisticsWidget(QWidget):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, emotion_csv_list: list, speaker_num: int, **kwargs):
+        super().__init__()
+        self.vlc_widget = vlc_widget
+        self.mpl_widget = MatplotlibWidget()
+        self.mpl_widget.toolbar.hide()
+        self.diarization = pd.read_csv(transcript_csv)
+        self.video_begin_time = 0  # video's begin time (ms)
+        self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
+        # get each person's gesture
+        self.emotion_list = []
+        for emotion_csv in emotion_csv_list:
+            emotion = pd.read_csv(emotion_csv)
+            self.emotion_list.append(emotion)
+
+        self.y_num = speaker_num
+
+        # settings of matplotlib graph
+        self.fig = self.mpl_widget.getFigure()
+        self.fig.subplots_adjust(wspace=0.40, hspace=0.40)  # axe間の余白を調整
+        self.axes = self.fig.subplots(nrows=speaker_num + 1, ncols=2)  # +1 row for mean
+        self.init_flag = True  # for update_ui
+
+        self.timer = QTimer(self)
+        self.timer.setInterval(config["update_ui_interval"])
+        self.timer.timeout.connect(self.update_ui)
+        self.timer.start()
+        self.timekeeper = VLCTimeKeeper(vlc_widget)
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.mpl_widget)
+        self.setLayout(hbox)
+
+        self.stat_all = self.get_stat_all()
+        self.stat_interval = self.get_stat_interval()
+        self.prev_interval_count = None
+
+    def axes_basic_setup(self):
+        # Should call this once after ax.clear()
+        self.axes[0, 0].set_title('Current', fontsize=config["plt_font_size"])
+        self.axes[0, 1].set_title('All', fontsize=config["plt_font_size"])
+        for ax in self.axes.flatten():
+            ax.tick_params(axis='both', labelsize=config["plt_font_size_small"])
+            ax.set_xlim(0, 1)
+
+    def update_ui(self):
+        cur_time = self.timekeeper.precise_cur_time
+
+        if cur_time >= 0.0:
+            emotions = ['Unknown', 'Positive', 'Normal', 'Negative']
+            emotions_abbr = ['Unk', 'Pos', 'Nor', 'Neg']
+            color = ["gray", "green", "blue", "red"]
+
+            if self.init_flag:
+                counts_list = []
+                for i in range(self.y_num + 1):
+                    # Clear figure
+                    self.axes[i, 0].clear()
+                    if i < self.y_num:
+                        counts = np.array([self.stat_all[i].get(emotion, 0) for emotion in emotions])
+                        counts = counts / np.sum(counts)
+                        counts_list.append(counts)
+                    else:
+                        # Mean emotion stat
+                        counts = np.mean(counts_list, axis=0)
+                    # Draw barh
+                    self.axes[i, 1].barh(y=emotions_abbr, width=counts, color=color)
+                    # Show values
+                    for j, v in enumerate(counts):
+                        self.axes[i, 1].text(v + 0.01, j - 0.3, "{:.1f}%".format(v * 100), color='black',
+                                             fontsize=config["plt_font_size_small"])
+                self.axes_basic_setup()
+                self.mpl_widget.draw()
+                self.init_flag = False
+            else:
+                for interval_count, (start, end, stat_interval_t) in enumerate(self.stat_interval):
+                    if not start <= cur_time < end:
+                        continue
+
+                    if self.prev_interval_count != interval_count:
+                        counts_list = []
+                        for i in range(self.y_num + 1):
+                            # Clear figure
+                            self.axes[i, 0].clear()
+                            if i < self.y_num:
+                                counts = np.array([stat_interval_t[i].get(emotion, 0) for emotion in emotions])
+                                counts = counts / np.sum(counts)
+                                counts_list.append(counts)
+                                self.axes[i, 0].set_ylabel(i)
+                            else:
+                                # Mean emotion stat
+                                counts = np.mean(counts_list, axis=0)
+                                self.axes[i, 0].set_ylabel("Mean")
+                            # Draw barh
+                            self.axes[i, 0].barh(y=emotions_abbr, width=counts, color=color)
+                            # Show values
+                            for j, v in enumerate(counts):
+                                self.axes[i, 0].text(v + 0.01, j - 0.3, "{:.1f}%".format(v * 100), color='black',
+                                                     fontsize=config["plt_font_size_small"])
+                        self.axes_basic_setup()
+                        self.mpl_widget.draw()
+                        self.prev_interval_count = interval_count
+
+    def get_stat_all(self):
+        stat_all = []
+        for emotion in self.emotion_list:
+            stat_all.append(emotion['prediction'].value_counts())
+        return stat_all
+
+    def get_stat_interval(self):
+        stat_interval = []
+        rows = self.diarization
+        for i in range(len(rows)):
+            row = rows.iloc[i]
+            start = row["Start time(ms)"].item()
+            end = row["End time(ms)"].item()
+            stat_interval_t = []
+            for emotion in self.emotion_list:
+                stat_interval_t.append(emotion[emotion["time(ms)"].between(start, end)]['prediction'].value_counts())
+            stat_interval.append((start, end, stat_interval_t))
+        return stat_interval
 
 
 class DataFrameWidget(pg.TableWidget):
@@ -231,115 +603,160 @@ def del_continual_value(target_list):
     return ret_list
 
 
-def create_summary(emotion_dir, diarization_dir):
-    result_list = sorted([os.path.join(emotion_dir, d) for d in os.listdir(emotion_dir) if d.endswith(".csv")])
-    data_summary = [[] for _ in range(len(result_list))]
-    new_columns_name = ['発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数"]
+def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int, name_list: list = None, **kwargs):
+    new_columns_name = ['話者', '発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数"]
+    df_diarization = pd.read_csv(transcript_csv)
 
-    if os.path.isfile(os.path.join(diarization_dir, "result_loudness.csv")):
-        diarization_csv = os.path.join(diarization_dir, "result_loudness.csv")
-    elif os.path.isfile(os.path.join(diarization_dir, "result.csv")):
-        diarization_csv = os.path.join(diarization_dir, "result.csv")
-    else:
-        raise OSError("Diarization result not found")
-    df_diarization = pd.read_csv(diarization_csv)
+    if name_list is None:
+        name_list = [f"Speaker {i}" for i in range(speaker_num)]
+    assert len(name_list) == speaker_num
 
-    num_of_utterances = collections.Counter(del_continual_value(df_diarization["speaker class"].to_list()))
-    speech_time = df_diarization["speaker class"].value_counts() / 1000
-    time_occupancy = df_diarization["speaker class"].value_counts(normalize=True)
-    for x in range(len(result_list)):
-        try:
-            data_summary[x].append(int(num_of_utterances[x]))
-        except KeyError:
-            data_summary[x].append(0)
+    num_of_utterances = collections.Counter(del_continual_value(df_diarization["Speaker"].to_list()))
+    num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in range(speaker_num)])
 
-        try:
-            data_summary[x].append(int(speech_time[x]))
-        except KeyError:
-            data_summary[x].append(0)
+    speech_time = []
+    for i in range(speaker_num):
+        cols = df_diarization[df_diarization["Speaker"] == i]
+        speech_time.append((cols["End time(ms)"] - cols["Start time(ms)"]).sum() / 1000)
+    speech_time = np.array(speech_time)
 
-        try:
-            data_summary[x].append(int(speech_time[x] / num_of_utterances[x]))
-        except KeyError:
-            data_summary[x].append(0)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        # Ignore divide by zero warning
+        speech_density = speech_time / num_of_utterances
+    total_time = np.sum(speech_time)
+    time_occupancy = speech_time / total_time * 100
 
-        try:
-            data_summary[x].append(int(time_occupancy[x] * 100))
-        except KeyError:
-            data_summary[x].append(0)
-
-        df_gesture_tmp = pd.read_csv(os.path.join(emotion_dir, f"result{x}.csv"), encoding="shift_jis", header=0,
-                                     usecols=["gesture"])
+    gesture_count = []
+    for emotion_csv in emotion_csv_list:
+        df_gesture_tmp = pd.read_csv(emotion_csv, encoding="shift_jis", header=0, usecols=["gesture"])
         df_gesture_tmp = df_gesture_tmp[df_gesture_tmp.diff()["gesture"] != 0]
-        gesture_count = df_gesture_tmp["gesture"].value_counts()
-        try:
-            data_summary[x].append(int(gesture_count[1]))
-        except KeyError:
-            data_summary[x].append(0)
-    # rows_summary = [f"{index_to_name_dict[index]}" for index in range(len(result_list))]
-    rows_summary = [f"{index}" for index in range(len(result_list))]
-    df_summary = pd.DataFrame(data_summary, index=rows_summary, columns=new_columns_name)
+        gesture_count.append(df_gesture_tmp["gesture"].value_counts().get(1, 0))
+    gesture_count = np.array(gesture_count)
+
+    data_summary = [_ for _ in
+                    zip(name_list, num_of_utterances, speech_time, speech_density, time_occupancy, gesture_count)]
+    df_summary = pd.DataFrame(data_summary, columns=new_columns_name)
     return df_summary
 
 
-app = pg.mkQApp("Overlay")
-win = QtGui.QMainWindow()
-area = DockArea()
-win.setCentralWidget(area)
-win.resize(1920, 1080)
-win.setWindowTitle("Overlay")
+class PyVisWidget(QWebEngineView):
+    def __init__(self, networkx_graph=None):
+        super().__init__()
+        html_path = "networkx.html"
+        if networkx_graph is None:
+            # Generate dummy network graph
+            networkx_graph = nx.complete_graph(5)
+        # Render HTML file
+        g = net.Network()
+        g.from_nx(networkx_graph)
+        g.write_html(html_path)
+        self.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
 
-d1 = Dock("Emotion", size=(1600, 900))
-d2 = Dock("Control", size=(1600, 100))
-d3 = Dock("Transcript", size=(1600, 100))
 
-# d4 = Dock("Dock4 (tabbed) - Plot", size=(500, 200))
-d5 = Dock("Summary", size=(800, 400))
-# d6 = Dock("Dock6 (tabbed) - Plot", size=(500, 200))
+class PyVisDialog(QDialog):
+    def __init__(self, networkx_graph=None):
+        QDialog.__init__(self)
+        layout = QHBoxLayout()
+        widget = PyVisWidget(networkx_graph)
+        layout.addWidget(widget)
+        self.setLayout(layout)
 
-area.addDock(d1, 'left')
-area.addDock(d2, 'bottom', d1)
-area.addDock(d3, 'right', d2)
-# area.addDock(d4, 'right')
-area.addDock(d5, 'right', d1)
-# area.addDock(d6, 'top', d4)
 
-vlc_widget_list = []
-vlc_widget1 = VLCWidget()
-vlc_widget_list.append(vlc_widget1)
-d1.addWidget(vlc_widget1)
-vlc_widget1.media = "test_video_emotion.avi"
-vlc_widget1.play()
+def show_interaction(_, networkx_graph=None):
+    # _ is to ignore the arg passed from the clicked signal
+    # For some reason, display the graph with dialog is slow ...
+    # dialog = PyVisDialog()  # create the dialog ...
+    # dialog.exec_()  # ... and show it
 
-# vlc_widget2 = VLCWidget()
-# d3.addWidget(vlc_widget2)
-# vlc_widget_list.append(vlc_widget2)
-# vlc_widget2.media = "low_fps.mp4"
-# vlc_widget2.play()
+    # Just launch a browser instead
+    html_path = "networkx.html"
+    if networkx_graph is None:
+        # Generate dummy network graph
+        networkx_graph = nx.complete_graph(5)
+    # Render HTML file
+    g = net.Network()
+    g.from_nx(networkx_graph)
+    g.show(html_path)
 
-d2.addWidget(VLCControl(vlc_widget_list))
-d3.addWidget(TranscriptWidget(vlc_widget1, transcript_csv="transcript.csv"))
 
-# summary = pg.ImageView()
-# img = np.array(Image.open("summary_dummy.png")).T
-# summary.setImage(img)
-# summary.ui.histogram.hide()
-# summary.ui.roiBtn.hide()
-# summary.ui.roiPlot.hide()
-# summary.ui.menuBtn.hide()
-# d5.addWidget(summary)
+def main_overlay(output_dir: str):
+    # read dir according to the specific structure
+    # -- emotion
+    #    -- result*.csv
+    #    -- *.avi / *.mp4
+    # -- transcript
+    #    -- diarization
 
-summary = DataFrameWidget(create_summary("output/emotion", "output/transcript/diarization"))
-d5.addWidget(summary)
-# w5 = pg.ImageView()
-# w5.setImage(np.random.normal(size=(100, 100)))
-# d5.addWidget(w5)
-#
-# w6 = pg.PlotWidget(title="Dock 6 plot")
-# w6.plot(np.random.normal(size=100))
-# d6.addWidget(w6)
+    emotion_dir = os.path.join(output_dir, "emotion")
+    transcript_dir = os.path.join(output_dir, "transcript")
+    transcript_csv_path = os.path.join(transcript_dir, "transcript.csv")
+    emotion_dir_files = sorted([os.path.join(emotion_dir, f) for f in os.listdir(emotion_dir)])
+    emotion_csv_path_list = list(filter(lambda x: x.endswith(".csv"), emotion_dir_files))
+    video_path = list(filter(lambda x: x.endswith(".avi") or x.endswith(".mp4"), emotion_dir_files))[0]
+    speaker_num = len(emotion_csv_path_list)
 
-win.showMaximized()
+    # initialize qt_app
+    app = pg.mkQApp(config["win_title"])
+    win = QtGui.QMainWindow()
+    area = DockArea()
+    win.setCentralWidget(area)
+    win.resize(*config["win_size"])
+    win.setWindowTitle(config["win_title"])
+
+    # initialize each dock
+    win_w, win_h = config["win_size"]
+    dock_emotion = Dock("Emotion", size=(win_w * 2 / 3, win_h * 9 / 16))
+    dock_control = Dock("Control", size=(win_w, win_h / 16))
+    dock_transcript = Dock("Transcript", size=(win_w * 2 / 3, win_h / 8))
+    dock_summary = Dock("Summary", size=(win_w / 3, win_h / 4))
+    dock_diarization = Dock("Diarization", size=(win_w / 3, win_h / 4))
+    dock_overview_diarization = Dock("OverviewDiarization", size=(win_w / 3, win_h / 4))
+    dock_emotion_stat = Dock("EmotionStatistics", size=(win_w / 3, win_h * 11 / 16))
+    # dock_pyvis = Dock("PyVis", size=(win_w / 3, win_h / 4))
+
+    # set dock's position
+    area.addDock(dock_emotion, 'left')
+    area.addDock(dock_emotion_stat, "right", dock_emotion)
+    area.addDock(dock_transcript, "bottom", dock_emotion)
+
+    area.addDock(dock_diarization, "bottom", dock_transcript)
+    area.addDock(dock_overview_diarization, "right", dock_diarization)
+    area.addDock(dock_summary, "bottom", dock_emotion_stat)
+
+    area.addDock(dock_control, "bottom")
+    # area.addDock(dock_pyvis, "above", dock_summary)
+
+    # settings for video
+    vlc_widget_list = []
+    vlc_widget1 = VLCWidget()
+    vlc_widget_list.append(vlc_widget1)
+    dock_emotion.addWidget(vlc_widget1)
+    vlc_widget1.media = video_path
+    # set default volume
+    vlc_widget1.volume = config["default_volume"]
+    vlc_widget1.play()
+
+    # make widgets for each dock
+    common_kwargs = dict(emotion_csv_list=emotion_csv_path_list,
+                         transcript_csv=transcript_csv_path,
+                         speaker_num=speaker_num,
+                         name_list=None)
+
+    dock_control.addWidget(VLCControl(vlc_widget_list))
+    dock_transcript.addWidget(TranscriptWidget(vlc_widget1, **common_kwargs))
+    dock_summary.addWidget(DataFrameWidget(create_summary(**common_kwargs)))
+    dock_diarization.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))
+    dock_overview_diarization.addWidget(OverviewDiarizationWidget(vlc_widget1, **common_kwargs))
+    dock_emotion_stat.addWidget(EmotionStatisticsWidget(vlc_widget1, **common_kwargs))
+    # PyVis runs slowly if docked, not sure why
+    # dock_pyvis.addWidget(PyVisWidget())
+    # run displaying
+    win.showMaximized()
+    pg.mkQApp().exec_()
+
+    # Exit when window is destroyed
+    sys.exit(0)
+
 
 if __name__ == '__main__':
-    pg.mkQApp().exec_()
+    main_overlay("./output/test")
