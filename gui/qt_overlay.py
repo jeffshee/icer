@@ -1,6 +1,7 @@
 import collections
 import datetime
 import os
+import sys
 from typing import List
 import time
 
@@ -9,12 +10,15 @@ import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 import vlc
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QUrl
 from PyQt5.QtWidgets import QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, \
-    QVBoxLayout, QLabel, QScrollArea
+    QVBoxLayout, QLabel, QScrollArea, QMainWindow, QDialog
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 from pyqtgraph.Qt import QtGui
 from pyqtgraph.dockarea import *
 from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
+from pyvis import network as net
+import networkx as nx
 
 # Disable VLC error messages
 os.environ['VLC_VERBOSE'] = '-1'
@@ -152,6 +156,10 @@ class VLCControl(QWidget):
         self.button_stop = QPushButton("Stop")
         self.hbox.addWidget(self.button_stop)
         self.button_stop.clicked.connect(self.stop)
+
+        self.button_interaction = QPushButton("Interaction")
+        self.hbox.addWidget(self.button_interaction)
+        self.button_interaction.clicked.connect(show_interaction)
 
         self.hbox.addStretch(1)
         self.hbox.addWidget(QLabel("Volume"))
@@ -631,6 +639,46 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int
     return df_summary
 
 
+class PyVisWidget(QWebEngineView):
+    def __init__(self, networkx_graph=None):
+        super().__init__()
+        html_path = "networkx.html"
+        if networkx_graph is None:
+            # Generate dummy network graph
+            networkx_graph = nx.complete_graph(5)
+        # Render HTML file
+        g = net.Network()
+        g.from_nx(networkx_graph)
+        g.write_html(html_path)
+        self.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
+
+
+class PyVisDialog(QDialog):
+    def __init__(self, networkx_graph=None):
+        QDialog.__init__(self)
+        layout = QHBoxLayout()
+        widget = PyVisWidget(networkx_graph)
+        layout.addWidget(widget)
+        self.setLayout(layout)
+
+
+def show_interaction(_, networkx_graph=None):
+    # _ is to ignore the arg passed from the clicked signal
+    # For some reason, display the graph with dialog is slow ...
+    # dialog = PyVisDialog()  # create the dialog ...
+    # dialog.exec_()  # ... and show it
+
+    # Just launch a browser instead
+    html_path = "networkx.html"
+    if networkx_graph is None:
+        # Generate dummy network graph
+        networkx_graph = nx.complete_graph(5)
+    # Render HTML file
+    g = net.Network()
+    g.from_nx(networkx_graph)
+    g.show(html_path)
+
+
 def main_overlay(output_dir: str):
     # read dir according to the specific structure
     # -- emotion
@@ -664,6 +712,7 @@ def main_overlay(output_dir: str):
     dock_diarization = Dock("Diarization", size=(win_w / 3, win_h / 4))
     dock_overview_diarization = Dock("OverviewDiarization", size=(win_w / 3, win_h / 4))
     dock_emotion_stat = Dock("EmotionStatistics", size=(win_w / 3, win_h * 11 / 16))
+    # dock_pyvis = Dock("PyVis", size=(win_w / 3, win_h / 4))
 
     # set dock's position
     area.addDock(dock_emotion, 'left')
@@ -675,6 +724,7 @@ def main_overlay(output_dir: str):
     area.addDock(dock_summary, "bottom", dock_emotion_stat)
 
     area.addDock(dock_control, "bottom")
+    # area.addDock(dock_pyvis, "above", dock_summary)
 
     # settings for video
     vlc_widget_list = []
@@ -698,12 +748,14 @@ def main_overlay(output_dir: str):
     dock_diarization.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))
     dock_overview_diarization.addWidget(OverviewDiarizationWidget(vlc_widget1, **common_kwargs))
     dock_emotion_stat.addWidget(EmotionStatisticsWidget(vlc_widget1, **common_kwargs))
+    # PyVis runs slowly if docked, not sure why
+    # dock_pyvis.addWidget(PyVisWidget())
     # run displaying
     win.showMaximized()
     pg.mkQApp().exec_()
 
     # Exit when window is destroyed
-    exit(0)
+    sys.exit(0)
 
 
 if __name__ == '__main__':
