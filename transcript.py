@@ -184,7 +184,7 @@ def transcript(output_dir, audio_path_list, transcript_config=None):
             start_time, end_time = start_time_list[i] + silence_list[k][0], start_time_list[i] + silence_list[k][1]
             if end_time - start_time >= config["silence_threshold_ms"]:
                 silence_csv.append(
-                    [get_hms(start_time), get_hms(end_time), int(start_time), int(end_time)])
+                    [get_hms(start_time), get_hms(end_time), speaker_class, int(start_time), int(end_time)])
 
         if transcript_config['output_format'] == 'split':
             output_csv.append(
@@ -202,7 +202,8 @@ def transcript(output_dir, audio_path_list, transcript_config=None):
 
     # Output silence.csv
     df = pd.DataFrame(append_index(silence_csv),
-                      columns=['Order', 'Start time(HH:MM:SS)', 'End time(HH:MM:SS)', 'Start time(ms)', 'End time(ms)'])
+                      columns=['Order', 'Start time(HH:MM:SS)', 'End time(HH:MM:SS)', 'Speaker', 'Start time(ms)',
+                               'End time(ms)'])
     df = df.sort_values('Order')
     df.to_csv(silence_path, index=False, encoding='utf_8_sig', header=True)
 
