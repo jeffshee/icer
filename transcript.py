@@ -51,7 +51,10 @@ config = {
     'skip_transcript': False,  # (Debug) Skip transcript (False)
 
     # Output
-    'output_format': 'segment'  # segment|split
+    'output_format': 'segment',  # segment|split
+
+    # Silence
+    'silence_threshold_ms': 3000
 }
 
 
@@ -79,6 +82,7 @@ def transcript(output_dir, audio_path_list, transcript_config=None):
     mixed_audio_name = 'mixed_audio'
     mixed_audio_path = join(output_dir, mixed_audio_name + '.wav')
     transcript_path = join(output_dir, 'transcript.csv')
+    silence_path = join(output_dir, 'silence.csv')
 
     if not transcript_config['no_clean']:
         cleanup_directory(output_dir)
@@ -128,12 +132,14 @@ def transcript(output_dir, audio_path_list, transcript_config=None):
         return
     print("\nRunning Speech2Text")
     output_csv = []
-    order = 0
+    silence_csv = []
     for i, split_path in enumerate(sorted(split_path_list)):
-        segment_path_list, segment_split_list = optimized_segment_audio(input_path=split_path,
-                                                                        output_dir=segment_audio_dir,
-                                                                        max_duration_sec=transcript_config[
-                                                                            'max_split_duration_sec'])
+        # TODO get silence list here
+        segment_path_list, segment_split_list, silence_list = optimized_segment_audio(input_path=split_path,
+                                                                                      output_dir=segment_audio_dir,
+                                                                                      max_duration_sec=
+                                                                                      transcript_config[
+                                                                                          'max_split_duration_sec'])
         if len(segment_path_list) == 0:
             continue
         segment_transcript_list = []
@@ -170,21 +176,35 @@ def transcript(output_dir, audio_path_list, transcript_config=None):
                 start_time, end_time = start_time_list[i] + segment_split_list[j][0], start_time_list[i] + \
                                        segment_split_list[j][1]
                 output_csv.append(
-                    [order, get_hms(start_time), get_hms(end_time), segment_transcript_list[-1],
+                    [get_hms(start_time), get_hms(end_time), segment_transcript_list[-1],
                      speaker_class, int(start_time), int(end_time)])
-                order += 1
+
+        # Silence dataframe
+        for k in range(len(silence_list)):
+            start_time, end_time = start_time_list[i] + silence_list[k][0], start_time_list[i] + silence_list[k][1]
+            if end_time - start_time >= config["silence_threshold_ms"]:
+                silence_csv.append(
+                    [get_hms(start_time), get_hms(end_time), int(start_time), int(end_time)])
 
         if transcript_config['output_format'] == 'split':
             output_csv.append(
-                [order, get_hms(start_time_list[i]), get_hms(end_time_list[i]), '; '.join(segment_transcript_list),
+                [get_hms(start_time_list[i]), get_hms(end_time_list[i]), '; '.join(segment_transcript_list),
                  speaker_class, start_time_list[i], end_time_list[i]])
-            order += 1
 
-    df = pd.DataFrame(output_csv,
+    def append_index(csv):
+        return [[index, *item] for index, item in enumerate(csv)]
+
+    df = pd.DataFrame(append_index(output_csv),
                       columns=['Order', 'Start time(HH:MM:SS)', 'End time(HH:MM:SS)', 'Text', 'Speaker',
                                'Start time(ms)', 'End time(ms)'])
     df = df.sort_values('Order')
     df.to_csv(transcript_path, index=False, encoding='utf_8_sig', header=True)
+
+    # Output silence.csv
+    df = pd.DataFrame(append_index(silence_csv),
+                      columns=['Order', 'Start time(HH:MM:SS)', 'End time(HH:MM:SS)', 'Start time(ms)', 'End time(ms)'])
+    df = df.sort_values('Order')
+    df.to_csv(silence_path, index=False, encoding='utf_8_sig', header=True)
 
     # Remove `split` directory, we don't need them anymore
     # import shutil
