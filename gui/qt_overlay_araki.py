@@ -689,8 +689,8 @@ def get_dialog_direction_networkx(
                 if start == end:
                     continue
                 directions_num[start][end] += 1
-                print(f"[{i:03d}]: {start} → {end}")
-        print(directions_num)
+                # print(f"[{i:03d}]: {start} → {end}")
+        # print(directions_num)
         return directions_num
 
     directions_num_nd = get_directions_num(
@@ -743,25 +743,31 @@ def show_interaction(networkx_graph=None):
         sum_weight = sum([edge['weight'] for edge in g.edges])
         for i, edge in enumerate(g.edges):
             g.edges[i]['width'] = abs(edge['weight'])
-            g.edges[i]['title'] = \
-                f"{(edge['weight']/sum_weight)*100:.3f} %"
-        # g.show_buttons(filter_=['nodes', 'edges'])
+            g.edges[i]['label'] = \
+                f"{(edge['weight']/sum_weight)*100:.3f}%"
         g.set_edge_smooth('continuous')
-
+        # g.show_buttons(filter_=['nodes', 'edges'])
+        g.barnes_hut(spring_length=500, overlap=1)
         g.set_options("""
             var options = {
             "nodes": {
                 "font": {
-                "size": 20,
-                "strokeWidth": 3
+                "size": 12,
+                "strokeWidth": 1
                 },
                 "shadow": {
                 "enabled": true
                 }
             },
             "edges": {
+                "arrowStrikethrough": false,
                 "color": {
                 "inherit": true
+                },
+                "font": {
+                "size": 10,
+                "strokeWidth": 1,
+                "align": "middle"
                 },
                 "smooth": {
                 "type": "continuous",
