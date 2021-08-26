@@ -4,21 +4,24 @@ import os
 import sys
 from typing import List
 import time
-
+import multiprocessing as mp
+from multiprocessing import Process
 import matplotlib
 import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 import vlc
-from PyQt5.QtCore import Qt, QTimer, QUrl
+from PyQt5.QtCore import Qt, QTimer, QUrl, QThread, QObject
 from PyQt5.QtWidgets import QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, \
-    QVBoxLayout, QLabel, QScrollArea, QMainWindow, QDialog
+    QVBoxLayout, QLabel, QScrollArea, QMainWindow, QDialog, QApplication
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from pyqtgraph.Qt import QtGui
 from pyqtgraph.dockarea import *
 from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
 from pyvis import network as net
 import networkx as nx
+
+from gui.pandas_gui import show_transcript_gui
 
 # Disable VLC error messages
 os.environ['VLC_VERBOSE'] = '-1'
@@ -31,6 +34,36 @@ config = {
     "update_ui_interval": 20,
     "default_volume": 100
 }
+
+
+# class Worker(QObject):
+#     def __init__(self, f, args=None, kwargs=None):
+#         super().__init__()
+#         if kwargs is None:
+#             kwargs = {}
+#         if args is None:
+#             args = []
+#         self.f = f
+#         self.args = args
+#         self.kwargs = kwargs
+#
+#     def run(self):
+#         """Long-running task."""
+#         self.f(*self.args, **self.kwargs)
+#
+#
+# class OpenWindowProcess(Process):
+#     def __init__(self):
+#         super().__init__()
+#         print("Process PID: ")
+#
+#     def run(self):
+#         print("Opening window...")
+#         app = QApplication(sys.argv)
+#         window = QMainWindow()
+#         window.show()
+#         print("Close window...")
+#         sys.exit(app.exec_())
 
 
 def current_milli_time():
@@ -138,10 +171,11 @@ class VLCTimeKeeper:
 
 
 class VLCControl(QWidget):
-    def __init__(self, vlc_widgets: List[VLCWidget]):
+    def __init__(self, vlc_widgets: List[VLCWidget], transcript_csv: str, **kwargs):
         super(VLCControl, self).__init__()
         self.is_paused = False
         self.vlc_widgets = vlc_widgets
+        self.transcript_csv = transcript_csv
 
         self.slider_position = Slider(Qt.Horizontal, self)
         self.slider_position.setToolTip("Position")
@@ -160,6 +194,10 @@ class VLCControl(QWidget):
         self.button_interaction = QPushButton("Interaction")
         self.hbox.addWidget(self.button_interaction)
         self.button_interaction.clicked.connect(show_interaction)
+
+        self.button_transcript_gui = QPushButton("Transcript GUI")
+        self.hbox.addWidget(self.button_transcript_gui)
+        self.button_transcript_gui.clicked.connect(self.transcript_gui)
 
         self.hbox.addStretch(1)
         self.hbox.addWidget(QLabel("Volume"))
@@ -243,6 +281,33 @@ class VLCControl(QWidget):
                 # "Pause", not the desired behavior of a media player
                 # this will fix it
                 self.stop()
+
+    def transcript_gui(self):
+        # Freeze if not set to spawn, Linux default is fork
+        mp.set_start_method('spawn')
+        p = Process(target=show_transcript_gui, args=(self.transcript_csv,))
+        p.start()
+        # p.join()
+        # TODO separate process
+
+        # # Step 2: Create a QThread object
+        # self.thread = QThread()
+        # # Step 3: Create a worker object
+        # self.worker = Worker(show_transcript_gui, self.transcript_csv)
+        # # Step 4: Move worker to the thread
+        # self.worker.moveToThread(self.thread)
+        # # Step 5: Connect signals and slots
+        # # self.thread.started.connect(self.worker.run)
+        # # self.worker.finished.connect(self.thread.quit)
+        # # self.worker.finished.connect(self.worker.deleteLater)
+        # # self.thread.finished.connect(self.thread.deleteLater)
+        # # self.worker.progress.connect(self.reportProgress)
+        # # Step 6: Start the thread
+        # self.thread.start()
+
+        # p = OpenWindowProcess()
+        # p.start()
+        # show_transcript_gui(self.transcript_csv)
 
 
 class TranscriptWidget(QScrollArea):
@@ -742,7 +807,7 @@ def main_overlay(output_dir: str):
                          speaker_num=speaker_num,
                          name_list=None)
 
-    dock_control.addWidget(VLCControl(vlc_widget_list))
+    dock_control.addWidget(VLCControl(vlc_widget_list, **common_kwargs))
     dock_transcript.addWidget(TranscriptWidget(vlc_widget1, **common_kwargs))
     dock_summary.addWidget(DataFrameWidget(create_summary(**common_kwargs)))
     dock_diarization.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))

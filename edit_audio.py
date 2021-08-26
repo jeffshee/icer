@@ -134,6 +134,8 @@ def m4a_to_wav(m4a_path):
 
 
 if __name__ == "__main__":
-    set_audio("/home/jeffshee/Developer/icer/output/test/emotion/test_video_emotion.avi",
-              "/home/jeffshee/Developer/icer/datasets/200309_expt58/video.mp4",
-              "/home/jeffshee/Developer/icer/output/test/emotion/test_video_emotion_audio_test.avi")
+    # set_audio("/home/jeffshee/Developer/icer/output/test/emotion/test_video_emotion.avi",
+    #           "/home/jeffshee/Developer/icer/datasets/200309_expt58/video.mp4",
+    #           "/home/jeffshee/Developer/icer/output/test/emotion/test_video_emotion_audio_test.avi")
+    for i in range(1,4):
+        trim_audio(f"/home/jeffshee/Developer/icer/datasets/sound_only_5min/voice{i}.wav", f"/home/jeffshee/Developer/icer/datasets/sound_only_5min/voice{i}_5min.wav", [0, 300000])
