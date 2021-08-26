@@ -713,20 +713,75 @@ def get_dialog_direction_networkx(
     return G
 
 
+# def show_interaction(_, networkx_graph=None):
+#     # _ is to ignore the arg passed from the clicked signal
+#     # For some reason, display the graph with dialog is slow ...
+#     # dialog = PyVisDialog()  # create the dialog ...
+#     # dialog.exec_()  # ... and show it
+
+#     # Just launch a browser instead
+#     html_path = "networkx.html"
+#     if networkx_graph is None:
+#         # Generate dummy network graph
+#         networkx_graph = nx.complete_graph(5)
+#     # Render HTML file
+#     g = net.Network()
+#     g.from_nx(networkx_graph)
+#     g.show(html_path)
+
+
 def show_interaction(networkx_graph=None):
-    # _ is to ignore the arg passed from the clicked signal
     # For some reason, display the graph with dialog is slow ...
     # dialog = PyVisDialog()  # create the dialog ...
     # dialog.exec_()  # ... and show it
+
+    def arrange_graph_view(g):
+        for i, node in enumerate(g.nodes):
+            g.nodes[i]['group'] = node['id']
+            g.nodes[i]['physics'] = False
+
+        sum_weight = sum([edge['weight'] for edge in g.edges])
+        for i, edge in enumerate(g.edges):
+            g.edges[i]['width'] = abs(edge['weight'])
+            g.edges[i]['title'] = \
+                f"{(edge['weight']/sum_weight)*100:.3f} %"
+        # g.show_buttons(filter_=['nodes', 'edges'])
+        g.set_edge_smooth('continuous')
+
+        g.set_options("""
+            var options = {
+            "nodes": {
+                "font": {
+                "size": 20,
+                "strokeWidth": 3
+                },
+                "shadow": {
+                "enabled": true
+                }
+            },
+            "edges": {
+                "color": {
+                "inherit": true
+                },
+                "smooth": {
+                "type": "continuous",
+                "forceDirection": "none"
+                }
+            }
+            }
+        """)
+        return g
 
     # Just launch a browser instead
     html_path = "networkx.html"
     if networkx_graph is None:
         # Generate dummy network graph
         networkx_graph = nx.complete_graph(5)
+
     # Render HTML file
-    g = net.Network()
+    g = net.Network(height="800px", width="1280px", directed=True)
     g.from_nx(networkx_graph)
+    g = arrange_graph_view(g)
     g.show(html_path)
 
 
@@ -740,7 +795,7 @@ def main_overlay(output_dir: str):
 
     emotion_dir = os.path.join(output_dir, "emotion")
     transcript_dir = os.path.join(output_dir, "transcript")
-    transcript_csv_path = os.path.join(transcript_dir, "transcript.csv")
+    transcript_csv_path = os.path.join(transcript_dir, "transcript_demo.csv")
     emotion_dir_files = sorted([os.path.join(emotion_dir, f) for f in os.listdir(emotion_dir)])
     emotion_csv_path_list = list(filter(lambda x: x.endswith(".csv"), emotion_dir_files))
     video_path = list(filter(lambda x: x.endswith(".avi") or x.endswith(".mp4"), emotion_dir_files))[0]
