@@ -611,9 +611,9 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int
     for emotion_csv in emotion_csv_list:
         df_emotion_tmp = pd.read_csv(emotion_csv, encoding="shift_jis", header=0, usecols=["prediction"])
         # unknown_tmp = df_emotion_tmp[df_emotion_tmp.diff()["prediction"] == "Unknown"]
-        negative_tmp = df_emotion_tmp[df_emotion_tmp.diff()["prediction"] in ["Negative"]]
-        positive_tmp = df_emotion_tmp[df_emotion_tmp.diff()["prediction"] == "Positive"]
-        normal_tmp = df_emotion_tmp[df_emotion_tmp.diff()["prediction"] == "Normal"]
+        negative_tmp = df_emotion_tmp[df_emotion_tmp["prediction"] == "Negative"]
+        positive_tmp = df_emotion_tmp[df_emotion_tmp["prediction"] == "Positive"]
+        normal_tmp = df_emotion_tmp[df_emotion_tmp["prediction"] == "Normal"]
         # tot_unknown.append(unknown_tmp["prediction"].value_counts().get(1, 0))
         tot_neg=tot_neg+len(negative_tmp)
         tot_pos=tot_pos+len(positive_tmp)
@@ -628,8 +628,10 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int
     pos_per=tot_pos/tot_emo_col * 100
     neg_per=tot_neg/tot_emo_col * 100
     nor_per=tot_nor/tot_emo_col * 100
-    data_summary_sum=[total_gesture_count,total_utterances,pos_per,neg_per,nor_per]
-    df_sum=pd.DataFrame(data_summary_sum,columns=new_columns_name_summary)
+
+    data_summary_sum={'頷き回数':total_gesture_count,"発言回数":total_utterances,"Positive感情数":pos_per,"Negative感情数":neg_per,"Normal感情数":nor_per}
+    df_sum = pd.DataFrame(data_summary_sum, index=["Total"])
+    # df_sum=pd.DataFrame(data_summary_sum)
 
     data_summary = [_ for _ in
                     zip(name_list, num_of_utterances, speech_time, speech_density, time_occupancy, gesture_count)]
