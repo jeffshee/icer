@@ -599,7 +599,7 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int
 
 
     ##summary
-    new_columns_name_summary = ['頷き回数', '発言回数',"Positive感情数","Negative感情数","Normal感情数"]
+    # new_columns_name_summary = ['頷き回数', '発言回数',"Positive感情数","Negative感情数","Normal感情数"]
 
     total_gesture_count=gesture_count.sum()
     # total_slience_time=video_time-slience_time.sum()
@@ -619,17 +619,13 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int
         tot_pos=tot_pos+len(positive_tmp)
         tot_nor=tot_nor+len(normal_tmp)
     # # tot_unknown_col=np.array(tot_unknown).sum()
-    # tot_neg_col=np.array(tot_neg).sum()
-    # tot_pos_col=np.array(tot_pos).sum()
-    # tot_nor_col=np.array(tot_nor).sum()
-    # tot_emo_col=tot_unknown_col+tot_neg_col+tot_pos_col+tot_nor_col
     tot_emo_col=tot_neg+tot_pos+tot_nor
 
     pos_per=tot_pos/tot_emo_col * 100
     neg_per=tot_neg/tot_emo_col * 100
     nor_per=tot_nor/tot_emo_col * 100
 
-    data_summary_sum={'頷き回数':total_gesture_count,"発言回数":total_utterances,"Positive感情数":pos_per,"Negative感情数":neg_per,"Normal感情数":nor_per}
+    data_summary_sum={'頷き回数':total_gesture_count,"発言回数":total_utterances,"Positive感情数(%)":pos_per,"Negative感情数(%)":neg_per,"Normal感情数(%)":nor_per}
     df_sum = pd.DataFrame(data_summary_sum, index=["Total"])
     # df_sum=pd.DataFrame(data_summary_sum)
 
@@ -668,7 +664,9 @@ def main_overlay(output_dir: str):
     d1 = Dock("Emotion", size=(win_w * 2 / 3, win_h / 2))
     d2 = Dock("Control", size=(win_w, win_h / 8))
     d3 = Dock("Transcript", size=(win_w * 2 / 3, win_h / 8))
-    d4 = Dock("Summary", size=(win_w / 3, win_h / 4))
+    # d4 = Dock("Summary", size=(win_w / 3, win_h / 4))
+    d4 = Dock("Summary", size=(win_w / 3, win_h / 8))
+    d4_2 = Dock("Summary_Total", size=(win_w / 3, win_h / 8))
     d5 = Dock("Diarization", size=(win_w / 3, win_h / 4))
     d6 = Dock("OverviewDiarization", size=(win_w / 3, win_h / 4))
     d7 = Dock("EmotionStatistics", size=(win_w / 3, win_h / 2))
@@ -680,6 +678,7 @@ def main_overlay(output_dir: str):
     area.addDock(d5, "bottom", d3)
     area.addDock(d6, "right", d5)
     area.addDock(d4, "right", d6)
+    area.addDock(d4_2, "bottom", d4)
     area.addDock(d2, "bottom", d5)
     # area.addDock(d2, 'bottom', d1)
     # area.addDock(d4, 'right', d1)
@@ -706,7 +705,8 @@ def main_overlay(output_dir: str):
 
     d2.addWidget(VLCControl(vlc_widget_list))
     d3.addWidget(TranscriptWidget(vlc_widget1, **common_kwargs))
-    d4.addWidget(DataFrameWidget(create_summary(**common_kwargs)))
+    d4.addWidget(DataFrameWidget(create_summary(**common_kwargs)[0]))
+    d4_2.addWidget(DataFrameWidget(create_summary(**common_kwargs)[1]))
     d5.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))
     d6.addWidget(OverviewDiarizationWidget(vlc_widget1, **common_kwargs))
     d7.addWidget(EmotionStatisticsWidget(vlc_widget1, **common_kwargs))
@@ -719,4 +719,5 @@ def main_overlay(output_dir: str):
 
 
 if __name__ == '__main__':
-    main_overlay("../output/test")
+    # main_overlay("../output/test")
+    main_overlay("../test_0820")
