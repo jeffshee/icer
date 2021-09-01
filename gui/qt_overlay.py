@@ -605,29 +605,29 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int
     # total_slience_time=video_time-slience_time.sum()
     total_utterances=num_of_utterances.sum()
     # tot_unknown=[]
-    tot_neg=[]
-    tot_pos=[]
-    tot_nor=[]
+    tot_neg=0
+    tot_pos=0
+    tot_nor=0
     for emotion_csv in emotion_csv_list:
         df_emotion_tmp = pd.read_csv(emotion_csv, encoding="shift_jis", header=0, usecols=["prediction"])
         # unknown_tmp = df_emotion_tmp[df_emotion_tmp.diff()["prediction"] == "Unknown"]
-        negative_tmp = df_emotion_tmp[df_emotion_tmp.diff()["prediction"] == "Negative"]
+        negative_tmp = df_emotion_tmp[df_emotion_tmp.diff()["prediction"] in ["Negative"]]
         positive_tmp = df_emotion_tmp[df_emotion_tmp.diff()["prediction"] == "Positive"]
         normal_tmp = df_emotion_tmp[df_emotion_tmp.diff()["prediction"] == "Normal"]
         # tot_unknown.append(unknown_tmp["prediction"].value_counts().get(1, 0))
-        tot_neg.append(negative_tmp["prediction"].value_counts().get(1, 0))
-        tot_pos.append(positive_tmp["prediction"].value_counts().get(1, 0))
-        tot_nor.append(normal_tmp["prediction"].value_counts().get(1, 0))
-    # tot_unknown_col=np.array(tot_unknown).sum()
-    tot_neg_col=np.array(tot_neg).sum()
-    tot_pos_col=np.array(tot_pos).sum()
-    tot_nor_col=np.array(tot_nor).sum()
+        tot_neg=tot_neg+len(negative_tmp)
+        tot_pos=tot_pos+len(positive_tmp)
+        tot_nor=tot_nor+len(normal_tmp)
+    # # tot_unknown_col=np.array(tot_unknown).sum()
+    # tot_neg_col=np.array(tot_neg).sum()
+    # tot_pos_col=np.array(tot_pos).sum()
+    # tot_nor_col=np.array(tot_nor).sum()
     # tot_emo_col=tot_unknown_col+tot_neg_col+tot_pos_col+tot_nor_col
-    tot_emo_col=tot_neg_col+tot_pos_col+tot_nor_col
+    tot_emo_col=tot_neg+tot_pos+tot_nor
 
-    pos_per=tot_pos_col/tot_emo_col * 100
-    neg_per=tot_neg_col/tot_emo_col * 100
-    nor_per=tot_nor_col/tot_emo_col * 100
+    pos_per=tot_pos/tot_emo_col * 100
+    neg_per=tot_neg/tot_emo_col * 100
+    nor_per=tot_nor/tot_emo_col * 100
     data_summary_sum=[total_gesture_count,total_utterances,pos_per,neg_per,nor_per]
     df_sum=pd.DataFrame(data_summary_sum,columns=new_columns_name_summary)
 
