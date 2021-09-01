@@ -601,7 +601,7 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, silence_csv: str
 
     ##summary
     # new_columns_name_summary = ['頷き回数', '発言回数',"Positive感情数","Negative感情数","Normal感情数"]
-
+    total_silence_time=silence_time.sum()
     total_gesture_count=gesture_count.sum()
     # total_slience_time=video_time-slience_time.sum()
     total_utterances=num_of_utterances.sum()
@@ -626,7 +626,7 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, silence_csv: str
     neg_per=tot_neg/tot_emo_col * 100
     nor_per=tot_nor/tot_emo_col * 100
 
-    data_summary_sum={'頷き回数':total_gesture_count,"発言回数":total_utterances,"Positive感情数(%)":pos_per,"Negative感情数(%)":neg_per,"Normal感情数(%)":nor_per}
+    data_summary_sum={'頷き回数':total_gesture_count,"発言回数":total_utterances,"無音時間":total_silence_time,"Positive感情数(%)":pos_per,"Negative感情数(%)":neg_per,"Normal感情数(%)":nor_per}
     df_sum = pd.DataFrame(data_summary_sum, index=["Total"])
     # df_sum=pd.DataFrame(data_summary_sum)
 
