@@ -82,7 +82,7 @@ def emotion_recognition(target_video_path, path_result, k_resolution, frame_use_
                         target_image_path_list, model, model_name, emotions, split_video_index, split_video_num,
                         known_faces):
     from keras.models import model_from_json
-    model_dir = 'model'
+    model_dir = '../model'
     model_name = 'mini_XCEPTION'
     model = model_from_json(open(join(model_dir, 'model_{}.json'.format(model_name)), 'r').read())
     model.load_weights(join(model_dir, 'model_{}.h5'.format(model_name)))
@@ -353,7 +353,7 @@ if __name__ == '__main__':
     # time.sleep(3600*10)
 
     # 感情検知モデルの読み込み
-    path_model = "model/"
+    path_model = "../model/"
     model_name = "mini_XCEPTION"
     model = model_from_json(open("{}model_{}.json".format(path_model, model_name), "r").read())
     model.load_weights('{}model_{}.h5'.format(path_model, model_name))

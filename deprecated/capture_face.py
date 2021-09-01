@@ -10,7 +10,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances_argmin_min
 
-from emotion_recognition import cleanup_directory
+from deprecated.emotion_recognition import cleanup_directory
 
 
 def detect_face(target_video_path, output_path, k_resolution, capture_image_num=50, model='hog'):
