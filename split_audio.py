@@ -1,10 +1,3 @@
-import warnings
-
-warnings.simplefilter(action='ignore', category=FutureWarning)
-import tensorflow as tf
-
-tf.get_logger().setLevel('INFO')
-
 from os.path import join, basename
 from pydub import AudioSegment
 
@@ -15,6 +8,7 @@ def optimized_segment_audio(input_path, output_dir, max_duration_sec=60):
     from inaSpeechSegmenter import Segmenter
     from pydub.silence import detect_silence
     max_duration = max_duration_sec * 1000
+    silence_list = []
 
     def silence_based_split(audio_segment, min_silence_len=500, silence_thresh=-16, seek_step=1, result_offset=0):
         # slightly drop the threshold until silence is detected
@@ -63,6 +57,7 @@ def optimized_segment_audio(input_path, output_dir, max_duration_sec=60):
         return count, total_overflow
 
     def get_init_split():
+        nonlocal silence_list
         seg = Segmenter(vad_engine='smn', detect_gender=False)
         segmentation = seg(input_path)
 
@@ -90,8 +85,9 @@ def optimized_segment_audio(input_path, output_dir, max_duration_sec=60):
                 mid_point = start + (end - start) / 2
                 split_list += [(prev_point, mid_point)]
                 prev_point = mid_point
+                silence_list += [(start, end)]
+                print((start, end))
         split_list += [(prev_point, segmentation[-1][2])]
-
         return split_list
 
     def remove_split_at(split_list, index):
@@ -115,10 +111,11 @@ def optimized_segment_audio(input_path, output_dir, max_duration_sec=60):
 
     output_path_list = []
     origin_filename = basename(input_path)[:-4]  # remove extension
-    for i, (start, end) in enumerate(optimized_split()):
+    optimized_split_list = optimized_split()
+    for i, (start, end) in enumerate(optimized_split_list):
         trim_ms_range = (start, end)
         output_path = join(output_dir, '{}_seg_{:03d}.wav'.format(origin_filename, i))
         output_path_list.append(output_path)
         trim_audio(input_path, output_path, trim_ms_range)
         i += 1
-    return output_path_list
+    return output_path_list, optimized_split_list, silence_list
