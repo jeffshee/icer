@@ -562,10 +562,10 @@ def del_continual_value(target_list):
     return ret_list
 
 
-def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int, name_list: list = None, **kwargs):
-    new_columns_name = ['話者', '発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数"]
+def create_summary(emotion_csv_list: list, transcript_csv: str, silence_csv: str,speaker_num: int, name_list: list = None, **kwargs):
+    new_columns_name = ['話者', '発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数", "無音時間"]
     df_diarization = pd.read_csv(transcript_csv)
-
+    silence_file = pd.read_csv(silence_csv)
     if name_list is None:
         name_list = [f"Speaker {i}" for i in range(speaker_num)]
     assert len(name_list) == speaker_num
@@ -593,10 +593,11 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int
     gesture_count = np.array(gesture_count)
 
     ##無音時間(手法まだ決まってない)
-    # video_time=60
-    # total_time_v=np.array([video_time]*speaker_num)
-    # slience_time =total_time_v-speech_time
-
+    silence_time = []
+    for i in range(speaker_num):
+        cols = silence_file[silence_file["Speaker"] == i]
+        silence_time.append((cols["End time(ms)"] - cols["Start time(ms)"]).sum() / 1000)
+    silence_time = np.array(silence_time)
 
     ##summary
     # new_columns_name_summary = ['頷き回数', '発言回数',"Positive感情数","Negative感情数","Normal感情数"]
@@ -630,7 +631,7 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int
     # df_sum=pd.DataFrame(data_summary_sum)
 
     data_summary = [_ for _ in
-                    zip(name_list, num_of_utterances, speech_time, speech_density, time_occupancy, gesture_count)]
+                    zip(name_list, num_of_utterances, speech_time, speech_density, time_occupancy, gesture_count,silence_time)]
     df_summary = pd.DataFrame(data_summary, columns=new_columns_name)
     return df_summary,df_sum
 
@@ -646,6 +647,7 @@ def main_overlay(output_dir: str):
     emotion_dir = os.path.join(output_dir, "emotion")
     transcript_dir = os.path.join(output_dir, "transcript")
     transcript_csv_path = os.path.join(transcript_dir, "transcript.csv")
+    silence_csv_path = os.path.join(transcript_dir, "silence.csv")
     emotion_dir_files = sorted([os.path.join(emotion_dir, f) for f in os.listdir(emotion_dir)])
     emotion_csv_path_list = list(filter(lambda x: x.endswith(".csv"), emotion_dir_files))
     video_path = list(filter(lambda x: x.endswith(".avi") or x.endswith(".mp4"), emotion_dir_files))[0]
@@ -700,6 +702,7 @@ def main_overlay(output_dir: str):
     # make widgets for each dock
     common_kwargs = dict(emotion_csv_list=emotion_csv_path_list,
                          transcript_csv=transcript_csv_path,
+                         silence_csv=silence_csv_path,
                          speaker_num=speaker_num,
                          name_list=None)
 
