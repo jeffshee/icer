@@ -320,12 +320,13 @@ class TranscriptWidget(QScrollArea):
 
 
 class DiarizationWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, speaker_num: int, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, speaker_num: int, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
         self.mpl_widget.toolbar.hide()
         self.diarization = pd.read_csv(transcript_csv)
+        self.silence = pd.read_csv(silence_csv) if os.path.isfile(silence_csv) else create_dummy_silence_df()
         self.x_margin = 10.0  # second
         self.y_num = speaker_num  # num of speakers
         self.y_margin = 0.25
@@ -378,6 +379,12 @@ class DiarizationWidget(QWidget):
                     row = rows.iloc[i]
                     self.plot_diarization(row)
 
+                # plot silence time
+                rows_new = self.silence
+                for i in range(len(rows_new)):
+                    row_new = rows_new.iloc[i]
+                    self.plot_silence_time(row_new)
+
                 self.init_flag = False
             else:
                 # update current time bar
@@ -394,6 +401,12 @@ class DiarizationWidget(QWidget):
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
+
+    def plot_silence_time(self, row):
+        speaker = row["Speaker"].item()
+        start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
+        start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
 
 
 class OverviewDiarizationWidget(QWidget):
