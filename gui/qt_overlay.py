@@ -6,6 +6,7 @@ import sys
 import time
 from multiprocessing import Process
 from typing import List
+import warnings
 
 import matplotlib
 import numpy as np
@@ -43,6 +44,16 @@ config = {
 
 def current_milli_time():
     return round(time.time() * 1000)
+
+
+def create_dummy_silence_df():
+    # For quick testing
+    warnings.warn("Using dummy silence df!")
+    df = pd.DataFrame()
+    df["Speaker"] = [0, 1, 2]
+    df["Start time(ms)"] = [1000, 5000, 9000]
+    df["End time(ms)"] = [3000, 7000, 11000]
+    return df
 
 
 class Slider(QSlider):
@@ -386,12 +397,14 @@ class DiarizationWidget(QWidget):
 
 
 class OverviewDiarizationWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, emotion_csv_list: list, speaker_num: int, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, emotion_csv_list: list,
+                 speaker_num: int, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
         self.mpl_widget.toolbar.hide()
         self.diarization = pd.read_csv(transcript_csv)
+        self.silence = pd.read_csv(silence_csv) if os.path.isfile(silence_csv) else create_dummy_silence_df()
         self.video_begin_time = 0  # video's begin time (ms)
         self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
         self.y_num = speaker_num  # num of speakers
@@ -448,6 +461,12 @@ class OverviewDiarizationWidget(QWidget):
                     row = rows.iloc[i]
                     self.plot_diarization(row)
 
+                # plot silence time
+                rows_new = self.silence
+                for i in range(len(rows_new)):
+                    row_new = rows_new.iloc[i]
+                    self.plot_silence_time(row_new)
+
                 # plot gesture
                 self.ax.scatter(self.gesture_x, self.gesture_y, c='red', marker='s', zorder=2, s=4)
 
@@ -467,6 +486,12 @@ class OverviewDiarizationWidget(QWidget):
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
+
+    def plot_silence_time(self, row):
+        speaker = row["Speaker"].item()
+        start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
+        start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
 
     def get_gesture(self, emotion_list: list):
         gesture_x, gesture_y = [], []
@@ -625,10 +650,11 @@ def del_continual_value(target_list):
     return ret_list
 
 
-def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int, name_list: list = None, **kwargs):
-    new_columns_name = ['話者', '発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数"]
+def create_summary(emotion_csv_list: list, transcript_csv: str, silence_csv: str, speaker_num: int,
+                   name_list: list = None, **kwargs):
+    new_columns_name = ['話者', '発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数", "無音時間 [s]"]
     df_diarization = pd.read_csv(transcript_csv)
-
+    silence_file = pd.read_csv(silence_csv) if os.path.isfile(silence_csv) else create_dummy_silence_df()
     if name_list is None:
         name_list = [f"Speaker {i}" for i in range(speaker_num)]
     assert len(name_list) == speaker_num
@@ -655,10 +681,43 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int
         gesture_count.append(df_gesture_tmp["gesture"].value_counts().get(1, 0))
     gesture_count = np.array(gesture_count)
 
+    # 無音時間
+    silence_time = []
+    for i in range(speaker_num):
+        cols = silence_file[silence_file["Speaker"] == i]
+        silence_time.append((cols["End time(ms)"] - cols["Start time(ms)"]).sum() / 1000)
+    silence_time = np.array(silence_time)
+
+    # summary
+    total_silence_time = silence_time.sum()
+    total_gesture_count = gesture_count.sum()
+    total_utterances = num_of_utterances.sum()
+    tot_neg = 0
+    tot_pos = 0
+    tot_nor = 0
+    for emotion_csv in emotion_csv_list:
+        df_emotion_tmp = pd.read_csv(emotion_csv, encoding="shift_jis", header=0, usecols=["prediction"])
+        negative_tmp = df_emotion_tmp[df_emotion_tmp["prediction"] == "Negative"]
+        positive_tmp = df_emotion_tmp[df_emotion_tmp["prediction"] == "Positive"]
+        normal_tmp = df_emotion_tmp[df_emotion_tmp["prediction"] == "Normal"]
+        tot_neg = tot_neg + len(negative_tmp)
+        tot_pos = tot_pos + len(positive_tmp)
+        tot_nor = tot_nor + len(normal_tmp)
+    tot_emo_col = tot_neg + tot_pos + tot_nor
+
+    pos_per = tot_pos / tot_emo_col * 100
+    neg_per = tot_neg / tot_emo_col * 100
+    nor_per = tot_nor / tot_emo_col * 100
+
+    data_summary_sum = {'頷き回数': total_gesture_count, "発言回数": total_utterances, "無音時間 [s]": total_silence_time,
+                        "Positive感情数(%)": pos_per, "Negative感情数(%)": neg_per, "Normal感情数(%)": nor_per}
+    df_sum = pd.DataFrame(data_summary_sum, index=["Total"])
+
     data_summary = [_ for _ in
-                    zip(name_list, num_of_utterances, speech_time, speech_density, time_occupancy, gesture_count)]
+                    zip(name_list, num_of_utterances, speech_time, speech_density, time_occupancy, gesture_count,
+                        silence_time)]
     df_summary = pd.DataFrame(data_summary, columns=new_columns_name)
-    return df_summary
+    return df_summary, df_sum
 
 
 def main_overlay(output_dir: str):
@@ -672,6 +731,7 @@ def main_overlay(output_dir: str):
     emotion_dir = os.path.join(output_dir, "emotion")
     transcript_dir = os.path.join(output_dir, "transcript")
     transcript_csv_path = os.path.join(transcript_dir, "transcript.csv")
+    silence_csv_path = os.path.join(transcript_dir, "silence.csv")
     emotion_dir_files = sorted([os.path.join(emotion_dir, f) for f in os.listdir(emotion_dir)])
     emotion_csv_path_list = list(filter(lambda x: x.endswith(".csv"), emotion_dir_files))
     video_path = list(filter(lambda x: x.endswith(".avi") or x.endswith(".mp4"), emotion_dir_files))[0]
@@ -691,6 +751,7 @@ def main_overlay(output_dir: str):
     dock_control = Dock("Control", size=(win_w, win_h / 16))
     dock_transcript = Dock("Transcript", size=(win_w * 2 / 3, win_h / 8))
     dock_summary = Dock("Summary", size=(win_w / 3, win_h / 4))
+    dock_summary_total = Dock("SummaryTotal", size=(win_w / 3, win_h / 4))
     dock_diarization = Dock("Diarization", size=(win_w / 3, win_h / 4))
     dock_overview_diarization = Dock("OverviewDiarization", size=(win_w / 3, win_h / 4))
     dock_emotion_stat = Dock("EmotionStatistics", size=(win_w / 3, win_h * 11 / 16))
@@ -702,8 +763,8 @@ def main_overlay(output_dir: str):
 
     area.addDock(dock_diarization, "bottom", dock_transcript)
     area.addDock(dock_overview_diarization, "right", dock_diarization)
-    area.addDock(dock_summary, "bottom", dock_emotion_stat)
-
+    area.addDock(dock_summary_total, "bottom", dock_emotion_stat)
+    area.addDock(dock_summary, "above", dock_summary_total)
     area.addDock(dock_control, "bottom")
 
     # settings for video
@@ -718,12 +779,15 @@ def main_overlay(output_dir: str):
     # make widgets for each dock
     common_kwargs = dict(emotion_csv_list=emotion_csv_path_list,
                          transcript_csv=transcript_csv_path,
+                         silence_csv=silence_csv_path,
                          speaker_num=speaker_num,
                          name_list=None)
 
     dock_control.addWidget(VLCControl(vlc_widget_list, **common_kwargs))
     dock_transcript.addWidget(TranscriptWidget(vlc_widget1, **common_kwargs))
-    dock_summary.addWidget(DataFrameWidget(create_summary(**common_kwargs)))
+    summary1, summary2 = create_summary(**common_kwargs)
+    dock_summary.addWidget(DataFrameWidget(summary1))
+    dock_summary_total.addWidget(DataFrameWidget(summary2))
     dock_diarization.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))
     dock_overview_diarization.addWidget(OverviewDiarizationWidget(vlc_widget1, **common_kwargs))
     dock_emotion_stat.addWidget(EmotionStatisticsWidget(vlc_widget1, **common_kwargs))
