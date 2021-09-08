@@ -237,7 +237,7 @@ class VLCControl(QWidget):
                 self.stop()
 
 
-class TranscriptWidget(QScrollArea): ##文本转录的可视化
+class TranscriptWidget(QScrollArea):
     def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, speaker_num: int, name_list: list = None, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
@@ -423,7 +423,7 @@ class OverviewDiarizationWidget(QWidget):
                 rows_new = self.silence
                 for i in range(len(rows_new)):
                     row_new = rows_new.iloc[i]
-                    self.plot_diarization(row_new)
+                    self.plot_silence_time(row_new)
 
                 # plot gesture
                 self.ax.scatter(self.gesture_x, self.gesture_y, c='red', marker='o', zorder=2)
