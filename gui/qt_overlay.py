@@ -15,7 +15,7 @@ import pyqtgraph as pg
 import vlc
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, \
-    QVBoxLayout, QLabel, QScrollArea
+    QVBoxLayout, QLabel, QScrollArea, QFileDialog
 from pyqtgraph.Qt import QtGui
 from pyqtgraph.dockarea import *
 from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
@@ -279,10 +279,11 @@ class VLCControl(QWidget):
 
 
 class TranscriptWidget(QScrollArea):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, speaker_num: int, name_list: list = None, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, df_cache: dict, speaker_num: int,
+                 name_list: list = None, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
-        self.transcript = pd.read_csv(transcript_csv)
+        self.transcript = df_cache["transcript"]
 
         if name_list is None:
             name_list = [f"Speaker {i}" for i in range(speaker_num)]
@@ -320,13 +321,13 @@ class TranscriptWidget(QScrollArea):
 
 
 class DiarizationWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, speaker_num: int, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, df_cache: dict, speaker_num: int, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
         self.mpl_widget.toolbar.hide()
-        self.diarization = pd.read_csv(transcript_csv)
-        self.silence = pd.read_csv(silence_csv) if os.path.isfile(silence_csv) else create_dummy_silence_df()
+        self.diarization = df_cache["transcript"]
+        self.silence = df_cache["silence"]
         self.x_margin = 10.0  # second
         self.y_num = speaker_num  # num of speakers
         self.y_margin = 0.25
@@ -411,13 +412,13 @@ class DiarizationWidget(QWidget):
 
 class OverviewDiarizationWidget(QWidget):
     def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, emotion_csv_list: list,
-                 speaker_num: int, **kwargs):
+                 df_cache: dict, speaker_num: int, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
         self.mpl_widget.toolbar.hide()
-        self.diarization = pd.read_csv(transcript_csv)
-        self.silence = pd.read_csv(silence_csv) if os.path.isfile(silence_csv) else create_dummy_silence_df()
+        self.diarization = df_cache["transcript"]
+        self.silence = df_cache["silence"]
         self.video_begin_time = 0  # video's begin time (ms)
         self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
         self.y_num = speaker_num  # num of speakers
@@ -426,10 +427,7 @@ class OverviewDiarizationWidget(QWidget):
         self.init_flag = True
 
         # get each person's gesture
-        self.emotion_list = []
-        for emotion_csv in emotion_csv_list:
-            emotion = pd.read_csv(emotion_csv)
-            self.emotion_list.append(emotion)
+        self.emotion_list = df_cache["emotion"]
 
         # get gesture list
         self.gesture_x, self.gesture_y = self.get_gesture(self.emotion_list)
@@ -519,19 +517,17 @@ class OverviewDiarizationWidget(QWidget):
 
 
 class EmotionStatisticsWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, emotion_csv_list: list, speaker_num: int, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, emotion_csv_list: list, df_cache: dict,
+                 speaker_num: int, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
         self.mpl_widget.toolbar.hide()
-        self.diarization = pd.read_csv(transcript_csv)
+        self.diarization = df_cache["transcript"]
         self.video_begin_time = 0  # video's begin time (ms)
         self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
         # get each person's gesture
-        self.emotion_list = []
-        for emotion_csv in emotion_csv_list:
-            emotion = pd.read_csv(emotion_csv)
-            self.emotion_list.append(emotion)
+        self.emotion_list = df_cache["emotion"]
 
         self.y_num = speaker_num
 
@@ -663,11 +659,11 @@ def del_continual_value(target_list):
     return ret_list
 
 
-def create_summary(emotion_csv_list: list, transcript_csv: str, silence_csv: str, speaker_num: int,
-                   name_list: list = None, **kwargs):
+def create_summary(emotion_csv_list: list, df_cache: dict,
+                   speaker_num: int, name_list: list = None, **kwargs):
     new_columns_name = ['話者', '発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数", "無音時間 [s]"]
-    df_diarization = pd.read_csv(transcript_csv)
-    silence_file = pd.read_csv(silence_csv) if os.path.isfile(silence_csv) else create_dummy_silence_df()
+    df_diarization = df_cache["transcript"]
+    silence_file = df_cache["silence"]
     if name_list is None:
         name_list = [f"Speaker {i}" for i in range(speaker_num)]
     assert len(name_list) == speaker_num
@@ -733,13 +729,17 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, silence_csv: str
     return df_summary, df_sum
 
 
-def main_overlay(output_dir: str):
+def main_overlay(output_dir: str = None):
     # read dir according to the specific structure
     # -- emotion
     #    -- result*.csv
     #    -- *.avi / *.mp4
     # -- transcript
     #    -- diarization
+
+    # show select output directory dialog when output_dir is not specified
+    if output_dir is None:
+        output_dir = str(QFileDialog.getExistingDirectory(None, "Select Output Directory"))
 
     emotion_dir = os.path.join(output_dir, "emotion")
     transcript_dir = os.path.join(output_dir, "transcript")
@@ -790,9 +790,15 @@ def main_overlay(output_dir: str):
     vlc_widget1.volume = config["default_volume"]
 
     # make widgets for each dock
+    df_cache = {
+        "emotion": [pd.read_csv(csv) for csv in emotion_csv_path_list],
+        "transcript": pd.read_csv(transcript_csv_path),
+        "silence": pd.read_csv(silence_csv_path) if os.path.isfile(silence_csv_path) else create_dummy_silence_df()
+    }
     common_kwargs = dict(emotion_csv_list=emotion_csv_path_list,
                          transcript_csv=transcript_csv_path,
                          silence_csv=silence_csv_path,
+                         df_cache=df_cache,
                          speaker_num=speaker_num,
                          name_list=None)
 
