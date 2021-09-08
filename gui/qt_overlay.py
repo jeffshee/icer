@@ -710,8 +710,8 @@ def main_overlay(output_dir: str):
     d3.addWidget(TranscriptWidget(vlc_widget1, **common_kwargs))
     ##
     summary1,summary2=create_summary(**common_kwargs)
-    d4.addWidget(DataFrameWidget(summary1)
-    d4_2.addWidget(DataFrameWidget(summary2)
+    d4.addWidget(DataFrameWidget(summary1))
+    d4_2.addWidget(DataFrameWidget(summary2))
     d5.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))
     d6.addWidget(OverviewDiarizationWidget(vlc_widget1, **common_kwargs))
     d7.addWidget(EmotionStatisticsWidget(vlc_widget1, **common_kwargs))
