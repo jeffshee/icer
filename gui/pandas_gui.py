@@ -49,7 +49,6 @@ def get_word_cloud(df_transcript: pd.DataFrame):
 
 
 def show_transcript_gui(transcript_csv: str):
-    print("Called")
     df_transcript = pd.read_csv(transcript_csv)
     df_word_cloud = get_word_cloud(df_transcript)
     show(df_transcript, df_word_cloud)

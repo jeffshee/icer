@@ -1,30 +1,35 @@
 import collections
 import datetime
+import multiprocessing as mp
 import os
 import sys
-from typing import List
 import time
-import multiprocessing as mp
 from multiprocessing import Process
+from typing import List
+
 import matplotlib
 import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 import vlc
-from PyQt5.QtCore import Qt, QTimer, QUrl, QThread, QObject
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, \
-    QVBoxLayout, QLabel, QScrollArea, QMainWindow, QDialog, QApplication
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+    QVBoxLayout, QLabel, QScrollArea
 from pyqtgraph.Qt import QtGui
 from pyqtgraph.dockarea import *
 from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
-from pyvis import network as net
-import networkx as nx
 
 from gui.pandas_gui import show_transcript_gui
+from gui.qt_pyvis import show_pyvis
 
 # Disable VLC error messages
 os.environ['VLC_VERBOSE'] = '-1'
+
+# Set multiprocessing start method to "spawn" (to avoid bug)
+# Some GUI will freeze if not set to spawn, Linux default is fork
+# This method should only be called once
+if mp.get_start_method(allow_none=True) is None:
+    mp.set_start_method('spawn')
 
 config = {
     "win_title": "Overlay",
@@ -34,36 +39,6 @@ config = {
     "update_ui_interval": 20,
     "default_volume": 100
 }
-
-
-# class Worker(QObject):
-#     def __init__(self, f, args=None, kwargs=None):
-#         super().__init__()
-#         if kwargs is None:
-#             kwargs = {}
-#         if args is None:
-#             args = []
-#         self.f = f
-#         self.args = args
-#         self.kwargs = kwargs
-#
-#     def run(self):
-#         """Long-running task."""
-#         self.f(*self.args, **self.kwargs)
-#
-#
-# class OpenWindowProcess(Process):
-#     def __init__(self):
-#         super().__init__()
-#         print("Process PID: ")
-#
-#     def run(self):
-#         print("Opening window...")
-#         app = QApplication(sys.argv)
-#         window = QMainWindow()
-#         window.show()
-#         print("Close window...")
-#         sys.exit(app.exec_())
 
 
 def current_milli_time():
@@ -191,11 +166,11 @@ class VLCControl(QWidget):
         self.hbox.addWidget(self.button_stop)
         self.button_stop.clicked.connect(self.stop)
 
-        self.button_interaction = QPushButton("Interaction")
-        self.hbox.addWidget(self.button_interaction)
-        self.button_interaction.clicked.connect(show_interaction)
+        self.button_interaction_gui = QPushButton("Show Interaction")
+        self.hbox.addWidget(self.button_interaction_gui)
+        self.button_interaction_gui.clicked.connect(self.interaction_gui)
 
-        self.button_transcript_gui = QPushButton("Transcript GUI")
+        self.button_transcript_gui = QPushButton("Show Transcript")
         self.hbox.addWidget(self.button_transcript_gui)
         self.button_transcript_gui.clicked.connect(self.transcript_gui)
 
@@ -283,31 +258,13 @@ class VLCControl(QWidget):
                 self.stop()
 
     def transcript_gui(self):
-        # Freeze if not set to spawn, Linux default is fork
-        mp.set_start_method('spawn')
         p = Process(target=show_transcript_gui, args=(self.transcript_csv,))
         p.start()
-        # p.join()
-        # TODO separate process
 
-        # # Step 2: Create a QThread object
-        # self.thread = QThread()
-        # # Step 3: Create a worker object
-        # self.worker = Worker(show_transcript_gui, self.transcript_csv)
-        # # Step 4: Move worker to the thread
-        # self.worker.moveToThread(self.thread)
-        # # Step 5: Connect signals and slots
-        # # self.thread.started.connect(self.worker.run)
-        # # self.worker.finished.connect(self.thread.quit)
-        # # self.worker.finished.connect(self.worker.deleteLater)
-        # # self.thread.finished.connect(self.thread.deleteLater)
-        # # self.worker.progress.connect(self.reportProgress)
-        # # Step 6: Start the thread
-        # self.thread.start()
-
-        # p = OpenWindowProcess()
-        # p.start()
-        # show_transcript_gui(self.transcript_csv)
+    def interaction_gui(self):
+        # TODO pass networkx obj into arg here
+        p = Process(target=show_pyvis, args=(None, "Interaction"))
+        p.start()
 
 
 class TranscriptWidget(QScrollArea):
@@ -704,46 +661,6 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int
     return df_summary
 
 
-class PyVisWidget(QWebEngineView):
-    def __init__(self, networkx_graph=None):
-        super().__init__()
-        html_path = "networkx.html"
-        if networkx_graph is None:
-            # Generate dummy network graph
-            networkx_graph = nx.complete_graph(5)
-        # Render HTML file
-        g = net.Network()
-        g.from_nx(networkx_graph)
-        g.write_html(html_path)
-        self.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
-
-
-class PyVisDialog(QDialog):
-    def __init__(self, networkx_graph=None):
-        QDialog.__init__(self)
-        layout = QHBoxLayout()
-        widget = PyVisWidget(networkx_graph)
-        layout.addWidget(widget)
-        self.setLayout(layout)
-
-
-def show_interaction(_, networkx_graph=None):
-    # _ is to ignore the arg passed from the clicked signal
-    # For some reason, display the graph with dialog is slow ...
-    # dialog = PyVisDialog()  # create the dialog ...
-    # dialog.exec_()  # ... and show it
-
-    # Just launch a browser instead
-    html_path = "networkx.html"
-    if networkx_graph is None:
-        # Generate dummy network graph
-        networkx_graph = nx.complete_graph(5)
-    # Render HTML file
-    g = net.Network()
-    g.from_nx(networkx_graph)
-    g.show(html_path)
-
-
 def main_overlay(output_dir: str):
     # read dir according to the specific structure
     # -- emotion
@@ -777,7 +694,6 @@ def main_overlay(output_dir: str):
     dock_diarization = Dock("Diarization", size=(win_w / 3, win_h / 4))
     dock_overview_diarization = Dock("OverviewDiarization", size=(win_w / 3, win_h / 4))
     dock_emotion_stat = Dock("EmotionStatistics", size=(win_w / 3, win_h * 11 / 16))
-    # dock_pyvis = Dock("PyVis", size=(win_w / 3, win_h / 4))
 
     # set dock's position
     area.addDock(dock_emotion, 'left')
@@ -789,7 +705,6 @@ def main_overlay(output_dir: str):
     area.addDock(dock_summary, "bottom", dock_emotion_stat)
 
     area.addDock(dock_control, "bottom")
-    # area.addDock(dock_pyvis, "above", dock_summary)
 
     # settings for video
     vlc_widget_list = []
@@ -799,7 +714,6 @@ def main_overlay(output_dir: str):
     vlc_widget1.media = video_path
     # set default volume
     vlc_widget1.volume = config["default_volume"]
-    vlc_widget1.play()
 
     # make widgets for each dock
     common_kwargs = dict(emotion_csv_list=emotion_csv_path_list,
@@ -813,10 +727,10 @@ def main_overlay(output_dir: str):
     dock_diarization.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))
     dock_overview_diarization.addWidget(OverviewDiarizationWidget(vlc_widget1, **common_kwargs))
     dock_emotion_stat.addWidget(EmotionStatisticsWidget(vlc_widget1, **common_kwargs))
-    # PyVis runs slowly if docked, not sure why
-    # dock_pyvis.addWidget(PyVisWidget())
-    # run displaying
     win.showMaximized()
+
+    # Start playing
+    vlc_widget1.play()
     pg.mkQApp().exec_()
 
     # Exit when window is destroyed
