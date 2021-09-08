@@ -348,7 +348,7 @@ class DiarizationWidget(QWidget):
     def ms_to_s(self, x):
         return x / 1000
 
-    def plot_diarization(self, row): ##画线
+    def plot_diarization(self, row): ##線を描く
         speaker = row["Speaker"].item()
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
@@ -356,12 +356,13 @@ class DiarizationWidget(QWidget):
 
 
 class OverviewDiarizationWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, emotion_csv_list: list, speaker_num: int, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str,silence_csv: str, emotion_csv_list: list, speaker_num: int, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
         self.mpl_widget.toolbar.hide()
         self.diarization = pd.read_csv(transcript_csv)
+        self.silence=pd.read_csv(silence_csv)
         self.video_begin_time = 0  # video's begin time (ms)
         self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
         self.y_num = speaker_num  # num of speakers
@@ -418,6 +419,12 @@ class OverviewDiarizationWidget(QWidget):
                     row = rows.iloc[i]
                     self.plot_diarization(row)
 
+                ## plot silence time
+                rows_new = self.silence
+                for i in range(len(rows_new)):
+                    row_new = rows_new.iloc[i]
+                    self.plot_diarization(row_new)
+
                 # plot gesture
                 self.ax.scatter(self.gesture_x, self.gesture_y, c='red', marker='o', zorder=2)
 
@@ -437,6 +444,13 @@ class OverviewDiarizationWidget(QWidget):
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4.0, zorder=1)
+    ##
+    def plot_silence_time(self, row):
+        speaker = row["Speaker"].item()
+        start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
+        start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4.0, zorder=1)
+
 
     def get_gesture(self, emotion_list: list):
         gesture_x, gesture_y = [], []
@@ -710,8 +724,8 @@ def main_overlay(output_dir: str):
     d3.addWidget(TranscriptWidget(vlc_widget1, **common_kwargs))
     ##
     summary1,summary2=create_summary(**common_kwargs)
-    d4.addWidget(DataFrameWidget(summary1)
-    d4_2.addWidget(DataFrameWidget(summary2)
+    d4.addWidget(DataFrameWidget(summary1))
+    d4_2.addWidget(DataFrameWidget(summary2))
     d5.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))
     d6.addWidget(OverviewDiarizationWidget(vlc_widget1, **common_kwargs))
     d7.addWidget(EmotionStatisticsWidget(vlc_widget1, **common_kwargs))
