@@ -1,13 +1,28 @@
+import os
+
+from gui.dialogs import *
 from utils.video_utils import *
 
-if __name__ == "__main__":
-    # face_num = 6
-    # video_path = "../datasets/200225_芳賀先生_実験23/200225_芳賀先生_実験23video.mp4"
-    face_num = 3
-    video_path = "../datasets/test2/200221_expt12_video.mp4"
-    roi_list = []
+
+def create_reid(video_path: str = None, face_num: int = None):
+    if not video_path:
+        video_path = get_video_path()
+    if not face_num:
+        face_num = get_face_num()
+    # print(video_path, face_num)
+
+    output_dir = os.path.join(os.path.dirname(video_path), "reid")
+    os.makedirs(output_dir, exist_ok=True)
+    post_processes = []
     for i in range(face_num):
-        roi_list.append(get_roi(video_path))
-    for i, roi in enumerate(roi_list):
-        output_path = f"{i}.mp4"
-        crop_video(video_path, output_path, roi, end_time=10)
+        output_path = os.path.join(output_dir, f"reid{i}.mp4")
+        roi = get_roi(video_path)
+        post_processes.append(Process(target=crop_video, args=(video_path, output_path, roi), kwargs=dict(end_time=10)))
+
+    for p in post_processes:
+        p.start()
+        p.join()
+
+
+if __name__ == "__main__":
+    create_reid()
