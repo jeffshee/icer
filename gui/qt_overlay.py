@@ -1,30 +1,36 @@
 import collections
 import datetime
+import multiprocessing as mp
 import os
 import sys
-from typing import List
 import time
-import multiprocessing as mp
 from multiprocessing import Process
+from typing import List
+import warnings
+
 import matplotlib
 import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 import vlc
-from PyQt5.QtCore import Qt, QTimer, QUrl, QThread, QObject
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, \
-    QVBoxLayout, QLabel, QScrollArea, QMainWindow, QDialog, QApplication
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+    QVBoxLayout, QLabel, QScrollArea, QFileDialog
 from pyqtgraph.Qt import QtGui
 from pyqtgraph.dockarea import *
 from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
-from pyvis import network as net
-import networkx as nx
 
 from gui.pandas_gui import show_transcript_gui
+from gui.qt_pyvis import show_pyvis
 
 # Disable VLC error messages
 os.environ['VLC_VERBOSE'] = '-1'
+
+# Set multiprocessing start method to "spawn" (to avoid bug)
+# Some GUI will freeze if not set to spawn, Linux default is fork
+# This method should only be called once
+if mp.get_start_method(allow_none=True) is None:
+    mp.set_start_method('spawn')
 
 config = {
     "win_title": "Overlay",
@@ -36,38 +42,18 @@ config = {
 }
 
 
-# class Worker(QObject):
-#     def __init__(self, f, args=None, kwargs=None):
-#         super().__init__()
-#         if kwargs is None:
-#             kwargs = {}
-#         if args is None:
-#             args = []
-#         self.f = f
-#         self.args = args
-#         self.kwargs = kwargs
-#
-#     def run(self):
-#         """Long-running task."""
-#         self.f(*self.args, **self.kwargs)
-#
-#
-# class OpenWindowProcess(Process):
-#     def __init__(self):
-#         super().__init__()
-#         print("Process PID: ")
-#
-#     def run(self):
-#         print("Opening window...")
-#         app = QApplication(sys.argv)
-#         window = QMainWindow()
-#         window.show()
-#         print("Close window...")
-#         sys.exit(app.exec_())
-
-
 def current_milli_time():
     return round(time.time() * 1000)
+
+
+def create_dummy_silence_df():
+    # For quick testing
+    warnings.warn("Using dummy silence df!")
+    df = pd.DataFrame()
+    df["Speaker"] = [0, 1, 2]
+    df["Start time(ms)"] = [1000, 5000, 9000]
+    df["End time(ms)"] = [3000, 7000, 11000]
+    return df
 
 
 class Slider(QSlider):
@@ -191,11 +177,11 @@ class VLCControl(QWidget):
         self.hbox.addWidget(self.button_stop)
         self.button_stop.clicked.connect(self.stop)
 
-        self.button_interaction = QPushButton("Interaction")
-        self.hbox.addWidget(self.button_interaction)
-        self.button_interaction.clicked.connect(show_interaction)
+        self.button_interaction_gui = QPushButton("Show Interaction")
+        self.hbox.addWidget(self.button_interaction_gui)
+        self.button_interaction_gui.clicked.connect(self.interaction_gui)
 
-        self.button_transcript_gui = QPushButton("Transcript GUI")
+        self.button_transcript_gui = QPushButton("Show Transcript")
         self.hbox.addWidget(self.button_transcript_gui)
         self.button_transcript_gui.clicked.connect(self.transcript_gui)
 
@@ -283,38 +269,21 @@ class VLCControl(QWidget):
                 self.stop()
 
     def transcript_gui(self):
-        # Freeze if not set to spawn, Linux default is fork
-        mp.set_start_method('spawn')
         p = Process(target=show_transcript_gui, args=(self.transcript_csv,))
         p.start()
-        # p.join()
-        # TODO separate process
 
-        # # Step 2: Create a QThread object
-        # self.thread = QThread()
-        # # Step 3: Create a worker object
-        # self.worker = Worker(show_transcript_gui, self.transcript_csv)
-        # # Step 4: Move worker to the thread
-        # self.worker.moveToThread(self.thread)
-        # # Step 5: Connect signals and slots
-        # # self.thread.started.connect(self.worker.run)
-        # # self.worker.finished.connect(self.thread.quit)
-        # # self.worker.finished.connect(self.worker.deleteLater)
-        # # self.thread.finished.connect(self.thread.deleteLater)
-        # # self.worker.progress.connect(self.reportProgress)
-        # # Step 6: Start the thread
-        # self.thread.start()
-
-        # p = OpenWindowProcess()
-        # p.start()
-        # show_transcript_gui(self.transcript_csv)
+    def interaction_gui(self):
+        # TODO pass networkx obj into arg here
+        p = Process(target=show_pyvis, args=(None, "Interaction"))
+        p.start()
 
 
 class TranscriptWidget(QScrollArea):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, speaker_num: int, name_list: list = None, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, df_cache: dict, speaker_num: int,
+                 name_list: list = None, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
-        self.transcript = pd.read_csv(transcript_csv)
+        self.transcript = df_cache["transcript"]
 
         if name_list is None:
             name_list = [f"Speaker {i}" for i in range(speaker_num)]
@@ -352,12 +321,13 @@ class TranscriptWidget(QScrollArea):
 
 
 class DiarizationWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, speaker_num: int, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, df_cache: dict, speaker_num: int, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
         self.mpl_widget.toolbar.hide()
-        self.diarization = pd.read_csv(transcript_csv)
+        self.diarization = df_cache["transcript"]
+        self.silence = df_cache["silence"]
         self.x_margin = 10.0  # second
         self.y_num = speaker_num  # num of speakers
         self.y_margin = 0.25
@@ -410,6 +380,12 @@ class DiarizationWidget(QWidget):
                     row = rows.iloc[i]
                     self.plot_diarization(row)
 
+                # plot silence time
+                rows_new = self.silence
+                for i in range(len(rows_new)):
+                    row_new = rows_new.iloc[i]
+                    self.plot_silence_time(row_new)
+
                 self.init_flag = False
             else:
                 # update current time bar
@@ -427,14 +403,22 @@ class DiarizationWidget(QWidget):
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
 
+    def plot_silence_time(self, row):
+        speaker = row["Speaker"].item()
+        start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
+        start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
+
 
 class OverviewDiarizationWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, emotion_csv_list: list, speaker_num: int, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, emotion_csv_list: list,
+                 df_cache: dict, speaker_num: int, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
         self.mpl_widget.toolbar.hide()
-        self.diarization = pd.read_csv(transcript_csv)
+        self.diarization = df_cache["transcript"]
+        self.silence = df_cache["silence"]
         self.video_begin_time = 0  # video's begin time (ms)
         self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
         self.y_num = speaker_num  # num of speakers
@@ -443,10 +427,7 @@ class OverviewDiarizationWidget(QWidget):
         self.init_flag = True
 
         # get each person's gesture
-        self.emotion_list = []
-        for emotion_csv in emotion_csv_list:
-            emotion = pd.read_csv(emotion_csv)
-            self.emotion_list.append(emotion)
+        self.emotion_list = df_cache["emotion"]
 
         # get gesture list
         self.gesture_x, self.gesture_y = self.get_gesture(self.emotion_list)
@@ -491,6 +472,12 @@ class OverviewDiarizationWidget(QWidget):
                     row = rows.iloc[i]
                     self.plot_diarization(row)
 
+                # plot silence time
+                rows_new = self.silence
+                for i in range(len(rows_new)):
+                    row_new = rows_new.iloc[i]
+                    self.plot_silence_time(row_new)
+
                 # plot gesture
                 self.ax.scatter(self.gesture_x, self.gesture_y, c='red', marker='s', zorder=2, s=4)
 
@@ -511,6 +498,12 @@ class OverviewDiarizationWidget(QWidget):
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
 
+    def plot_silence_time(self, row):
+        speaker = row["Speaker"].item()
+        start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
+        start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
+
     def get_gesture(self, emotion_list: list):
         gesture_x, gesture_y = [], []
         for speaker_id, emotion_rows in enumerate(emotion_list):
@@ -524,19 +517,17 @@ class OverviewDiarizationWidget(QWidget):
 
 
 class EmotionStatisticsWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, emotion_csv_list: list, speaker_num: int, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, emotion_csv_list: list, df_cache: dict,
+                 speaker_num: int, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
         self.mpl_widget.toolbar.hide()
-        self.diarization = pd.read_csv(transcript_csv)
+        self.diarization = df_cache["transcript"]
         self.video_begin_time = 0  # video's begin time (ms)
         self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
         # get each person's gesture
-        self.emotion_list = []
-        for emotion_csv in emotion_csv_list:
-            emotion = pd.read_csv(emotion_csv)
-            self.emotion_list.append(emotion)
+        self.emotion_list = df_cache["emotion"]
 
         self.y_num = speaker_num
 
@@ -668,10 +659,11 @@ def del_continual_value(target_list):
     return ret_list
 
 
-def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int, name_list: list = None, **kwargs):
-    new_columns_name = ['話者', '発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数"]
-    df_diarization = pd.read_csv(transcript_csv)
-
+def create_summary(emotion_csv_list: list, df_cache: dict,
+                   speaker_num: int, name_list: list = None, **kwargs):
+    new_columns_name = ['話者', '発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数", "無音時間 [s]"]
+    df_diarization = df_cache["transcript"]
+    silence_file = df_cache["silence"]
     if name_list is None:
         name_list = [f"Speaker {i}" for i in range(speaker_num)]
     assert len(name_list) == speaker_num
@@ -698,53 +690,46 @@ def create_summary(emotion_csv_list: list, transcript_csv: str, speaker_num: int
         gesture_count.append(df_gesture_tmp["gesture"].value_counts().get(1, 0))
     gesture_count = np.array(gesture_count)
 
+    # 無音時間
+    silence_time = []
+    for i in range(speaker_num):
+        cols = silence_file[silence_file["Speaker"] == i]
+        silence_time.append((cols["End time(ms)"] - cols["Start time(ms)"]).sum() / 1000)
+    silence_time = np.array(silence_time)
+
+    # summary
+    total_silence_time = silence_time.sum()
+    total_gesture_count = gesture_count.sum()
+    total_utterances = num_of_utterances.sum()
+    tot_neg = 0
+    tot_pos = 0
+    tot_nor = 0
+    for emotion_csv in emotion_csv_list:
+        df_emotion_tmp = pd.read_csv(emotion_csv, encoding="shift_jis", header=0, usecols=["prediction"])
+        negative_tmp = df_emotion_tmp[df_emotion_tmp["prediction"] == "Negative"]
+        positive_tmp = df_emotion_tmp[df_emotion_tmp["prediction"] == "Positive"]
+        normal_tmp = df_emotion_tmp[df_emotion_tmp["prediction"] == "Normal"]
+        tot_neg = tot_neg + len(negative_tmp)
+        tot_pos = tot_pos + len(positive_tmp)
+        tot_nor = tot_nor + len(normal_tmp)
+    tot_emo_col = tot_neg + tot_pos + tot_nor
+
+    pos_per = tot_pos / tot_emo_col * 100
+    neg_per = tot_neg / tot_emo_col * 100
+    nor_per = tot_nor / tot_emo_col * 100
+
+    data_summary_sum = {'頷き回数': total_gesture_count, "発言回数": total_utterances, "無音時間 [s]": total_silence_time,
+                        "Positive感情数(%)": pos_per, "Negative感情数(%)": neg_per, "Normal感情数(%)": nor_per}
+    df_sum = pd.DataFrame(data_summary_sum, index=["Total"])
+
     data_summary = [_ for _ in
-                    zip(name_list, num_of_utterances, speech_time, speech_density, time_occupancy, gesture_count)]
+                    zip(name_list, num_of_utterances, speech_time, speech_density, time_occupancy, gesture_count,
+                        silence_time)]
     df_summary = pd.DataFrame(data_summary, columns=new_columns_name)
-    return df_summary
+    return df_summary, df_sum
 
 
-class PyVisWidget(QWebEngineView):
-    def __init__(self, networkx_graph=None):
-        super().__init__()
-        html_path = "networkx.html"
-        if networkx_graph is None:
-            # Generate dummy network graph
-            networkx_graph = nx.complete_graph(5)
-        # Render HTML file
-        g = net.Network()
-        g.from_nx(networkx_graph)
-        g.write_html(html_path)
-        self.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
-
-
-class PyVisDialog(QDialog):
-    def __init__(self, networkx_graph=None):
-        QDialog.__init__(self)
-        layout = QHBoxLayout()
-        widget = PyVisWidget(networkx_graph)
-        layout.addWidget(widget)
-        self.setLayout(layout)
-
-
-def show_interaction(_, networkx_graph=None):
-    # _ is to ignore the arg passed from the clicked signal
-    # For some reason, display the graph with dialog is slow ...
-    # dialog = PyVisDialog()  # create the dialog ...
-    # dialog.exec_()  # ... and show it
-
-    # Just launch a browser instead
-    html_path = "networkx.html"
-    if networkx_graph is None:
-        # Generate dummy network graph
-        networkx_graph = nx.complete_graph(5)
-    # Render HTML file
-    g = net.Network()
-    g.from_nx(networkx_graph)
-    g.show(html_path)
-
-
-def main_overlay(output_dir: str):
+def main_overlay(output_dir: str = None):
     # read dir according to the specific structure
     # -- emotion
     #    -- result*.csv
@@ -752,9 +737,14 @@ def main_overlay(output_dir: str):
     # -- transcript
     #    -- diarization
 
+    # show select output directory dialog when output_dir is not specified
+    if output_dir is None:
+        output_dir = str(QFileDialog.getExistingDirectory(None, "Select Output Directory"))
+
     emotion_dir = os.path.join(output_dir, "emotion")
     transcript_dir = os.path.join(output_dir, "transcript")
     transcript_csv_path = os.path.join(transcript_dir, "transcript.csv")
+    silence_csv_path = os.path.join(transcript_dir, "silence.csv")
     emotion_dir_files = sorted([os.path.join(emotion_dir, f) for f in os.listdir(emotion_dir)])
     emotion_csv_path_list = list(filter(lambda x: x.endswith(".csv"), emotion_dir_files))
     video_path = list(filter(lambda x: x.endswith(".avi") or x.endswith(".mp4"), emotion_dir_files))[0]
@@ -774,10 +764,10 @@ def main_overlay(output_dir: str):
     dock_control = Dock("Control", size=(win_w, win_h / 16))
     dock_transcript = Dock("Transcript", size=(win_w * 2 / 3, win_h / 8))
     dock_summary = Dock("Summary", size=(win_w / 3, win_h / 4))
+    dock_summary_total = Dock("SummaryTotal", size=(win_w / 3, win_h / 4))
     dock_diarization = Dock("Diarization", size=(win_w / 3, win_h / 4))
     dock_overview_diarization = Dock("OverviewDiarization", size=(win_w / 3, win_h / 4))
     dock_emotion_stat = Dock("EmotionStatistics", size=(win_w / 3, win_h * 11 / 16))
-    # dock_pyvis = Dock("PyVis", size=(win_w / 3, win_h / 4))
 
     # set dock's position
     area.addDock(dock_emotion, 'left')
@@ -786,10 +776,9 @@ def main_overlay(output_dir: str):
 
     area.addDock(dock_diarization, "bottom", dock_transcript)
     area.addDock(dock_overview_diarization, "right", dock_diarization)
-    area.addDock(dock_summary, "bottom", dock_emotion_stat)
-
+    area.addDock(dock_summary_total, "bottom", dock_emotion_stat)
+    area.addDock(dock_summary, "above", dock_summary_total)
     area.addDock(dock_control, "bottom")
-    # area.addDock(dock_pyvis, "above", dock_summary)
 
     # settings for video
     vlc_widget_list = []
@@ -799,24 +788,32 @@ def main_overlay(output_dir: str):
     vlc_widget1.media = video_path
     # set default volume
     vlc_widget1.volume = config["default_volume"]
-    vlc_widget1.play()
 
     # make widgets for each dock
+    df_cache = {
+        "emotion": [pd.read_csv(csv) for csv in emotion_csv_path_list],
+        "transcript": pd.read_csv(transcript_csv_path),
+        "silence": pd.read_csv(silence_csv_path) if os.path.isfile(silence_csv_path) else create_dummy_silence_df()
+    }
     common_kwargs = dict(emotion_csv_list=emotion_csv_path_list,
                          transcript_csv=transcript_csv_path,
+                         silence_csv=silence_csv_path,
+                         df_cache=df_cache,
                          speaker_num=speaker_num,
                          name_list=None)
 
     dock_control.addWidget(VLCControl(vlc_widget_list, **common_kwargs))
     dock_transcript.addWidget(TranscriptWidget(vlc_widget1, **common_kwargs))
-    dock_summary.addWidget(DataFrameWidget(create_summary(**common_kwargs)))
+    summary1, summary2 = create_summary(**common_kwargs)
+    dock_summary.addWidget(DataFrameWidget(summary1))
+    dock_summary_total.addWidget(DataFrameWidget(summary2))
     dock_diarization.addWidget(DiarizationWidget(vlc_widget1, **common_kwargs))
     dock_overview_diarization.addWidget(OverviewDiarizationWidget(vlc_widget1, **common_kwargs))
     dock_emotion_stat.addWidget(EmotionStatisticsWidget(vlc_widget1, **common_kwargs))
-    # PyVis runs slowly if docked, not sure why
-    # dock_pyvis.addWidget(PyVisWidget())
-    # run displaying
     win.showMaximized()
+
+    # Start playing
+    vlc_widget1.play()
     pg.mkQApp().exec_()
 
     # Exit when window is destroyed
