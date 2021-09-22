@@ -25,7 +25,7 @@ def window_feature(data):
 
     return features
 
-def window_check(success):
+def window_success(success):
     return np.count_nonzero(success)/len(success)
 
 def sliding_window(data, success=False, width=32, overlap=16):
@@ -49,7 +49,7 @@ def sliding_window(data, success=False, width=32, overlap=16):
         trans_data = data[window-width:window]
 
         if success:
-            outputs.append(window_check(trans_data))
+            outputs.append(window_success(trans_data))
 
         else:
             outputs.append(window_feature(trans_data))
@@ -106,6 +106,22 @@ def trans_pandas(data, labels, columns_ori):
 
     return out_df
 
+def window_check(df, th=0.8):
+    """
+    success_rate(各ウィンドウのsuccessの割合)がth(しきい値)以下ならその行を消す処理
+    """
+
+    # th以下の行を削除
+    sr = df["success_rate"].values
+    index = np.where(sr < th)[0]
+    df = df.drop(df.index[index])
+
+    # success_rateコラムも削除
+    df = df.drop("success_rate", axis=1)
+
+    return df
+
+
 def make_dataset(dir_path, out_path, feature_dim=11):
     """
     main
@@ -148,9 +164,11 @@ def make_dataset(dir_path, out_path, feature_dim=11):
     columns = ["mean", "std", "mad", "max", "min", "energy", "entropy", "iqr", "range", "skewness", "kurtosis"]
     output_df = trans_pandas(outputs_list, labels_list, columns)
 
+    # successの処理
+    output_df = window_check(output_df)
     print(output_df)
 
-    output_df.to_csv(out_path)
+    output_df.to_csv(out_path, index=False)
 
 if __name__ == "__main__":
 
