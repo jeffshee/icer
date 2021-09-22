@@ -1,5 +1,6 @@
 import subprocess
 
+from PyQt5 import QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QSlider
@@ -29,6 +30,7 @@ class OffsetGUI(QMainWindow):
             cv2_to_qpixmap(img).scaled(int(1920 * self.img_scale), int(1080 * self.img_scale), Qt.KeepAspectRatio))
         layout.addWidget(self.label)
 
+        layout.addWidget(QLabel(text="オフセット [終了するには、ENTERキーもしくはSPACEキーを押してください]"))
         slider = QSlider(Qt.Horizontal)
         slider.setMaximum(w)
         slider.setMinimum(-w)
@@ -38,12 +40,19 @@ class OffsetGUI(QMainWindow):
         widget = QWidget(self)
         widget.setLayout(layout)
         self.setCentralWidget(widget)
+        self.setWindowTitle("360度動画の角度調整")
+
+        self.offset = 0
 
     def on_slider_value_changed(self, val):
-        print(val)
+        self.offset = val
         img = img_offset(self.img, val)
         self.label.setPixmap(
             cv2_to_qpixmap(img).scaled(int(1920 * self.img_scale), int(1080 * self.img_scale), Qt.KeepAspectRatio))
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            QApplication.quit()
 
 
 def img_offset(img: np.ndarray, offset: int = 0):
@@ -52,6 +61,11 @@ def img_offset(img: np.ndarray, offset: int = 0):
 
 
 def adjust_offset(video_path: str = None):
+    """
+    Launch a GUI for adjusting the offset
+    :param video_path: Video path (Optional)
+    :return:
+    """
     if not video_path:
         video_path = get_video_path()
     video_capture = get_video_capture(video_path)
@@ -60,35 +74,43 @@ def adjust_offset(video_path: str = None):
     win = OffsetGUI(frame)
     win.show()
     app.exec_()
+    offset = win.offset
+    print(f"Offset: {offset}")
+    return offset
 
 
-def calibrate_video(video_path: str = None):
+def calibrate_video_ffmpeg(video_path: str = None, use_gpu=True):
+    """
+    Output calibrated video (by using ffmpeg)
+    :param video_path: Video path (Optional)
+    :param use_gpu:
+    :return:
+    """
     if not video_path:
         video_path = get_video_path()
     output_path = video_path[:-4] + "_calibrate" + video_path[-4:]
-    pixel_offset = 50
-    # cmd = f"""
-    #     ffmpeg -i {video_path} -filter_complex \
-    #     "[0:v][0:v]overlay={pixel_offset}:0[bg]; \
-    #      [bg][0:v]overlay={pixel_offset}-W,format=yuv420p[out]" \
-    #     -map "[out]" -map 0:a -codec:v libx264 -crf 23 -preset medium -c:a copy {output_path}
-    #     """
-    # cmd = f"""
-    #         ffmpeg -i {video_path} -filter_complex \
-    #         "[0:v][0:v]overlay={pixel_offset}:0[bg]; \
-    #          [bg][0:v]overlay={pixel_offset}-W,format=yuv420p[out]" \
-    #         -map "[out]" -map 0:a -codec:v libx264 -c:a copy {output_path}
-    #         """
-    cmd = f"""
+    offset = adjust_offset(video_path)
+    flip = -1 if offset < 0 else 1
+    if use_gpu:
+        """GPU"""
+        cmd = f"""
                 ffmpeg -y -i {video_path} -filter_complex \
-                "[0:v][0:v]overlay={pixel_offset}:0[bg]; \
-                 [bg][0:v]overlay={pixel_offset}-W,format=yuv420p[out]" \
-                -map "[out]" -map 0:a -codec:v h264_nvenc -c:a copy {output_path}
+                "[0:v][0:v]overlay=-{offset}[bg]; \
+                 [bg][0:v]overlay={flip}*W-{offset},format=yuv420p[out]" \
+                -map "[out]" -map 0:a? -codec:v h264_nvenc -c:a copy {output_path}
                 """
+    else:
+        """CPU"""
+        cmd = f"""
+                ffmpeg -i {video_path} -filter_complex \
+                "[0:v][0:v]overlay=-{offset}[bg]; \
+                 [bg][0:v]overlay={flip}*W-{offset},format=yuv420p[out]" \
+                -map "[out]" -map 0:a? -codec:v libx264 -c:a copy {output_path}
+                """
+
     subprocess.call(cmd, shell=True)
 
 
 if __name__ == "__main__":
-    # calibrate_video()
-    # img_offset()
-    adjust_offset("/home/jeffshee/Developer/icer/datasets/200225_expt22/video.mp4")
+    # adjust_offset()
+    calibrate_video_ffmpeg()
