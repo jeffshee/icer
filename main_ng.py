@@ -2,12 +2,14 @@ import os
 import time
 import datetime
 
+from PyQt5.QtWidgets import QFileDialog
+
 config = {
     # Run mode
-    "run_capture_face": False,  # 動画から顔領域の切り出し
-    "run_emotion_recognition": False,  # 切り出した顔画像の表情・頷き・口の開閉認識
+    "run_capture_face": True,  # 動画から顔領域の切り出し
+    "run_emotion_recognition": True,  # 切り出した顔画像の表情・頷き・口の開閉認識
     "run_transcript": True,  # Diarization・音声認識
-    "run_overlay": False,  # 表情・頷き・発話情報を動画にまとめて可視化
+    "run_overlay": True,  # 表情・頷き・発話情報を動画にまとめて可視化
 
     "capture_face_pt_path": None,  # Pickle to load when run_capture_face is false
     "tensorflow_log_level": str(2)
@@ -125,6 +127,15 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
 
 # TODO add filecheck
 if __name__ == "__main__":
+    # show select input directory dialog
+    input_dir = str(QFileDialog.getExistingDirectory(None, "Select Input Directory"))
+    # structure of input directory
+    # -- reid
+    #    -- *.avi / *.mp4 (reid videos)
+    # -- *.avi / *.mp4 (MTG video)
+    # -- *.wav (pin-mic voices)
+
+
     # expt12 s2t only
     # main_kwargs = {
     #     "video_path": "datasets/200221_expt12/video.mp4",
@@ -161,12 +172,21 @@ if __name__ == "__main__":
     #     "face_video_list": ["datasets/200221_expt12/reid/reid{}.mp4".format(i) for i in range(1, 4)]
     # }
 
-    # sound only 5 min
+    # expt22
     main_kwargs = {
-        "video_path": None,
-        "output_dir": "output/sound_only",
-        "audio_path_list": ["datasets/sound_only_5min/voice{}_5min.wav".format(i) for i in range(1, 4)],
-        "face_num": 3,
-        "face_video_list": None
+        "video_path": "datasets/200225_expt22/video.mp4",
+        "output_dir": "output/exp22",
+        "audio_path_list": ["datasets/200225_expt22/voice{}.wav".format(i) for i in range(1, 6)],
+        "face_num": 5,
+        "face_video_list": ["datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
     }
+
+    # # sound only 5 min
+    # main_kwargs = {
+    #     "video_path": None,
+    #     "output_dir": "output/sound_only",
+    #     "audio_path_list": ["datasets/sound_only_5min/voice{}_5min.wav".format(i) for i in range(1, 4)],
+    #     "face_num": 3,
+    #     "face_video_list": None
+    # }
     main(**main_kwargs)
