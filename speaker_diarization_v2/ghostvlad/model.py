@@ -86,8 +86,6 @@ def vggvox_resnet2d_icassp(input_dim=(257, 250, 1), num_class=8631, mode='train'
     ghost_clusters = args.ghost_cluster
     bottleneck_dim = args.bottleneck_dim
     aggregation = args.aggregation_mode
-    # Deprecated on recent TF
-    # mgpu = len(keras.backend.tensorflow_backend._get_available_gpus())
     mgpu = len(tf.config.list_physical_devices('GPU'))
 
     if net == 'resnet34s':

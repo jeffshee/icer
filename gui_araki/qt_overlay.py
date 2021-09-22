@@ -2,17 +2,16 @@ import os
 import datetime
 from typing import List
 from PyQt5 import QtWidgets
-import cv2
+
 import matplotlib
 import matplotlib.pyplot as plt
-from PIL import Image, ImageOps, ImageFont, ImageDraw
-from os.path import join
+
 import numpy as np
 from numpy.testing._private.utils import KnownFailureTest
 import pyqtgraph as pg
 import vlc
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap,QImage
+from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, \
     QVBoxLayout, QLabel, QScrollArea, QSizePolicy
 from pyqtgraph.Qt import QtGui
@@ -232,7 +231,7 @@ class DiarizationWidget(QWidget):
         self.ax = self.mpl_widget.getFigure().add_subplot(111)
 
         self.timer = QTimer(self)
-        self.timer.setInterval(50)
+        self.timer.setInterval(200)
         self.timer.timeout.connect(self.update_ui)
         self.timer.start()
         hbox = QHBoxLayout()
@@ -387,191 +386,6 @@ class OverviewDiarizationWidget(QWidget):
                     gesture_x.append(time_s), gesture_y.append(speaker_id)
         return gesture_x, gesture_y
 
-def add_border(input_image, border, color):
-    img = Image.open(input_image)
-
-    if isinstance(border, int) or isinstance(border, tuple):
-        bimg = ImageOps.expand(img, border=border, fill=color)
-    else:
-        raise RuntimeError('Border is not an integer or tuple!')
-
-    return bimg
-
-class EmotionStatisticsWidget(QWidget):
-    def __init__(self,vlc_widget: VLCWidget,emo_files_dir,face_dir,diarization_csv,list_file_dir,input_video_path):
-        super().__init__()
-        self.vlc_widget = vlc_widget
-        self.mpl_widget = MatplotlibWidget()
-        self.mpl_widget.toolbar.hide()
-        self.emo_files_dir=emo_files_dir
-        self.face_dir=face_dir
-        self.diarization_dir = diarization_csv
-        self.video_begin_time = 0  # video's begin time (ms)
-        self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
-        list_file=np.array(pd.read_csv(list_file_dir, sep=",", encoding="utf-8", engine="python", header=None))
-        self.matching_index_list=list_file.tolist()[0]
-        self.y_num = len(list_file.tolist()[0])
-        self.input_video_path=input_video_path
-        # settings of matplotlib graph
-        self.subplot = self.mpl_widget.getFigure()
-        self.image_label = QLabel()
-        self.timer = QTimer(self)
-        self.timer.setInterval(200)
-        self.timer.timeout.connect(self.update_ui)
-        self.timer.start()
-        hbox = QHBoxLayout()
-        hbox.addWidget(self.mpl_widget)
-        self.setLayout(hbox)
-
-    def get_current_time(self):
-        position = self.vlc_widget.position
-        duration = self.vlc_widget.duration
-        cur_time = duration * position  # in ms
-        return cur_time
-
-    def update_ui(self):
-        cur_time = self.get_current_time()  # in ms
-        if cur_time >= 0.0:  # to prevent xlim turning into minus values
-            # diarizationの結果を読み込む
-            df_diarization = pd.read_csv(self.diarization_dir, encoding="shift_jis", header=0,usecols=["time(ms)", "speaker class"])
-            df_diarization_sorted = df_diarization.copy()
-            df_diarization_sorted.sort_values(by=["time(ms)"], ascending=True, inplace=True)
-            df_diarization_sorted_diff = df_diarization_sorted.copy()
-            df_diarization_sorted_diff["speaker class"] = df_diarization_sorted_diff["speaker class"].diff()
-            df_split_ms = df_diarization_sorted_diff[df_diarization_sorted_diff["speaker class"] != 0]
-            buff = df_diarization_sorted[df_diarization_sorted_diff["speaker class"] != 0].copy()
-            speaker_swith = {}
-            speaker_swith[buff["time(ms)"][0]] = [None, None]
-            for prev_t, next_t, prev_speaker, next_speaker in zip(buff["time(ms)"][:-1], buff["time(ms)"][1:],
-                                                                  buff["speaker class"][:-1], buff["speaker class"][1:]):
-                speaker_swith[next_t] = [prev_speaker, next_speaker]
-
-            input_movie = cv2.VideoCapture(self.input_video_path)  # 動画を読み込む
-            video_length = int(input_movie.get(cv2.CAP_PROP_FRAME_COUNT))
-            video_frame_rate = input_movie.get(cv2.CAP_PROP_FPS)  # 動画のフレームレートを取得
-            split_frame_list = [int(split_ms * video_frame_rate / 1000) for split_ms in df_split_ms["time(ms)"]]
-            split_frame_list = [0] + split_frame_list + [video_length]
-
-            cur_time = self.get_current_time()  # in ms
-            cur_frame=cur_time*video_frame_rate / 1000
-            for split_index, split_frame in enumerate(split_frame_list):
-                if split_index == 0:
-                    continue
-                if split_frame_list[split_index]>cur_frame:
-                    talk_start_frame = split_frame_list[split_index - 1]
-                    talk_end_frame = split_frame_list[split_index]
-                    now_frame=split_frame
-                    break
-
-            # 現在のスピーカーを取得
-            time_ms = int((1000 * now_frame) // video_frame_rate)
-            current_speaker_series = df_diarization_sorted[df_diarization_sorted["time(ms)"] == time_ms]["speaker class"]
-            if current_speaker_series.tolist():
-                current_speaker = current_speaker_series.tolist()[0]
-            else:
-                current_speaker = -1
-            #######################
-            ### 顔画像と感情を表示 ###
-            #######################
-            axes = self.subplot.subplots(nrows=self.y_num, ncols=3)
-            # fig, axes = plt.subplots(nrows=self.y_num, ncols=3, figsize=(20, 20))
-            clustered_face_list = os.listdir(self.face_dir)
-            faces_path = [join(self.face_dir, name, 'closest.PNG') for name in clustered_face_list]
-            faces_path = sorted(faces_path)
-            current_speaker=self.matching_index_list[current_speaker]
-            for face_index, face_path in enumerate(faces_path):
-            # 顔を表示
-                if face_index == current_speaker:
-                    img = np.array(add_border(face_path, border=5, color='rgb(255,215,0)')) ##当前讲话人添加边界
-                else:
-                    img = np.array(Image.open(face_path))
-                axes[face_index,0].imshow(img)
-                axes[face_index, 0].axis("off")
-                # plt.subplot(self.y_num, 3, (face_index * 3) + 1)
-                # plt.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False,
-                #                          labelleft=False,
-                #                          labelright=False, labeltop=False)  # 目盛りの表示を消す
-                # plt.imshow(img, aspect="equal")
-                # 感情のヒストグラムを表示
-                df_emotion = pd.read_csv(join(self.emo_files_dir, "result{}.csv".format(face_index)), encoding="shift_jis",
-                                         header=0,
-                                         usecols=["prediction","negative","normal","positive","unknown","frame_number"])
-                # 1 speech あたりの感情
-                emotions = ['Negative', 'Normal', 'Positive', 'Unknown']
-                df_emotion_count = df_emotion['prediction'][talk_start_frame:talk_end_frame].value_counts()
-                no_emotions = list(set(emotions) - set(df_emotion_count.index.values))
-                for no_emotion in no_emotions:
-                    df_emotion_count[no_emotion] = 0
-                df_emotion_count.sort_index(inplace=True)
-                title = "Current" if face_index == 0 else None
-                df_emotion_count.plot(kind="barh", ax=axes[face_index, 1], color=["blue", "green", "red", "gray"],
-                                      xticks=[0, (talk_end_frame - talk_start_frame) // 2,
-                                              talk_end_frame - talk_start_frame],
-                                      xlim=(0, talk_end_frame - talk_start_frame), fontsize=6)  ##図を作る
-                axes[face_index, 1].set_title(title, fontsize=6)
-
-                # 累積感情
-                # for i in df_emotion["time(ms)"]:
-                #     if (i-cur_time
-
-                # talk_end_frame_new=talk_end_frame
-                # if talk_end_frame_new%3!=0:
-                #     talk_end_frame_new=talk_end_frame_new+1
-                # if talk_end_frame_new%3!=0:
-                #     talk_end_frame_new=talk_end_frame_new+1
-                # title="Total" if face_index==0 else None
-                # df_emotion_count_total=df_emotion_count
-                # df_emotion_count_total["Negative"]=df_emotion[df_emotion["frame_number"]==talk_end_frame_new]["negative"]*3
-                # df_emotion_count_total["Normal"]=df_emotion[df_emotion["frame_number"]==talk_end_frame_new]["normal"]*3
-                # df_emotion_count_total["Positive"]=df_emotion[df_emotion["frame_number"]==talk_end_frame_new]["positive"]*3
-                # df_emotion_count_total["Unknown"]=df_emotion[df_emotion["frame_number"]==talk_end_frame_new]["unknown"]*3
-                # df_emotion_count_total.sort_index(inplace=True)
-                # df_emotion_count_total.plot(kind="barh", ax=axes[face_index, 2], color=["blue", "green", "red", "gray"],
-                #                   xticks=[0, talk_end_frame // 2,
-                #                           talk_end_frame ],
-                #                   xlim=(0, talk_end_frame ), fontsize=6)
-                # axes[face_index, 2].set_title(title, fontsize=6)
-
-                df_emotion_count_t = df_emotion['prediction'][0:talk_end_frame].value_counts()
-                no_emotions = list(set(emotions) - set(df_emotion_count_t.index.values))
-                for no_emotion in no_emotions:
-                    df_emotion_count_t[no_emotion] = 0
-                df_emotion_count_t.sort_index(inplace=True)
-                title = "Total" if face_index == 0 else None
-                df_emotion_count_t.plot(kind="barh", ax=axes[face_index, 2], color=["blue", "green", "red", "gray"],
-                                      xticks=[0, (talk_end_frame) // 2, talk_end_frame], xlim=(0, talk_end_frame),
-                                      fontsize=6)
-                axes[face_index, 2].set_title(title, fontsize=6)
-
-            # plt.subplots_adjust(wspace=0.40)  # axe間の余白を調整
-            self.subplot.subplots_adjust(wspace=0.40)  # axe間の余白を調整
-
-            self.mpl_widget.draw()
-
-
-def resize_with_original_aspect(img, base_w, base_h):
-    base_ratio = base_w / base_h  # リサイズ画像サイズ縦横比
-    img_h, img_w = img.shape[:2]  # 画像サイズ
-    img_ratio = img_w / img_h  # 画像サイズ縦横比
-
-    white_img = np.zeros((base_h, base_w, 3), np.uint8)  # 白塗り画像のベース作成
-    white_img[:, :] = [255, 255, 255]  # 白塗り
-
-    # 画像リサイズ, 白塗りにオーバーレイ
-    if img_ratio > base_ratio:
-        h = int(base_w / img_ratio)  # 横から縦を計算
-        w = base_w  # 横を合わせる
-        resize_img = cv2.resize(img, (w, h))  # リサイズ
-    else:
-        h = base_h  # 縦を合わせる
-        w = int(base_h * img_ratio)  # 縦から横を計算
-        resize_img = cv2.resize(img, (w, h))  # リサイズ
-
-    white_img[int(base_h / 2 - h / 2):int(base_h / 2 + h / 2),
-    int(base_w / 2 - w / 2):int(base_w / 2 + w / 2)] = resize_img  # オーバーレイ
-    resize_img = white_img  # 上書き
-
-    return resize_img
 
 class DataFrameWidget(pg.TableWidget):
     """
@@ -646,105 +460,76 @@ def create_summary(emotion_dir, diarization_dir):
     df_summary = pd.DataFrame(data_summary, index=rows_summary, columns=new_columns_name)
     return df_summary
 
-##
 
+def main_overlay(
+    video_path: str = "../gui_araki/data/test_video_emotion.avi",
+    emotion_dir: str = "/home/icer/Project/dataset/emotion",
+    diarization_dir: str = "/home/icer/Project/dataset/transcript/diarization",
+    transcript_csv_path: str = "../gui_araki/data/transcript.csv",
+    diarization_csv_path: str = "../gui_araki/data/transcript.csv",
+    emotion_csv_path_list: list = []
+):
+    # initialize qt_app
+    app = pg.mkQApp("Overlay")
+    win = QtGui.QMainWindow()
+    area = DockArea()
+    win.setCentralWidget(area)
+    win.resize(1920, 1080)
+    win.setWindowTitle("Overlay")
 
+    # initialize each dock
+    d1 = Dock("Emotion", size=(1600, 900))
+    d2 = Dock("Control", size=(1600, 100))
+    d3 = Dock("Transcript", size=(1600, 100))
+    d4 = Dock("Summary", size=(800, 400))
+    d5 = Dock("Diarization", size=(1600, 500))
+    d6 = Dock("OverviewDiarization", size=(1600, 500))
 
-dataset_dir = "/home/user/icer/Project/dataset/"
-# dataset_dir = "/home/icer/Project/dataset"
-# data_dir = "./gui_araki/data/"
-data_dir = "../gui_araki/data/"
-data_test="/home/user/icer/icer/"
+    # set dock's position
+    area.addDock(d1, 'left')
+    area.addDock(d2, 'bottom', d1)
+    area.addDock(d4, 'right', d1)
+    area.addDock(d3, 'bottom', d1)
+    area.addDock(d5, 'top', d2)
+    area.addDock(d6, 'right', d5)
 
-app = pg.mkQApp("Overlay")
-win = QtGui.QMainWindow()
-area = DockArea()
-win.setCentralWidget(area)
-win.resize(1920, 1080)
-win.setWindowTitle("Overlay")
+    # settings for video
+    vlc_widget_list = []
+    vlc_widget1 = VLCWidget()
+    vlc_widget_list.append(vlc_widget1)
+    d1.addWidget(vlc_widget1)
+    vlc_widget1.media = video_path
+    vlc_widget1.play()
 
-d1 = Dock("Emotion", size=(1600, 900))
-d2 = Dock("Control", size=(1600, 100))
-d3 = Dock("Transcript", size=(1600, 100))
-d7 = Dock("Diarization", size=(1600, 500))
-d8 = Dock("OverviewDiarization", size=(1600, 500))
+    # make widgets for each dock
+    d2.addWidget(VLCControl(vlc_widget_list))
+    d3.addWidget(TranscriptWidget(vlc_widget1, transcript_csv=transcript_csv_path))
+    summary = DataFrameWidget(
+        create_summary(emotion_dir=emotion_dir, diarization_dir=diarization_dir))
+    d4.addWidget(summary)
+    d5.addWidget(DiarizationWidget(vlc_widget1, diarization_csv=diarization_csv_path))
+    d6.addWidget(OverviewDiarizationWidget(
+        vlc_widget1,
+        diarization_csv=diarization_csv_path,
+        emotion_csv_list=emotion_csv_path_list)
+    )
 
-# d4 = Dock("Dock4 (tabbed) - Plot", size=(500, 200))
-d5 = Dock("Summary", size=(800, 400))
-# d6 = Dock("Dock6 (tabbed) - Plot", size=(500, 200))
-d6 = Dock("Emotion_Statistics", size=(800,800)) ##
+    # run displaying
+    win.showMaximized()
+    pg.mkQApp().exec_()
 
-
-area.addDock(d1, 'left')
-area.addDock(d2, 'bottom', d1)
-# area.addDock(d3, 'right', d2)
-# area.addDock(d4, 'right')
-area.addDock(d5, 'right', d1)
-# area.addDock(d6, 'top', d4)
-
-area.addDock(d3, 'bottom', d1)
-area.addDock(d7, 'top', d2)
-area.addDock(d8, 'right', d7)
-
-area.addDock(d6, 'right',d1)##
-
-vlc_widget_list = []
-vlc_widget1 = VLCWidget()
-vlc_widget_list.append(vlc_widget1)
-d1.addWidget(vlc_widget1)
-vlc_widget1.media = data_dir + "test_video_emotion.avi"
-vlc_widget1.play()
-
-# vlc_widget2 = VLCWidget()
-# d3.addWidget(vlc_widget2)
-# vlc_widget_list.append(vlc_widget2)
-# vlc_widget2.media = "low_fps.mp4"
-# vlc_widget2.play()
-
-d2.addWidget(VLCControl(vlc_widget_list))
-d3.addWidget(TranscriptWidget(vlc_widget1, transcript_csv=data_dir + "transcript.csv"))
-
-# summary = pg.ImageView()
-# img = np.array(Image.open("summary_dummy.png")).T
-# summary.setImage(img)
-# summary.ui.histogram.hide()
-# summary.ui.roiBtn.hide()
-# summary.ui.roiPlot.hide()
-# summary.ui.menuBtn.hide()
-# d5.addWidget(summary)
-
-summary = DataFrameWidget(create_summary(dataset_dir + "/emotion", dataset_dir + "/transcript/diarization"))
-d5.addWidget(summary)
-# w5 = pg.ImageView()
-# w5.setImage(np.random.normal(size=(100, 100)))
-# d5.addWidget(w5)
-#
-# w6 = pg.PlotWidget(title="Dock 6 plot")
-# w6.plot(np.random.normal(size=100))
-# d6.addWidget(w6)
-
-d7.addWidget(DiarizationWidget(vlc_widget1, diarization_csv=data_dir + "transcript.csv"))
-
-emotion_csv_list = [
-    dataset_dir + "emotion/" + "result0.csv",
-    dataset_dir + "emotion/" + "result1.csv",
-    dataset_dir + "emotion/" + "result2.csv",
-    dataset_dir + "emotion/" + "result3.csv",
-    dataset_dir + "emotion/" + "result4.csv"
-]
-d8.addWidget(OverviewDiarizationWidget(vlc_widget1, diarization_csv=data_dir + "transcript.csv", emotion_csv_list=emotion_csv_list))
-
-##
-# vlc_widget2 = VLCWidget()
-# vlc_widget_list.append(vlc_widget2)
-# d6.addWidget(vlc_widget2)
-# vlc_widget2.media = data_dir + emo_to_video("/home/user/icer/icer/main_test (copy)/face/cluster/","/home/user/icer/icer/main_test (copy)/emotion/","/home/user/icer/icer/main_test (copy)/transcript/diarization/result.csv","/home/user/icer/icer/main_test (copy)/emotion/output.avi","/home/user/icer/icer/outputs/test3.avi",3)
-# # vlc_widget2.media="/home/user/icer/icer/outputs/test3.avi"
-# vlc_widget2.play()
-
-d6.addWidget(EmotionStatisticsWidget(vlc_widget1, emo_files_dir=data_test+"main_test (copy)/emotion/",face_dir=data_test+"main_test (copy)/face/cluster/",diarization_csv=data_test+"main_test (copy)/transcript/diarization/result.csv",list_file_dir=data_test+"main_test (copy)/index.txt",input_video_path=data_test+"main_test (copy)/emotion/output.avi"))
-
-win.showMaximized()
 
 if __name__ == '__main__':
-    pg.mkQApp().exec_()
+    face_num = 5
+    emotion_csv_path_list = [
+        os.path.join("/home/icer/Project/dataset/emotion", f"result{face_index}.csv") for face_index in range(face_num)
+    ]
+    main_kwargs = {
+        "video_path": "./gui_araki/data/test_video_emotion.avi",
+        "emotion_dir": "/home/icer/Project/dataset/emotion",
+        "diarization_dir": "/home/icer/Project/dataset/transcript/diarization",
+        "transcript_csv_path": "./gui_araki/data/transcript.csv",
+        "diarization_csv_path": "./gui_araki/data/transcript.csv",
+        "emotion_csv_path_list": emotion_csv_path_list
+    }
+    main_overlay(**main_kwargs)
