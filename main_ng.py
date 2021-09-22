@@ -4,6 +4,9 @@ import datetime
 
 from PyQt5.QtWidgets import QFileDialog
 
+from utils.calibrate import adjust_offset
+from utils.video_utils import get_roi
+
 config = {
     # Run mode
     "run_capture_face": True,  # 動画から顔領域の切り出し
@@ -84,6 +87,15 @@ def run_overlay(**kwargs):
 
 @timeit
 def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None, face_video_list=None):
+    # TODO get video_path, output_dir and audio_path_list via dialogs
+
+    # Preprocess
+    offset = 0
+    if config["run_capture_face"] or config["run_emotion_recognition"]:
+        offset = adjust_offset(video_path)
+    if config["run_capture_face"]:
+        roi = get_roi(video_path, offset, message="顔検出を行う領域を指定し、ENTERキーを押してください。指定しない場合はそのままウインドウを閉じてください。")
+
     capture_face_result = None
     if config["run_capture_face"]:
         capture_face_dir = os.path.join(output_dir, "face_capture")
@@ -128,7 +140,7 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
 # TODO add filecheck
 if __name__ == "__main__":
     # show select input directory dialog
-    input_dir = str(QFileDialog.getExistingDirectory(None, "Select Input Directory"))
+    # input_dir = str(QFileDialog.getExistingDirectory(None, "Select Input Directory"))
     # structure of input directory
     # -- reid
     #    -- *.avi / *.mp4 (reid videos)

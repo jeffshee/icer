@@ -68,7 +68,7 @@ def adjust_offset(video_path: str = None):
     """
     if not video_path:
         video_path = get_video_path()
-    video_capture = get_video_capture(video_path)
+    video_capture = cv2.VideoCapture(video_path)
     ret, frame = video_capture.read()
     app = QApplication(sys.argv)
     win = OffsetGUI(frame)
@@ -109,6 +109,21 @@ def calibrate_video_ffmpeg(video_path: str = None, use_gpu=True):
                 """
 
     subprocess.call(cmd, shell=True)
+
+
+class VideoCaptureWithOffset(cv2.VideoCapture):
+    """
+    VideoCapture with offset
+    """
+    def __init__(self, offset=0, *args, **kwargs):
+        self.offset = offset
+        super(VideoCaptureWithOffset, self).__init__(*args, **kwargs)
+
+    def read(self, image=None):
+        retval, image = super().read(image)
+        if retval:
+            image = img_offset(image, self.offset)
+        return retval, image
 
 
 if __name__ == "__main__":

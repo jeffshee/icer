@@ -17,7 +17,7 @@ def get_timestamp():
 
 
 def calculate_original_box(top, right, bottom, left, resized_w, resized_h, original_w, original_h, roi=None):
-    if roi is not None:
+    if roi:
         pad_x, pad_y = roi[0], roi[1]
         return [pad_y + top, pad_x + right, pad_y + bottom, pad_x + left]
     else:
@@ -41,7 +41,7 @@ def calculate_box_midpoint(top, right, bottom, left):
 
 
 def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0, batch_size=8,
-                drop_last=True, return_dict=None, roi=None):
+                drop_last=True, return_dict=None, roi=None, offset=0):
     """
     Detect all the faces in video, using CNN and CUDA for high accuracy and performance
     Refer to the example of face_recognition below:
@@ -58,7 +58,7 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
     :param frame_skip:
     :param return_dict:
     :param roi: ROI where the face recognition is performed
-
+    :param offset:
     :return:
     """
     # NOTE: face_recognition MUST NOT imported before dlib, CUDA will fail to initialize otherwise
@@ -70,14 +70,14 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
     from face_utils.encode_face import batch_face_encodings
 
     # Open video file
-    video_capture = cv2.VideoCapture(video_path)
-    if roi is not None:
+    video_capture = get_video_capture_with_offset(video_path, offset)
+    if roi:
         original_w, original_h = roi[2], roi[3]
     else:
         original_w, original_h = get_video_dimension(video_path)
 
     # Resize
-    if k_resolution is not None:
+    if k_resolution:
         resize_rate = (1080 * k_resolution) / original_w
     else:
         resize_rate = 1
@@ -117,11 +117,11 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
             continue
 
         # Crop
-        if roi is not None:
+        if roi:
             frame = frame[int(roi[1]):int(roi[1] + roi[3]), int(roi[0]):int(roi[0] + roi[2])]
 
         # Resize
-        if k_resolution is not None:
+        if k_resolution:
             frame = cv2.resize(frame, (w, h))
 
         # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
@@ -153,14 +153,14 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
             frame_list = []
             frame_numbers = []
 
-    if return_dict is not None:
+    if return_dict:
         return_dict[gpu_index] = result
 
 
 # TODO: Have a possibility causing CUDA OOM, need optimization. (Implemented drop_last as workaround)
 # Consider https://github.com/1adrianb/face-alignment or https://github.com/jacobgil/dlib_facedetector_pytorch
 def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, frame_skip=3, batch_size=8,
-                             roi=None, output_dir=".") -> list:
+                             roi=None, offset=0, output_dir=".") -> list:
     # Note: Batch size = 8 is about the limitation of current machine
     print(f"\nProcessing {video_path}")
     print("Using", parallel_num, "GPU(s)")
@@ -176,7 +176,9 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
                       "k_resolution": k_resolution,
                       "frame_skip": frame_skip,
                       "batch_size": batch_size,
-                      "return_dict": return_dict}
+                      "return_dict": return_dict,
+                      "offset": offset
+                      }
         else:
             four_k_size = 3840 * 2160
             roi_size = int(roi[2] * roi[3])
@@ -192,7 +194,9 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
                           "k_resolution": k_resolution,
                           "frame_skip": frame_skip,
                           "batch_size": batch_size,
-                          "return_dict": return_dict}
+                          "return_dict": return_dict,
+                          "offset": offset
+                          }
             else:
                 # Proceed with the heuristic
                 kwargs = {"video_path": video_path,
@@ -202,7 +206,9 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
                           "frame_skip": frame_skip,
                           "batch_size": int(batch_size * ratio),
                           "return_dict": return_dict,
-                          "roi": roi}
+                          "roi": roi,
+                          "offset": offset
+                          }
             if config["debug"]:
                 print(kwargs)
         p = Process(target=detect_face, kwargs=kwargs)
@@ -235,7 +241,7 @@ def match_result(result_from_detect_face: list, method="cluster_face", **kwargs)
         return match_frame(result_from_detect_face, **kwargs)
     elif method == "reidentification":
         # Detect face for all single person face video
-        assert kwargs["face_video_list"] is not None
+        assert kwargs["face_video_list"]
         face_video_list = kwargs["face_video_list"]
         face_video_result = []
         for face_video in face_video_list:
@@ -252,6 +258,7 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
     :param result_from_match_result: Result from match_result
     :param video_path: Input video path
     :param box_th: ignore boxes that too far from median
+    :param output_dir:
     :return:
     """
     print(f"\nInterpolating result")
@@ -265,7 +272,7 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
     for key, face_list in result_from_match_result.items():
         # Interpolate (top,right,bottom,left) for undetected frames
         # Set to None when interpolation is impossible, e.g. before the first or after the last detected frame
-        face_list_detected = [face for face in face_list if face.is_detected and face.location is not None]
+        face_list_detected = [face for face in face_list if face.is_detected and face.location]
         face_location_median = np.median([calculate_box_midpoint(*face.location) for face in face_list_detected],
                                          axis=0)
         face_list_filtered = []
@@ -318,35 +325,7 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
     return result_from_match_result
 
 
-# def main(video_path: str, output_dir: str, face_num=None, face_video_list=None):
-#     """
-#     Main routine
-#     NOTE, format of interpolated result:
-#     Dict{
-#         0: [<Face>, <Face>, ...], # Result of person 0
-#         1: [<Face>, <Face>, ...], # Result of person 1
-#         2: [<Face>, <Face>, ...], # Result of person 2
-#         ...
-#     }
-#     """
-#     # Prepare output_dir
-#     os.makedirs(output_dir, exist_ok=True)
-#     # Capture Face
-#     roi = get_roi(video_path)
-#     start = time.time()
-#     result = interpolate_result(
-#         match_result(detect_face_multiprocess(video_path, roi=roi), method="reidentification",
-#                      face_video_list=face_video_list), video_path=video_path)
-#     # Emotion Recognition
-#     from face_utils.emotion_recognition import emotion_recognition_multiprocess
-#     emotion_recognition_multiprocess(result, video_path, output_dir)
-#     # Output Video
-#     output_video_emotion_multiprocess(result, [os.path.join(output_dir, f"output_emo/result{i}.csv") for i in range(6)],
-#                                       video_path,
-#                                       output_path=os.path.join(output_dir, f"{os.path.basename(video_path)[:-4]}_emotion.avi"))
-#     print('capture_face elapsed time:', time.time() - start, '[sec]')
-
-def main(video_path: str, output_dir: str, face_num=None, face_video_list=None):
+def main(video_path: str, output_dir: str, roi=None, offset=0, face_num=None, face_video_list=None):
     """
     Main routine
     :return: interpolated result
@@ -357,10 +336,9 @@ def main(video_path: str, output_dir: str, face_num=None, face_video_list=None):
         ...
     }
     """
-    roi = get_roi(video_path, message="顔検出を行う領域を指定し、ENTERキーを押してください。指定しない場合はそのままウインドウを閉じてください。")
     start = time.time()
-    result = detect_face_multiprocess(video_path, roi=roi, output_dir=output_dir)
-    if face_video_list is not None:
+    result = detect_face_multiprocess(video_path, roi=roi, offset=offset, output_dir=output_dir)
+    if face_video_list:
         result = match_result(result, method="reidentification", face_video_list=face_video_list, output_dir=output_dir)
     else:
         face_cluster_dir = os.path.join(output_dir, "face_cluster")
@@ -370,12 +348,3 @@ def main(video_path: str, output_dir: str, face_num=None, face_video_list=None):
     result = interpolate_result(result, video_path=video_path, output_dir=output_dir)
     print('capture_face elapsed time:', time.time() - start, '[sec]')
     return result
-
-
-def test():
-    main("../datasets/test/test_video.mp4", "../output/face_capture", 6,
-         ["../datasets/test/reid/reid_{:02d}.mp4".format(i) for i in range(1, 7)])
-
-
-if __name__ == "__main__":
-    test()
