@@ -7,6 +7,7 @@
       <sourceFolder url="file://$MODULE_DIR$/speaker_diarization/visualization" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/speaker_diarization/uisrnn" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/test" />
+      <excludeFolder url="file://$MODULE_DIR$/venv" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.8 (icer)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
