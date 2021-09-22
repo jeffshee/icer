@@ -8,24 +8,27 @@ def window_feature(data):
     """
     ウィンドウごとのデータから11次元データを抽出
     """
-    
     features = []
-    
+
     features.append(np.mean(data)) # 平均値
     features.append(np.std(data)) # 標準偏差
     features.append(stats.median_abs_deviation(data)) # median_absolute_deviation
     features.append(np.max(data)) # max
     features.append(np.min(data)) # min
-    features.append(np.mean(data**2)) # energy（二乗平均）
-    features.append(stats.entropy(data)) # entropy
+    features.append(np.mean(data**2)) # energy（二乗平均
+    normed_data = (data - np.min(data)) / (np.max(data) - np.min(data))
+    features.append(stats.entropy(normed_data)) # entropy
     features.append(stats.iqr(data)) # 四分位範囲
     features.append(np.max(data) - np.min(data)) # 範囲
     features.append(stats.skew(data)) # Skewness 
     features.append(stats.kurtosis(data)) # Kurtosis
 
-    return features   
+    return features
 
-def sliding_window(data, label, width=32, overlap=16):
+def window_check(success):
+    return np.count_nonzero(success)/len(success)
+
+def sliding_window(data, success=False, width=32, overlap=16):
     """
     スライディングウィンドウ法により特徴抽出
     """
@@ -44,33 +47,43 @@ def sliding_window(data, label, width=32, overlap=16):
     outputs = []    
     for window in windows:
         trans_data = data[window-width:window]
-        outputs.append(window_feature(trans_data))
+
+        if success:
+            outputs.append(window_check(trans_data))
+
+        else:
+            outputs.append(window_feature(trans_data))
         
-    # 正解ラベル
-    labels = np.full(n_windows, int(label))
-        
-    return np.array(outputs), labels.reshape(len(labels), 1)
+    return np.array(outputs)
 
 def feature_grouping(df, label):
+    """
+    集約特徴量の作成
+    ロー、ピッチ、ヨーごとにスライディングウィンドウ
+    """
 
     # ロー、ピッチ、ヨーを取り出し
-    data_x = df[" pose_Rx"].values
-    data_y = df[" pose_Ry"].values
-    data_z = df[" pose_Rz"].values
+    data_x = df["pose_Rx"].values
+    data_y = df["pose_Ry"].values
+    data_z = df["pose_Rz"].values
+    success = df["success"].values
 
     # それぞれスライディングウィンドウ
-    outputs_x, labels_x = sliding_window(data_x, label)
-    outputs_y, labels_y = sliding_window(data_y, label)
-    outputs_z, labels_z = sliding_window(data_z, label)
+    outputs_x = sliding_window(data_x)
+    outputs_y = sliding_window(data_y)
+    outputs_z = sliding_window(data_z)
+    success_rate = sliding_window(success, True)
 
-    # 値同じならok
-    print(len(labels_x), len(labels_y), len(labels_z))
+    # 正解ラベル
+    labels = np.full(len(outputs_x), int(label))
+    labels = labels.reshape(len(labels), 1)
 
     # 合成
-    outputs = np.concatenate([outputs_x, outputs_y, outputs_z], axis=1)
-    # labels = np.concatenate([labels_x, labels_y, labels_z], axis=1)
+    success_rate = success_rate.reshape(len(success_rate), 1)
+    # outputs = np.concatenate([outputs_x, outputs_y, outputs_z], axis=1)
+    outputs = np.concatenate([outputs_x, outputs_y, outputs_z, success_rate], axis=1)
 
-    return outputs, labels_x
+    return outputs, labels
 
 def trans_pandas(data, labels, columns_ori):
     """ numpy -> pandas """
@@ -82,10 +95,10 @@ def trans_pandas(data, labels, columns_ori):
     columns = columns_x[:]
     columns.extend(columns_y)
     columns.extend(columns_z)
+    columns.append("success_rate")
     columns.append("label")
 
     # dataとlabelを結合
-    # labels = labels.reshape(len(labels), 1)
     data = np.concatenate([data, labels], axis=1)
 
     # dataframe作成
@@ -94,8 +107,16 @@ def trans_pandas(data, labels, columns_ori):
     return out_df
 
 def make_dataset(dir_path, out_path, feature_dim=11):
+    """
+    main
+    複数のcsvファイルを読み込んで、スライディングウィンドウ法により
+    約1秒間のopenfaceのデータから集約特徴量生成
 
-    outputs_list = np.empty((0, feature_dim*3))
+    label: 1うなづきあり、0うなずきなし
+    """
+
+    # outputs_list = np.empty((0, feature_dim*3))
+    outputs_list = np.empty((0, feature_dim*3+1))
     labels_list = np.empty((0, 1))
 
     # 各動画のopenface情報から特徴量抽出
@@ -109,6 +130,13 @@ def make_dataset(dir_path, out_path, feature_dim=11):
             label = False
 
         print(f"csv: {csv_path}, label: {label}")
+
+        # 元のcsvのカラム名の先頭に空白があるため
+        columns_dict = {}
+        for column_name in input_df.columns:
+            columns_dict[column_name] = column_name.lstrip()
+        columns_dict
+        input_df = input_df.rename(columns=columns_dict)
 
         # スライディング法により特徴量抽出
         outputs, labels = feature_grouping(input_df, label)
@@ -127,5 +155,5 @@ def make_dataset(dir_path, out_path, feature_dim=11):
 if __name__ == "__main__":
 
     DIR_PATH = "../../movie/processed_data/"
-    OUT_PATH = "./preprocess_1.csv"
+    OUT_PATH = "./preprocess_2.csv"
     make_dataset(DIR_PATH, OUT_PATH)
