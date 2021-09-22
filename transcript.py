@@ -507,10 +507,10 @@ if __name__ == "__main__":
     #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
     #            config)
     #
-    # config['embedding_per_second'] = 0.5
-    # config['overlap_rate'] = 0.7
-    # variant = '_uis_rnn_30sec_loudness_0.5_0.7'
-    # transcript('output_exp22' + variant,
-    #            ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
-    #            config)
+    config['embedding_per_second'] = 0.5
+    config['overlap_rate'] = 0.7
+    variant = '_uis_rnn_30sec_loudness_0.5_0.7'
+    transcript('output_exp22' + variant,
+               ["test/wave/200225_芳賀先生_実験22/200225_芳賀先生_実験22voice{}.wav".format(i) for i in range(1, 6)],
+               config)
     pass

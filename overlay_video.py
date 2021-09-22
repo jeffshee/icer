@@ -131,17 +131,17 @@ def overlay_parallel(input_movie_path, output_movie_path, fourcc, split_frame_li
 
     input_movie = cv2.VideoCapture(input_movie_path)  # 動画を読み込む
     output_movie = cv2.VideoWriter(output_movie_path, fourcc, video_frame_rate,
-                                   (embedded_video_width + w_padding, embedded_video_height + h_padding + h_transcript))
+                                   (embedded_video_width + w_padding, embedded_video_height + h_padding + h_transcript))##输出视频格式
 
-    frame_duration = video_length // split_video_num
-    start_frame = split_video_index * frame_duration
-    stop_frame = video_length if split_video_index == split_video_num - 1 else start_frame + frame_duration
+    frame_duration = video_length // split_video_num ##分段长度
+    start_frame = split_video_index * frame_duration ##开始时间
+    stop_frame = video_length if split_video_index == split_video_num - 1 else start_frame + frame_duration ##结束时间
     input_movie.set(cv2.CAP_PROP_POS_FRAMES, start_frame)  # 動画の開始フレームを設定
 
     # 動画をフレーム単位で処理
-    for frame_number in range(start_frame, stop_frame):
+    for frame_number in range(start_frame, stop_frame): ##每一帧的处理
         time_ms = int((1000 * frame_number) // video_frame_rate)
-        for i, split_frame in enumerate(split_frame_list):
+        for i, split_frame in enumerate(split_frame_list):  ##确定当前讲话者的起始时间和终止时间
             if frame_number < split_frame:
                 talk_start_frame = split_frame_list[i - 1]
                 talk_end_frame = split_frame_list[i]
@@ -187,7 +187,7 @@ def overlay_parallel(input_movie_path, output_movie_path, fourcc, split_frame_li
         for face_index, face_path in enumerate(faces_path):
             # 顔を表示
             if face_index == current_speaker:
-                img = np.array(add_border(face_path, border=5, color='rgb(255,215,0)'))
+                img = np.array(add_border(face_path, border=5, color='rgb(255,215,0)')) ##当前讲话人添加边界
             else:
                 img = np.array(Image.open(face_path))
 
@@ -207,11 +207,11 @@ def overlay_parallel(input_movie_path, output_movie_path, fourcc, split_frame_li
             for no_emotion in no_emotions:
                 df_emotion_count[no_emotion] = 0
             df_emotion_count.sort_index(inplace=True)
-            title = "Current" if face_index == 0 else None
+            title = "Current" if face_index == 0 else None  ##仅添加一次标题
             df_emotion_count.plot(kind="barh", ax=axes[face_index, 1], color=["blue", "green", "red", "gray"],
                                   xticks=[0, (talk_end_frame - talk_start_frame) // 2,
                                           talk_end_frame - talk_start_frame],
-                                  xlim=(0, talk_end_frame - talk_start_frame), fontsize=18)
+                                  xlim=(0, talk_end_frame - talk_start_frame), fontsize=18) ##作图
             axes[face_index, 1].set_title(title, fontsize=18)
 
             # 累積感情
@@ -410,11 +410,11 @@ def overlay_all_results(input_video_path, output_video_path, diarization_result_
 
     # diarization結果を口の開閉とのマッチング結果に置き換える
     df_diarization = pd.read_csv(diarization_result_path, encoding="shift_jis", header=0,
-                                 usecols=["time(ms)", "speaker class"])
+                                 usecols=["time(ms)", "speaker class"]) ##读取判别说话人结果文件
     df_diarization_copy = df_diarization.copy()
     for speaker_class in range(len(df_diarization["speaker class"].unique())):
         df_diarization["speaker class"][df_diarization_copy["speaker class"] == speaker_class] = matching_index_list[
-            speaker_class]
+            speaker_class] ##替换原有讲话者的索引
 
     # 出力動画の詳細を設定する
     fourcc = cv2.VideoWriter_fourcc(*'XVID')  # 動画コーデック指定
@@ -426,45 +426,45 @@ def overlay_all_results(input_video_path, output_video_path, diarization_result_
     resize_rate = (1080 * k_resolution) / original_w
     embedded_video_width = int(original_w * resize_rate)
     embedded_video_height = int(original_h * resize_rate)
-    h_padding = int(embedded_video_height // 2)
-    h_transcript = int(embedded_video_height // 8)
-    w_padding = int(embedded_video_width // 2)
+    h_padding = int(embedded_video_height // 2) ##补充的高度(说话人判别)
+    h_transcript = int(embedded_video_height // 8) ##对话文字内容高度
+    w_padding = int(embedded_video_width // 2) ##宽度补充
 
     # speakerの切り替わりのタイミングを取得する
     df_diarization_sorted = df_diarization.copy()
     df_diarization_sorted.sort_values(by=["time(ms)"], ascending=True, inplace=True)
     df_diarization_sorted_diff = df_diarization_sorted.copy()
     df_diarization_sorted_diff["speaker class"] = df_diarization_sorted_diff["speaker class"].diff()
-    df_split_ms = df_diarization_sorted_diff[df_diarization_sorted_diff["speaker class"] != 0]
+    df_split_ms = df_diarization_sorted_diff[df_diarization_sorted_diff["speaker class"] != 0] ##获得说话人的切换的时间
 
-    buff = df_diarization_sorted[df_diarization_sorted_diff["speaker class"] != 0].copy()
+    buff = df_diarization_sorted[df_diarization_sorted_diff["speaker class"] != 0].copy() ##获得说话人切换时间原本说话人的分类
     speaker_swith = {}
     speaker_swith[buff["time(ms)"][0]] = [None, None]
     for prev_t, next_t, prev_speaker, next_speaker in zip(buff["time(ms)"][:-1], buff["time(ms)"][1:],
-                                                          buff["speaker class"][:-1], buff["speaker class"][1:]):
-        speaker_swith[next_t] = [prev_speaker, next_speaker]
+                                                          buff["speaker class"][:-1], buff["speaker class"][1:]):##从第一位到倒数第二位 从第二位到倒数第一位的数据
+        speaker_swith[next_t] = [prev_speaker, next_speaker] ##获取切换时间点前一个人和后一个人的转换顺序
 
     # 議論のsummary画像を作成する
-    data_summary = [[] for _ in range(true_face_num)]
+    data_summary = [[] for _ in range(true_face_num)] ##建立人数个[]
     columns_summary = ['Num of\nutterances', 'Speech\ntime [s]', "Speech\ndensity [s]", 'Time\noccupancy [%]',
                        "Num of\nnods"]
     new_columns_name = ['発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数"]
-    num_of_utterances = collections.Counter(del_continual_value(df_diarization_sorted["speaker class"].to_list()))
+    num_of_utterances = collections.Counter(del_continual_value(df_diarization_sorted["speaker class"].to_list()))##统计说话人转换的次数
     speech_time = df_diarization["speaker class"].value_counts() / 1000
     time_occupancy = df_diarization["speaker class"].value_counts(normalize=True)
     for x in range(true_face_num):
         try:
-            data_summary[x].append(int(num_of_utterances[x]))
+            data_summary[x].append(int(num_of_utterances[x])) ##添加发话次数
         except KeyError:
             data_summary[x].append(0)
 
         try:
-            data_summary[x].append(int(speech_time[x]))
+            data_summary[x].append(int(speech_time[x]))  ##添加对话时间
         except KeyError:
             data_summary[x].append(0)
 
         try:
-            data_summary[x].append(int(speech_time[x] / num_of_utterances[x]))
+            data_summary[x].append(int(speech_time[x] / num_of_utterances[x])) ##平均每次对话的时间
         except KeyError:
             data_summary[x].append(0)
 
@@ -476,13 +476,13 @@ def overlay_all_results(input_video_path, output_video_path, diarization_result_
         df_gesture_tmp = pd.read_csv(join(emotion_dir, "result{}.csv".format(x)), encoding="shift_jis", header=0,
                                      usecols=["gesture"])
         df_gesture_tmp = df_gesture_tmp[df_gesture_tmp.diff()["gesture"] != 0]
-        gesture_count = df_gesture_tmp["gesture"].value_counts()
+        gesture_count = df_gesture_tmp["gesture"].value_counts()##点头次数
         try:
             data_summary[x].append(int(gesture_count[1]))
         except KeyError:
             data_summary[x].append(0)
     rows_summary = [" {} ".format(index_to_name_dict[index]) for index in range(len(faces_path))]
-    df_summary = pd.DataFrame(data_summary, index=rows_summary, columns=columns_summary)
+    df_summary = pd.DataFrame(data_summary, index=rows_summary, columns=columns_summary) ##制作总图
     print(df_summary)
     plot_tabel(df_summary, join(emotion_dir, "summary_{}.png".format(video_name)), colLabels=new_columns_name)
     summary_image = cv2.imread(join(emotion_dir, "summary_{}.png".format(video_name)))
@@ -490,19 +490,19 @@ def overlay_all_results(input_video_path, output_video_path, diarization_result_
 
     # 動画として保存
     split_frame_list = [int(split_ms * video_frame_rate / 1000) for split_ms in df_split_ms["time(ms)"]]
-    split_frame_list = [0] + split_frame_list + [video_length]
+    split_frame_list = [0] + split_frame_list + [video_length] ##数组中添加起点0和终点
     print("split_frame_list", split_frame_list)
 
     df_transcript = pd.read_csv(transcript_result_path, encoding="utf_8_sig", header=0,
                                 usecols=['Order', 'Start time(HH:MM:SS)', 'End time(HH:MM:SS)', 'Text', 'Speaker',
-                                         'Start time(ms)', 'End time(ms)'])
+                                         'Start time(ms)', 'End time(ms)'])##读取语音转文本的表
     # 並列処理で動画を作成する
     split_video_num_v2 = split_video_num * 2
     # split_video_num_v2 = split_video_num
     process_list = []
 
     # https://github.com/opencv/opencv/issues/5150
-    multiprocessing.set_start_method('spawn')
+    multiprocessing.set_start_method('spawn') ##多线程
     for split_video_index in range(split_video_num_v2):
         # if split_video_index > 0:
         #     continue
