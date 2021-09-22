@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 import numpy as np
 from scipy import stats
@@ -56,7 +55,7 @@ def sliding_window(data, success=False, width=32, overlap=16):
         
     return np.array(outputs)
 
-def feature_grouping(df, label):
+def feature_grouping(df):
     """
     集約特徴量の作成
     ロー、ピッチ、ヨーごとにスライディングウィンドウ
@@ -72,18 +71,14 @@ def feature_grouping(df, label):
     outputs_x = sliding_window(data_x)
     outputs_y = sliding_window(data_y)
     outputs_z = sliding_window(data_z)
-    success_rate = sliding_window(success, True)
-
-    # 正解ラベル
-    labels = np.full(len(outputs_x), int(label))
-    labels = labels.reshape(len(labels), 1)
+    success_rate = sliding_window(success, success=True)
 
     # 合成
     success_rate = success_rate.reshape(len(success_rate), 1)
     # outputs = np.concatenate([outputs_x, outputs_y, outputs_z], axis=1)
     outputs = np.concatenate([outputs_x, outputs_y, outputs_z, success_rate], axis=1)
 
-    return outputs, labels
+    return outputs
 
 def trans_pandas(data, labels, columns_ori):
     """ numpy -> pandas """
@@ -106,7 +101,7 @@ def trans_pandas(data, labels, columns_ori):
 
     return out_df
 
-def window_check(df, th=0.8):
+def window_check(df, th=0.8, remove_sr=True):
     """
     success_rate(各ウィンドウのsuccessの割合)がth(しきい値)以下ならその行を消す処理
     """
@@ -114,13 +109,14 @@ def window_check(df, th=0.8):
     # th以下の行を削除
     sr = df["success_rate"].values
     index = np.where(sr < th)[0]
+    print(len(index), len(sr))
     df = df.drop(df.index[index])
 
     # success_rateコラムも削除
-    df = df.drop("success_rate", axis=1)
+    if remove_sr:
+        df = df.drop("success_rate", axis=1)
 
     return df
-
 
 def make_dataset(dir_path, out_path, feature_dim=11):
     """
@@ -139,11 +135,11 @@ def make_dataset(dir_path, out_path, feature_dim=11):
     for csv_path in glob(dir_path+"*csv*"):
         input_df = pd.read_csv(csv_path)
 
-        # 動画名に"nod" -> True, ない -> False
+        # 動画名に"nod" -> 1, ない -> 0
         if "nod" in csv_path:
-            label = True
+            label = 1
         else:
-            label = False
+            label = 0
 
         print(f"csv: {csv_path}, label: {label}")
 
@@ -151,12 +147,14 @@ def make_dataset(dir_path, out_path, feature_dim=11):
         columns_dict = {}
         for column_name in input_df.columns:
             columns_dict[column_name] = column_name.lstrip()
-        columns_dict
         input_df = input_df.rename(columns=columns_dict)
 
         # スライディング法により特徴量抽出
-        outputs, labels = feature_grouping(input_df, label)
+        outputs = feature_grouping(input_df)
+        labels = np.full(len(outputs), int(label))
+        labels = labels.reshape(len(labels), 1)
 
+        # 追加
         outputs_list = np.concatenate([outputs_list, outputs])
         labels_list = np.concatenate([labels_list, labels])
 
