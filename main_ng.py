@@ -66,9 +66,15 @@ def run_emotion_recognition(**kwargs):
     video_filename = f"{os.path.basename(video_path)[:-4]}_emotion.avi"
     temp_filename = f"{os.path.basename(video_path)[:-4]}_temp.avi"
     output_dir = kwargs["output_dir"]
-    output_video_emotion_multiprocess(capture_face_result,
-                                      sorted([os.path.join(output_dir, f) for f in os.listdir(output_dir)]),
-                                      video_path, output_path=os.path.join(output_dir, temp_filename))
+    offset = kwargs["offset"]
+
+    output_kwargs = dict(interpolated_result=capture_face_result,
+                         emotion_csv_path_list=sorted([os.path.join(output_dir, f) for f in os.listdir(output_dir)]),
+                         video_path=video_path,
+                         output_path=os.path.join(output_dir, temp_filename),
+                         offset=offset
+                         )
+    output_video_emotion_multiprocess(**output_kwargs)
     set_audio(os.path.join(output_dir, temp_filename), video_path, os.path.join(output_dir, video_filename))
     # Remove temp
     os.remove(temp_filename)
@@ -91,6 +97,7 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
 
     # Preprocess
     offset = 0
+    roi = None
     if config["run_capture_face"] or config["run_emotion_recognition"]:
         offset = adjust_offset(video_path)
     if config["run_capture_face"]:
@@ -100,29 +107,30 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
     if config["run_capture_face"]:
         capture_face_dir = os.path.join(output_dir, "face_capture")
         os.makedirs(capture_face_dir, exist_ok=True)
-        capture_face_result = run_capture_face(
-            **{"video_path": video_path,
-               "output_dir": capture_face_dir,
-               "face_num": face_num,
-               "face_video_list": face_video_list
-               }
-        )
+        kwargs = dict(video_path=video_path,
+                      output_dir=capture_face_dir,
+                      roi=roi,
+                      offset=offset,
+                      face_num=face_num,
+                      face_video_list=face_video_list,
+                      )
+        capture_face_result = run_capture_face(**kwargs)
     else:
         import pickle
-        if config["capture_face_pt_path"] is not None:
+        if config["capture_face_pt_path"]:
             with open(config["capture_face_pt_path"], "rb") as f:
                 capture_face_result = pickle.load(f)
 
     if config["run_emotion_recognition"]:
-        assert capture_face_result is not None
+        assert capture_face_result
         emotion_dir = os.path.join(output_dir, "emotion")
         os.makedirs(emotion_dir, exist_ok=True)
-        run_emotion_recognition(
-            **{"interpolated_result": capture_face_result,
-               "video_path": video_path,
-               "output_dir": emotion_dir
-               }
-        )
+        kwargs = dict(interpolated_result=capture_face_dir,
+                      video_path=video_path,
+                      output_dir=output_dir,
+                      offset=offset
+                      )
+        run_emotion_recognition(**kwargs)
 
     if config["run_transcript"]:
         transcript_dir = os.path.join(output_dir, "transcript")
@@ -146,7 +154,6 @@ if __name__ == "__main__":
     #    -- *.avi / *.mp4 (reid videos)
     # -- *.avi / *.mp4 (MTG video)
     # -- *.wav (pin-mic voices)
-
 
     # expt12 s2t only
     # main_kwargs = {

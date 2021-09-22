@@ -1,14 +1,10 @@
 import csv
 import os
-from multiprocessing import Process
 
-import cv2
-import numpy as np
 from scipy.spatial import distance as dist
 from tqdm import tqdm
 
-from utils.video_utils import get_video_capture, get_video_length, get_frame_position, set_frame_position, \
-    get_video_framerate
+from utils.video_utils import *
 
 
 # MAR: Mouse Aspect Ratio
@@ -55,7 +51,7 @@ def get_eye_location(face_landmarks):
     return eye_center
 
 
-def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: str, parallel_num=1, rank=0,
+def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: str, offset=0, parallel_num=1, rank=0,
                         k_frame=3,
                         emotion_label=('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')):
     """
@@ -63,6 +59,7 @@ def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: 
     :param interpolated_result: Final result from capture_face_ng.py
     :param video_path: Input video path
     :param output_dir: Directory of output CSV
+    :param offset:
     :param parallel_num: Previously split_video_num, parameter for multiprocessing
     :param rank: Previously split_video_index, parameter for multiprocessing
     :param k_frame: How often we process 1 frame (default once every 3 frame)
@@ -90,7 +87,7 @@ def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: 
         model = model_from_json(f.read())
     model.load_weights(os.path.join(model_dir, f"model_{model_name}.h5"))
 
-    video_capture = get_video_capture(video_path)
+    video_capture = get_video_capture_with_offset(video_path, offset)
     video_framerate = get_video_framerate(video_path)
     video_length = get_video_length(video_path)
     divided = video_length // parallel_num
@@ -276,7 +273,8 @@ def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: 
             writer.writerows(csv_saving_list[face_index])  # csvファイルに書き込み
 
 
-def emotion_recognition_multiprocess(interpolated_result: dict, video_path: str, output_dir: str, parallel_num=3,
+def emotion_recognition_multiprocess(interpolated_result: dict, video_path: str, output_dir: str, offset=0,
+                                     parallel_num=3,
                                      k_frame=3,
                                      emotion_label=(
                                              'Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal',
@@ -285,14 +283,15 @@ def emotion_recognition_multiprocess(interpolated_result: dict, video_path: str,
     print("Using", parallel_num, "Process(es)")
     process_list = []
     for i in range(parallel_num):
-        kwargs = {"interpolated_result": interpolated_result,
-                  "video_path": video_path,
-                  "output_dir": output_dir,
-                  "parallel_num": parallel_num,
-                  "rank": i,
-                  "k_frame": k_frame,
-                  "emotion_label": emotion_label
-                  }
+        kwargs = dict(interpolated_result=interpolated_result,
+                      video_path=video_path,
+                      output_dir=output_dir,
+                      offset=offset,
+                      parallel_num=parallel_num,
+                      rank=i,
+                      k_frame=k_frame,
+                      emotion_label=emotion_label
+                      )
         p = Process(target=emotion_recognition, kwargs=kwargs)
         process_list.append(p)
         p.start()
@@ -320,17 +319,3 @@ def emotion_recognition_multiprocess(interpolated_result: dict, video_path: str,
         with open(os.path.join(output_dir, f"result{face_index}.csv"), "w", encoding="Shift_jis") as f:
             writer = csv.writer(f, lineterminator="\n")  # writerオブジェクトの作成 改行記号で行を区切る
             writer.writerows(concat_csv)  # csvファイルに書き込み
-
-
-# def test():
-#     import time
-#     import pickle
-#     start = time.time()
-#     with open("utils/20210323111636_interpolated_face.pt", "rb") as f:
-#         result = pickle.load(f)
-#     emotion_recognition_multiprocess(result, "utils/test2.mp4", "./")
-#     print('\ncapture_face_ng elapsed time:', time.time() - start, '[sec]')
-#
-#
-# if __name__ == '__main__':
-#     test()
