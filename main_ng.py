@@ -1,8 +1,6 @@
+import datetime
 import os
 import time
-import datetime
-
-from PyQt5.QtWidgets import QFileDialog
 
 from utils.calibrate import adjust_offset
 from utils.video_utils import get_roi
@@ -125,7 +123,7 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
         assert capture_face_result
         emotion_dir = os.path.join(output_dir, "emotion")
         os.makedirs(emotion_dir, exist_ok=True)
-        kwargs = dict(interpolated_result=capture_face_dir,
+        kwargs = dict(interpolated_result=capture_face_result,
                       video_path=video_path,
                       output_dir=output_dir,
                       offset=offset
@@ -135,17 +133,16 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
     if config["run_transcript"]:
         transcript_dir = os.path.join(output_dir, "transcript")
         os.makedirs(transcript_dir, exist_ok=True)
-        run_transcript(
-            **{"output_dir": transcript_dir,
-               "audio_path_list": audio_path_list
-               }
-        )
+        kwargs = dict(output_dir=transcript_dir,
+                      audio_path_list=audio_path_list
+                      )
+        run_transcript(**kwargs)
 
     if config["run_overlay"]:
         run_overlay(output_dir=output_dir)
 
 
-# TODO add filecheck
+# TODO add file check
 if __name__ == "__main__":
     # show select input directory dialog
     # input_dir = str(QFileDialog.getExistingDirectory(None, "Select Input Directory"))

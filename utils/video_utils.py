@@ -40,6 +40,7 @@ def get_video_framerate(video_path: str) -> float:
     return float(video_capture.get(cv2.CAP_PROP_FPS))
 
 
+# TODO move away from here
 def get_roi(video_path: str, offset=0, **kwargs):
     video_capture = get_video_capture_with_offset(video_path, offset)
     ret, frame = video_capture.read()
@@ -74,6 +75,7 @@ def concat_video(input_video_list, concat_video_path, use_gpu=False):
     os.remove('input_video_list.txt')
 
 
+# TODO: Add offset (ffmpeg)
 def crop_video(video_path: str, output_path: str, roi, start_time=0, end_time=-1):
     import time
     import subprocess
@@ -86,6 +88,7 @@ def crop_video(video_path: str, output_path: str, roi, start_time=0, end_time=-1
     subprocess.call(command, shell=True)
 
 
+# TODO: Add offset (ffmpeg)
 def trim_video(video_path: str, output_path: str, start_time=0, end_time=-1):
     import time
     import subprocess

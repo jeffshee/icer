@@ -117,7 +117,7 @@ def match_frame(result_from_detect_face: list, face_num=None):
     return matcher.get_result()
 
 
-def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, output_path="face_cluster",
+def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, output_path="face_cluster", offset=0,
                  target_cluster_size=1000, face_matching_th=0.35, unattended=False, use_old=False):
     """
 
@@ -125,6 +125,7 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
     :param face_num: Specify number of face in the video, otherwise use maximum number of detected face in all frame
     :param video_path: Video path for clustering, required if unattended is False
     :param output_path: Output path to store the cluster for manual revision
+    :param offset:
     :param target_cluster_size: Target cluster size, larger size may produce better result, but require more time
     :param face_matching_th: Face matching threshold, match the faces only if the distance is lower than threshold
     :param unattended: Skip the manual revision process after the clustering (Warn: High possibility of bad result)
@@ -144,7 +145,7 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
         for result in result_from_detect_face:
             face_num = max(len(result), face_num)
 
-    video_capture = get_video_capture(video_path)
+    video_capture = get_video_capture_with_offset(video_path, offset)
 
     if not unattended and not use_old:
         for cluster_index in range(face_num):

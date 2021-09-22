@@ -5,8 +5,9 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QSlider
 
+import cv2
+import numpy as np
 from gui.dialogs import *
-from utils.video_utils import *
 
 
 def cv2_to_qpixmap(img: np.ndarray):
@@ -115,6 +116,7 @@ class VideoCaptureWithOffset(cv2.VideoCapture):
     """
     VideoCapture with offset
     """
+
     def __init__(self, offset=0, *args, **kwargs):
         self.offset = offset
         super(VideoCaptureWithOffset, self).__init__(*args, **kwargs)

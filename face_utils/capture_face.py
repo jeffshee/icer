@@ -344,7 +344,7 @@ def main(video_path: str, output_dir: str, roi=None, offset=0, face_num=None, fa
         face_cluster_dir = os.path.join(output_dir, "face_cluster")
         os.makedirs(face_cluster_dir)
         result = match_result(result, method="cluster_face", face_num=face_num, video_path=video_path,
-                              output_dir=face_cluster_dir)
+                              output_dir=face_cluster_dir, offset=offset)
     result = interpolate_result(result, video_path=video_path, output_dir=output_dir)
     print('capture_face elapsed time:', time.time() - start, '[sec]')
     return result
