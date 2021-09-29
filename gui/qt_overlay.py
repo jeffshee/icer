@@ -321,7 +321,7 @@ class TranscriptWidget(QScrollArea):
 
 
 class DiarizationWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, df_cache: dict, speaker_num: int, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, df_cache: dict, speaker_num: int, index_list:list,**kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
@@ -333,6 +333,8 @@ class DiarizationWidget(QWidget):
         self.y_margin = 0.25
         self.fontsize = config["plt_font_size"]
         self.init_flag = True  # for update_ui
+        ##
+        self.index_list=index_list
 
         # settings of matplotlib graph
         self.ax = self.mpl_widget.getFigure().add_subplot(111)
@@ -399,12 +401,16 @@ class DiarizationWidget(QWidget):
 
     def plot_diarization(self, row):
         speaker = row["Speaker"].item()
+        ##
+        speaker=self.index_list[speaker] ##new index
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
 
     def plot_silence_time(self, row):
         speaker = row["Speaker"].item()
+        ##
+        speaker=self.index_list[speaker] ##new index
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
@@ -412,7 +418,7 @@ class DiarizationWidget(QWidget):
 
 class OverviewDiarizationWidget(QWidget):
     def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, emotion_csv_list: list,
-                 df_cache: dict, speaker_num: int, **kwargs):
+                 df_cache: dict, speaker_num: int,index_list:list, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
@@ -425,6 +431,8 @@ class OverviewDiarizationWidget(QWidget):
         self.y_margin = 0.25
         self.fontsize = config["plt_font_size"]
         self.init_flag = True
+        ##
+        self.index_list=index_list ##new index
 
         # get each person's gesture
         self.emotion_list = df_cache["emotion"]
@@ -494,12 +502,16 @@ class OverviewDiarizationWidget(QWidget):
 
     def plot_diarization(self, row):
         speaker = row["Speaker"].item()
+        ##
+        speaker = self.index_list[speaker] ## new index
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
 
     def plot_silence_time(self, row):
         speaker = row["Speaker"].item()
+        ##
+        speaker = self.index_list[speaker] ## new index
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
@@ -523,11 +535,11 @@ class EmotionStatisticsWidget(QWidget):
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
         self.mpl_widget.toolbar.hide()
-        self.diarization = df_cache["transcript"] ##语音识别结果
+        self.diarization = df_cache["transcript"]
         self.video_begin_time = 0  # video's begin time (ms)
         self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
         # get each person's gesture
-        self.emotion_list = df_cache["emotion"] ##情感识别结果
+        self.emotion_list = df_cache["emotion"]
 
         self.y_num = speaker_num
 
@@ -648,19 +660,7 @@ class DataFrameWidget(pg.TableWidget):
             data.append(row.to_dict())
         self.setData(data)
 
-#########
-class Input_index(QWidget):
-    def __init__(self):
-        super(Input_index, self).__init__
-        layout = Qt.QFormLayout()
-        self.index = QPushButton("Indices")
-        self.index.clicked.connect(self.getText)
-        self.le =  Qt.QLineEdit()
 
-    def getText(self):
-        text, ok = Qt.QInputDialog.getText(self, "index", "Input the indices")
-        if ok:
-            self.le.setText(str(text))
 def del_continual_value(target_list):
     ret_list = []
     last_value = None
@@ -672,7 +672,7 @@ def del_continual_value(target_list):
 
 
 def create_summary(emotion_csv_list: list, df_cache: dict,
-                   speaker_num: int, name_list: list = None, **kwargs):
+                   speaker_num: int, name_list: list = None, index_list: list = None,**kwargs):
     new_columns_name = ['話者', '発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数", "無音時間 [s]"]
     df_diarization = df_cache["transcript"]
     silence_file = df_cache["silence"]
@@ -685,7 +685,9 @@ def create_summary(emotion_csv_list: list, df_cache: dict,
 
     speech_time = []
     for i in range(speaker_num):
-        cols = df_diarization[df_diarization["Speaker"] == i]
+        # cols = df_diarization[df_diarization["Speaker"] == i]
+        cols = df_diarization[df_diarization["Speaker"] == index_list[i]] ## new index
+
         speech_time.append((cols["End time(ms)"] - cols["Start time(ms)"]).sum() / 1000)
     speech_time = np.array(speech_time)
 
@@ -705,7 +707,9 @@ def create_summary(emotion_csv_list: list, df_cache: dict,
     # 無音時間
     silence_time = []
     for i in range(speaker_num):
-        cols = silence_file[silence_file["Speaker"] == i]
+        # cols = silence_file[silence_file["Speaker"] == i]
+        cols = silence_file[silence_file["Speaker"] == index_list[i]] ## use the same indices
+
         silence_time.append((cols["End time(ms)"] - cols["Start time(ms)"]).sum() / 1000)
     silence_time = np.array(silence_time)
 
@@ -741,27 +745,13 @@ def create_summary(emotion_csv_list: list, df_cache: dict,
     return df_summary, df_sum
 
 
-def main_overlay(output_dir: str = None):
+def main_overlay(output_dir: str = None,indices:str= None):
     # read dir according to the specific structure
     # -- emotion
     #    -- result*.csv
     #    -- *.avi / *.mp4
     # -- transcript
     #    -- diarization
-
-    ####################
-
-
-    demo = Input_index()
-
-
-
-
-
-
-
-
-
 
     # show select output directory dialog when output_dir is not specified
     if output_dir is None:
@@ -826,7 +816,8 @@ def main_overlay(output_dir: str = None):
                          silence_csv=silence_csv_path,
                          df_cache=df_cache,
                          speaker_num=speaker_num,
-                         name_list=None)
+                         name_list=None,
+                         index_list=indices)
 
     dock_control.addWidget(VLCControl(vlc_widget_list, **common_kwargs))
     dock_transcript.addWidget(TranscriptWidget(vlc_widget1, **common_kwargs))
@@ -847,4 +838,5 @@ def main_overlay(output_dir: str = None):
 
 
 if __name__ == '__main__':
-    main_overlay("../output/test")
+    indices=[1,2,3,4,0]
+    main_overlay("../output/test",indices)
