@@ -6,6 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/speaker_diarization/ghostvlad" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/speaker_diarization/visualization" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/speaker_diarization/uisrnn" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/LibriMix" />
       <excludeFolder url="file://$MODULE_DIR$/datasets/200221_expt12" />
       <excludeFolder url="file://$MODULE_DIR$/datasets/200225_expt22" />
       <excludeFolder url="file://$MODULE_DIR$/datasets/200225_expt23" />
