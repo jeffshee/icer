@@ -2,6 +2,14 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 from glob import glob
+import re
+import os
+
+def numericalSort(value):
+    numbers = re.compile(r'(\d+)')
+    parts = numbers.split(value)
+    parts[1::2] = map(int, parts[1::2])
+    return parts
 
 def window_feature(data):
     """
@@ -80,7 +88,41 @@ def feature_grouping(df):
 
     return outputs
 
-def trans_pandas(data, labels, columns_ori):
+def get_timedata(df):
+    """
+    時間情報（フレーム, タイムスタンプ）を各ウィンドウに追加
+    """
+    def sliding_window_times(data, width=32, overlap=16):
+        
+        size = len(data)
+
+        # ウィンドウの数：width, width+overlap, width+2*overlap, としていってsizeになるまでの個数
+        n_windows = (size - width) // overlap
+
+        # 各ウィンドウの最終位置を格納
+        windows = []
+        for i in range(n_windows):
+            windows.append(width + i * overlap)
+
+        # ウィンドウごとにtimestamp_in, timestamp_outを取得
+        frames, timestamps = [], []
+        for window in windows:
+            window_data = data[window - width:window]
+            frame_in = window_data.loc[:, "frame"].iloc[0]
+            frame_out = window_data.loc[:, "frame"].iloc[-1]
+            timestamp_in = window_data.loc[:, "timestamp"].iloc[0]
+            timestamp_out = window_data.loc[:, "timestamp"].iloc[-1]
+            frames.append([frame_in, frame_out])
+            timestamps.append([timestamp_in, timestamp_out])
+
+        return np.array(frames), np.array(timestamps)
+
+    # frame_in, frame_out, timestamp_in, timestamp_outを取り出し
+    frames, timestamps = sliding_window_times(df)
+
+    return frames, timestamps
+
+def trans_pandas(data, labels, frames, timestamps, columns_ori):
     """ numpy -> pandas """
     
     # コラム
@@ -91,9 +133,15 @@ def trans_pandas(data, labels, columns_ori):
     columns.extend(columns_y)
     columns.extend(columns_z)
     columns.append("success_rate")
+    columns.append("frame_in")
+    columns.append("frame_out") 	
+    columns.append("timestamp_in") 	
+    columns.append("timestamp_out") 
     columns.append("label")
 
     # dataとlabelを結合
+    data = np.concatenate([data, frames], axis=1)
+    data = np.concatenate([data, timestamps], axis=1)
     data = np.concatenate([data, labels], axis=1)
 
     # dataframe作成
@@ -109,7 +157,6 @@ def window_check(df, th=0.8, remove_sr=True):
     # th以下の行を削除
     sr = df["success_rate"].values
     index = np.where(sr < th)[0]
-    print(len(index), len(sr))
     df = df.drop(df.index[index])
 
     # success_rateコラムも削除
@@ -130,9 +177,14 @@ def make_dataset(dir_path, out_path, feature_dim=11):
     # outputs_list = np.empty((0, feature_dim*3))
     outputs_list = np.empty((0, feature_dim*3+1))
     labels_list = np.empty((0, 1))
+    frames_list = np.empty((0, 2))
+    timestamps_list = np.empty((0, 2))
+
+    # 出力するDataFrameのコラム
+    columns = ["mean", "std", "mad", "max", "min", "energy", "entropy", "iqr", "range", "skewness", "kurtosis"]
 
     # 各動画のopenface情報から特徴量抽出
-    for csv_path in glob(dir_path+"*csv*"):
+    for csv_path in sorted(glob(dir_path+"*csv*"), key=numericalSort):
         input_df = pd.read_csv(csv_path)
 
         # 動画名に"nod" -> 1, ない -> 0
@@ -154,22 +206,37 @@ def make_dataset(dir_path, out_path, feature_dim=11):
         labels = np.full(len(outputs), int(label))
         labels = labels.reshape(len(labels), 1)
 
+        # 時間情報（フレーム, タイムスタンプ）を各ウィンドウに追加
+        frames, timestamps = get_timedata(input_df)
+
+        # pandasに変換
+        output_df = trans_pandas(outputs, labels, frames, timestamps, columns)
+
+        # successの処理
+        output_df = window_check(output_df)
+        print(output_df.shape)
+
+        # 保存
+        csv_name = os.path.splitext(os.path.basename(csv_path))[0] # 拡張子なしファイル名
+        output_df.to_csv(f"{out_path}{csv_name}_processed.csv", index=False)
+
         # 追加
         outputs_list = np.concatenate([outputs_list, outputs])
+        frames_list = np.concatenate([frames_list, frames])
+        timestamps_list = np.concatenate([timestamps_list, timestamps])
         labels_list = np.concatenate([labels_list, labels])
 
     # pandasに変換
-    columns = ["mean", "std", "mad", "max", "min", "energy", "entropy", "iqr", "range", "skewness", "kurtosis"]
-    output_df = trans_pandas(outputs_list, labels_list, columns)
+    outputs_df = trans_pandas(outputs_list, labels_list, frames_list, timestamps_list, columns)
 
     # successの処理
-    output_df = window_check(output_df)
-    print(output_df)
+    outputs_df = window_check(outputs_df)
+    print(outputs_df)
 
-    output_df.to_csv(out_path, index=False)
+    outputs_df.to_csv(f"{out_path}entire.csv", index=False)
 
 if __name__ == "__main__":
 
     DIR_PATH = "../../movie/processed_data/"
-    OUT_PATH = "./preprocess_2.csv"
+    OUT_PATH = "./csv/"
     make_dataset(DIR_PATH, OUT_PATH)
