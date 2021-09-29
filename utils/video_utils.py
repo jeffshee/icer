@@ -6,7 +6,7 @@ from face_utils.face import Face
 from multiprocessing import Process
 import pandas as pd
 
-from utils.calibrate import VideoCaptureWithOffset
+from gui.calibrate import VideoCaptureWithOffset
 
 
 def get_video_capture(video_path: str) -> cv2.VideoCapture:
@@ -40,19 +40,19 @@ def get_video_framerate(video_path: str) -> float:
     return float(video_capture.get(cv2.CAP_PROP_FPS))
 
 
-# TODO move away from here
-def get_roi(video_path: str, offset=0, **kwargs):
-    video_capture = get_video_capture_with_offset(video_path, offset)
-    ret, frame = video_capture.read()
-    # Custom GUI
-    from gui.qt_cropper import selectROI
-    roi = selectROI(frame, **kwargs)
-    # OpenCV
-    # roi = cv2.selectROI(frame)
-    # if roi == (0, 0, 0, 0):
-    #     roi = None
-    print("ROI:", roi)
-    return roi
+# # TODO move away from here
+# def get_roi(video_path: str, offset=0, **kwargs):
+#     video_capture = get_video_capture_with_offset(video_path, offset)
+#     ret, frame = video_capture.read()
+#     # Custom GUI
+#     from gui.qt_cropper import selectROI
+#     roi = selectROI(frame, **kwargs)
+#     # OpenCV
+#     # roi = cv2.selectROI(frame)
+#     # if roi == (0, 0, 0, 0):
+#     #     roi = None
+#     print("ROI:", roi)
+#     return roi
 
 
 def concat_video(input_video_list, concat_video_path, use_gpu=False):
@@ -76,14 +76,14 @@ def concat_video(input_video_list, concat_video_path, use_gpu=False):
 
 
 # TODO: Add offset (ffmpeg)
-def crop_video(video_path: str, output_path: str, roi, start_time=0, end_time=-1):
+def crop_video(video_path: str, output_path: str, roi, start_time=0, end_time=-1, console_quite=True):
     import time
     import subprocess
     x, y, w, h = roi
     start_time = time.strftime("%H:%M:%S", time.gmtime(start_time))
     end_time = time.strftime("%H:%M:%S", time.gmtime(end_time))
     trim = f"-ss {start_time} -to {end_time}" if end_time != -1 else f"-ss {start_time}"
-    quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null"
+    quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null" if console_quite else ""
     command = f'ffmpeg -y -i {video_path} {trim} -filter:v "crop={w}:{h}:{x}:{y}" {output_path} {quiet}'
     subprocess.call(command, shell=True)
 

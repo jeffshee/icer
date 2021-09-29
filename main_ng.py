@@ -2,7 +2,7 @@ import datetime
 import os
 import time
 
-from utils.calibrate import adjust_offset
+from gui.calibrate import adjust_offset
 from utils.video_utils import get_roi
 
 config = {

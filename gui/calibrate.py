@@ -1,20 +1,22 @@
-import subprocess
-
-from PyQt5 import QtGui
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QSlider
+import sys
 
 import cv2
 import numpy as np
-from gui.dialogs import *
+from PyQt5 import QtGui
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QSlider, QPushButton, QWidget, QApplication
+
+from gui.dialogs import get_video_path
 
 
 def cv2_to_qpixmap(img: np.ndarray):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     height, width, channel = img.shape
     bytes_per_line = 3 * width
-    return QPixmap(QImage(img.data, width, height, bytes_per_line, QImage.Format_RGB888))
+    qimage = QImage(img.data, width, height, bytes_per_line, QImage.Format_RGB888)
+    qpixmap = QPixmap.fromImage(qimage)
+    return qpixmap
 
 
 class OffsetGUI(QMainWindow):
@@ -25,13 +27,16 @@ class OffsetGUI(QMainWindow):
         h, w, c = img.shape
 
         layout = QVBoxLayout()
-        self.label = QLabel()
-        self.label.setScaledContents(True)
-        self.label.setPixmap(
+        self.view = QLabel()
+        self.view.setScaledContents(True)
+        self.view.setPixmap(
             cv2_to_qpixmap(img).scaled(int(1920 * self.img_scale), int(1080 * self.img_scale), Qt.KeepAspectRatio))
+        layout.addWidget(self.view)
+
+        self.offset = 0
+        self.label = QLabel(text=f"オフセット [現在値:{self.offset}]")
         layout.addWidget(self.label)
 
-        layout.addWidget(QLabel(text="オフセット [終了するには、ENTERキーもしくはSPACEキーを押してください]"))
         slider = QSlider(Qt.Horizontal)
         slider.setMaximum(w)
         slider.setMinimum(-w)
@@ -43,12 +48,20 @@ class OffsetGUI(QMainWindow):
         self.setCentralWidget(widget)
         self.setWindowTitle("360度動画の角度調整")
 
-        self.offset = 0
+        # Buttons
+        btn_ok = QPushButton("確定")
+        # Default button
+        btn_ok.setDefault(True)
+        btn_ok.setAutoDefault(True)
+        btn_ok.clicked.connect(lambda _: QApplication.quit())
+        layout.addWidget(btn_ok)
 
     def on_slider_value_changed(self, val):
+        global ret
         self.offset = val
+        self.label.setText(f"オフセット [現在値:{self.offset}]")
         img = img_offset(self.img, val)
-        self.label.setPixmap(
+        self.view.setPixmap(
             cv2_to_qpixmap(img).scaled(int(1920 * self.img_scale), int(1080 * self.img_scale), Qt.KeepAspectRatio))
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
@@ -70,7 +83,7 @@ def adjust_offset(video_path: str = None):
     if not video_path:
         video_path = get_video_path()
     video_capture = cv2.VideoCapture(video_path)
-    ret, frame = video_capture.read()
+    _, frame = video_capture.read()
     app = QApplication(sys.argv)
     win = OffsetGUI(frame)
     win.show()
@@ -80,33 +93,57 @@ def adjust_offset(video_path: str = None):
     return offset
 
 
-def calibrate_video_ffmpeg(video_path: str = None, use_gpu=True):
+def calibrate_video_ffmpeg(video_path: str = None, output_path: str = None, offset=None, start_time=0, end_time=-1,
+                           remove_audio=False, console_quite=True, use_gpu=True):
     """
     Output calibrated video (by using ffmpeg)
-    :param video_path: Video path (Optional)
-    :param use_gpu:
+    :param video_path: Video path (Optional). Launch a file selection dialog if None.
+    :param output_path: Output path (Optional). Outputted to the same directory as video_path if None.
+    :param offset: Offset (Optional). Launch a GUI for adjusting the offset if None.
+    :param start_time: Start time (Use to trim the output)
+    :param end_time: End time (Use to trim the output)
+    :param remove_audio: Remove audio track from output
+    :param console_quite: Avoid output to console
+    :param use_gpu: Use GPU during the encoding
     :return:
     """
+    import time
+    import subprocess
+
     if not video_path:
         video_path = get_video_path()
-    output_path = video_path[:-4] + "_calibrate" + video_path[-4:]
-    offset = adjust_offset(video_path)
+    if not output_path:
+        output_path = video_path[:-4] + "_calibrate" + video_path[-4:]
+
+    # Trim
+    start_time = time.strftime("%H:%M:%S", time.gmtime(start_time))
+    end_time = time.strftime("%H:%M:%S", time.gmtime(end_time))
+    trim = f"-ss {start_time} -to {end_time}" if end_time != -1 else f"-ss {start_time}"
+
+    # Audio
+    audio = "-an" if remove_audio else "-c:a copy"
+
+    # Calibration
+    if offset is None:  # Check is None here since the offset could be specified as 0
+        offset = adjust_offset(video_path)
     flip = -1 if offset < 0 else 1
+
+    quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null" if console_quite else ""
     if use_gpu:
         """GPU"""
         cmd = f"""
-                ffmpeg -y -i {video_path} -filter_complex \
+                ffmpeg -y -i {video_path} {trim} -filter_complex \
                 "[0:v][0:v]overlay=-{offset}[bg]; \
                  [bg][0:v]overlay={flip}*W-{offset},format=yuv420p[out]" \
-                -map "[out]" -map 0:a? -codec:v h264_nvenc -c:a copy {output_path}
+                -map "[out]" -map 0:a? -codec:v h264_nvenc {audio} {output_path} {quiet}
                 """
     else:
         """CPU"""
         cmd = f"""
-                ffmpeg -i {video_path} -filter_complex \
+                ffmpeg -y -i {video_path} {trim} -filter_complex \
                 "[0:v][0:v]overlay=-{offset}[bg]; \
                  [bg][0:v]overlay={flip}*W-{offset},format=yuv420p[out]" \
-                -map "[out]" -map 0:a? -codec:v libx264 -c:a copy {output_path}
+                -map "[out]" -map 0:a? -codec:v libx264 {audio} {output_path} {quiet}
                 """
 
     subprocess.call(cmd, shell=True)
@@ -129,5 +166,5 @@ class VideoCaptureWithOffset(cv2.VideoCapture):
 
 
 if __name__ == "__main__":
-    # adjust_offset()
-    calibrate_video_ffmpeg()
+    adjust_offset()
+    # calibrate_video_ffmpeg()
