@@ -3,6 +3,8 @@ import shutil
 from collections import defaultdict
 from os.path import join
 
+from matching import Player
+from matching.games import StableMarriage
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances_argmin_min
 
@@ -31,50 +33,91 @@ def my_compare_faces(known_faces, face_encoding_to_check):
     return distance_list
 
 
-def reidentification(result_from_detect_face: list, face_video_result: list, face_matching_th=0.35):
-    """
-    Alternative method that takes a list of face video of single person
-    :param result_from_detect_face:
-    :param face_video_result:
-    :return:
-    """
-    known_faces = []
-    for i, face_video_r in enumerate(face_video_result):
-        # print(face_video_r)
-        known_faces.append([face.encoding for face in face_video_r])
+class Matcher:
+    def __init__(self, max_face_num):
+        self.max_face_num = max_face_num
+        self.is_first_round = True
+        self.result = defaultdict()
+        self.box_th = 20
+        self.face_th = 0.5
 
-    result = defaultdict(list)
-    for r in result_from_detect_face:
-        face_encoded_list = [face.encoding for face in r]
-        # 入力画像とのマッチング
-        face_distance_list = [[] for _ in range(len(known_faces))]
-        for face_encoded in face_encoded_list:
-            tmp_distance = my_compare_faces(known_faces, face_encoded)
-            for i in range(len(face_distance_list)):
-                face_distance_list[i].append(tmp_distance[i])
+    def match(self, face_list_1, face_list_2):
+        if len(face_list_1) == 0 or len(face_list_2) == 0:
+            raise ValueError("len(face_list_1) == 0 or len(face_list_2) == 0")
+        frame_number_1, frame_number_2 = face_list_1[0].frame_number, face_list_2[0].frame_number
 
-        face_index_list = [None] * len(face_encoded_list)
-        for i in range(len(known_faces)):
-            if min(face_distance_list[i]) <= face_matching_th:
-                face_index = face_distance_list[i].index(min(face_distance_list[i]))
-                if face_index_list[face_index] is None:
-                    # クエリ画像が検出顔のどれともマッチングしていないとき
-                    face_index_list[face_index] = i
-                elif face_distance_list[face_index_list[face_index]].index(
-                        min(face_distance_list[face_index_list[face_index]])) >= face_distance_list[i].index(
-                    min(face_distance_list[i])):
-                    # クエリ画像が検出顔のいずれかとマッチング済みであるとき
-                    face_index_list[face_index] = i
-        # print(face_index_list)
+        if self.is_first_round:
+            # Initialize
+            # Fill empty with placeholder
+            face_list_1 += [Face(frame_number_1, None, None, False)] * (self.max_face_num - len(face_list_1))
+            for i in range(self.max_face_num):
+                self.result[i] = [face_list_1[i]]
+            self.is_first_round = False
+        else:
+            # Use last result instead
+            face_list_1 = [self.result[i][-1] for i in range(self.max_face_num)]
 
-        for face, idx in zip(r, face_index_list):
-            if idx is not None:
-                result[idx].append(face)
+        # Fill empty with placeholder
+        face_list_2 += [Face(frame_number_2, None, None, False)] * (self.max_face_num - len(face_list_2))
 
-    return result
+        # Create player object
+        face_list_1_players = np.array([Player(face) for face in face_list_1])
+        face_list_2_players = np.array([Player(face) for face in face_list_2])
+
+        # Calculate preference of face_1 -> face_2, based on box distance
+        for i in range(self.max_face_num):
+            face_1 = face_list_1[i]
+            distances = np.array([face_1.box_distance(face_2) for face_2 in face_list_2])
+            distances = np.where(distances < self.box_th, distances, np.inf)
+            argsort = distances.argsort()
+            preference = face_list_2_players[argsort]
+            face_list_1_players[i].set_prefs(list(preference))
+
+        # Calculate preference of face_2 -> face_1, based on face distance
+        for i in range(self.max_face_num):
+            face_2 = face_list_2[i]
+            distances = np.array([face_2.face_distance(face_1) for face_1 in face_list_1])
+            distances = np.where(distances < self.face_th, distances, np.inf)
+            argsort = distances.argsort()
+            preference = face_list_1_players[argsort]
+            face_list_2_players[i].set_prefs(list(preference))
+
+        game = StableMarriage(list(face_list_1_players), list(face_list_2_players))
+        solution = game.solve()  # {(a:A),(b:B),(c:C),}
+        keys = solution.keys()  # [a,b,c]
+
+        for i in range(self.max_face_num):
+            last_result = self.result[i][-1]  # get last result of person i
+            next_result = None
+            for key in keys:
+                if key.name == last_result:
+                    next_result = solution[key].name
+
+            if not next_result.is_detected:
+                # If next result is a placeholder, replace the location and encoding with last result
+                next_result.location = last_result.location
+                next_result.encoding = last_result.encoding
+            self.result[i].append(next_result)
+
+    def get_result(self):
+        return self.result
 
 
-def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, output_path="face_cluster",
+def match_frame(result_from_detect_face: list, face_num=None):
+    # Calculate max_face_num
+    if face_num is None:
+        face_num = 0
+        for result in result_from_detect_face:
+            face_num = max(len(result), face_num)
+
+    matcher = Matcher(face_num)
+    for r1, r2 in zip(result_from_detect_face, result_from_detect_face[1:]):
+        matcher.match(r1, r2)
+
+    return matcher.get_result()
+
+
+def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, output_path="face_cluster", offset=0,
                  target_cluster_size=1000, face_matching_th=0.35, unattended=False, use_old=False):
     """
 
@@ -82,6 +125,7 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
     :param face_num: Specify number of face in the video, otherwise use maximum number of detected face in all frame
     :param video_path: Video path for clustering, required if unattended is False
     :param output_path: Output path to store the cluster for manual revision
+    :param offset:
     :param target_cluster_size: Target cluster size, larger size may produce better result, but require more time
     :param face_matching_th: Face matching threshold, match the faces only if the distance is lower than threshold
     :param unattended: Skip the manual revision process after the clustering (Warn: High possibility of bad result)
@@ -101,7 +145,7 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
         for result in result_from_detect_face:
             face_num = max(len(result), face_num)
 
-    video_capture = get_video_capture(video_path)
+    video_capture = get_video_capture_with_offset(video_path, offset)
 
     if not unattended and not use_old:
         for cluster_index in range(face_num):
@@ -177,6 +221,49 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
             idx = [j for j in range(len(pred_labels)) if pred_labels[j] == i]
             face_images_encoded = face_image_encoded_np[idx]
             known_faces.append(face_images_encoded)
+
+    result = defaultdict(list)
+    for r in result_from_detect_face:
+        face_encoded_list = [face.encoding for face in r]
+        # 入力画像とのマッチング
+        face_distance_list = [[] for _ in range(len(known_faces))]
+        for face_encoded in face_encoded_list:
+            tmp_distance = my_compare_faces(known_faces, face_encoded)
+            for i in range(len(face_distance_list)):
+                face_distance_list[i].append(tmp_distance[i])
+
+        face_index_list = [None] * len(face_encoded_list)
+        for i in range(len(known_faces)):
+            if min(face_distance_list[i]) <= face_matching_th:
+                face_index = face_distance_list[i].index(min(face_distance_list[i]))
+                if face_index_list[face_index] is None:
+                    # クエリ画像が検出顔のどれともマッチングしていないとき
+                    face_index_list[face_index] = i
+                elif face_distance_list[face_index_list[face_index]].index(
+                        min(face_distance_list[face_index_list[face_index]])) >= face_distance_list[i].index(
+                    min(face_distance_list[i])):
+                    # クエリ画像が検出顔のいずれかとマッチング済みであるとき
+                    face_index_list[face_index] = i
+        # print(face_index_list)
+
+        for face, idx in zip(r, face_index_list):
+            if idx is not None:
+                result[idx].append(face)
+
+    return result
+
+
+def reidentification(result_from_detect_face: list, face_video_result: list, face_matching_th=0.35):
+    """
+    Alternative method that takes a list of face video of single person
+    :param result_from_detect_face:
+    :param face_video_result:
+    :return:
+    """
+    known_faces = []
+    for i, face_video_r in enumerate(face_video_result):
+        # print(face_video_r)
+        known_faces.append([face.encoding for face in face_video_r])
 
     result = defaultdict(list)
     for r in result_from_detect_face:

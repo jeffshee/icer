@@ -10,6 +10,6 @@ diarization
 ./co_occurrence
 ./diarization
 ./model
-/datasets/
+/datasets/*/
 /utils/detect_face_old.csv
 /utils/test.mp4

@@ -2,14 +2,14 @@ import sys
 import os
 
 from PyQt5.QtCore import Qt, QRectF
-from PyQt5.QtGui import QBrush, QColor, QPen, QPixmap, QPainterPath, QPainter
+from PyQt5.QtGui import QBrush, QColor, QPen, QPixmap, QPainterPath, QPainter, QImage
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsItem, QGraphicsPathItem, QApplication, QGraphicsView, \
-    QGraphicsScene, QPushButton
+    QGraphicsScene, QMessageBox
 
 
 class HandleItem(QGraphicsRectItem):
     def __init__(self, position_flags, parent):
-        QGraphicsRectItem.__init__(self, -10, -10, 20, 20, parent)
+        QGraphicsRectItem.__init__(self, -20, -20, 40, 40, parent)
         self._positionFlags = position_flags
 
         self.setBrush(QBrush(QColor(81, 168, 220, 200)))
@@ -42,7 +42,6 @@ class HandleItem(QGraphicsRectItem):
                 self.parentItem().setBottomLeft(pos)
             elif self.positionflags() == SizeGripItem.Left:
                 self.parentItem().setLeft(pos.x())
-            print(pos)
         return retVal
 
     def restrictPosition(self, newPos):
@@ -206,19 +205,60 @@ class CropItem(QGraphicsPathItem):
         self.create_path()
 
 
-if __name__ == '__main__':
-    # hidpi support
-    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-    app = QApplication(sys.argv)
+class MainWindow(QGraphicsView):
+    def __init__(self):
+        super().__init__()
 
-    view = QGraphicsView()
+    def keyPressEvent(self, event):
+        global enter_flag
+        if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            enter_flag = True
+            QApplication.quit()
+
+
+enter_flag = False
+
+
+def selectROI(img, title="ROI Selector", message=None):
+    # HIDPI support
+    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+
+    app = QApplication(sys.argv)
+    app.setApplicationName(title)
+
+    view = MainWindow()
     scene = QGraphicsScene()
     view.setScene(scene)
-    pixmapItem = scene.addPixmap(QPixmap("obama.jpeg"))
+
+    height, width, channel = img.shape
+    bytesPerLine = 3 * width
+    qImg = QImage(img.data, width, height, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+
+    pixmapItem = scene.addPixmap(QPixmap.fromImage(qImg))
     cropItem = CropItem(pixmapItem)
-    view.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
+
+    # view.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
+    view.fitInView(QRectF(QApplication.desktop().availableGeometry(-1)), Qt.KeepAspectRatio)
     view.show()
     view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     view.setFixedSize(view.size())
-    sys.exit(app.exec_())
+
+    # Show message
+    if message is not None:
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText(message)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+
+    app.exec_()
+    if enter_flag:
+        roi = cropItem.rect()
+        x, y, w, h = int(roi.x()), int(roi.y()), int(roi.width()), int(roi.height())
+        # In-bound check
+        x, y = max(0, min(x, width)), max(0, min(y, height))
+        w, h = max(0, min(w, width - x)), max(0, min(h, height - y))
+        return x, y, w, h
+    else:
+        return int(0), int(0), width, height

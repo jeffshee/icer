@@ -1,6 +1,24 @@
 from speaker_diarization_v2.speakerDiarization import main
+import time
+import datetime
 
 
+def timeit(method):
+    def timed(*args, **kwargs):
+        ts = time.time()
+        result = method(*args, **kwargs)
+        te = time.time()
+        if "log_time" in kwargs:
+            name = kwargs.get("log_name", method.__name__.upper())
+            kwargs["log_time"][name] = int((te - ts) * 1000)
+        else:
+            print(f"{method.__name__} elapsed time: {datetime.timedelta(seconds=(te - ts))} (H:MM:SS)")
+        return result
+
+    return timed
+
+
+@timeit
 def run_speaker_diarization(path_audio, sound_name, path_diarization_result, people_num, embedding_per_second=0.5,
                             overlap_rate=0.5, noise_class_num=3, use_spectral_cluster=False):
     """

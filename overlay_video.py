@@ -406,7 +406,7 @@ def overlay_all_results(input_video_path, output_video_path, diarization_result_
                         split_video_num, output_dir):
     # df_minutes = pd.read_excel(path_minutes + "{}.xlsx".format(video_name), encoding="shift_jis", header=0, usecols=["name", "ms", "comment"])
 
-    font_path = 'GenYoMinJP-Regular.ttf'
+    font_path = 'gui/GenYoMinJP-Regular.ttf'
 
     # diarization結果を口の開閉とのマッチング結果に置き換える
     df_diarization = pd.read_csv(diarization_result_path, encoding="shift_jis", header=0,
