@@ -523,11 +523,11 @@ class EmotionStatisticsWidget(QWidget):
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
         self.mpl_widget.toolbar.hide()
-        self.diarization = df_cache["transcript"]
+        self.diarization = df_cache["transcript"] ##语音识别结果
         self.video_begin_time = 0  # video's begin time (ms)
         self.video_end_time = self.vlc_widget.duration  # video's end time (ms)
         # get each person's gesture
-        self.emotion_list = df_cache["emotion"]
+        self.emotion_list = df_cache["emotion"] ##情感识别结果
 
         self.y_num = speaker_num
 
@@ -648,7 +648,19 @@ class DataFrameWidget(pg.TableWidget):
             data.append(row.to_dict())
         self.setData(data)
 
+#########
+class Input_index(QWidget):
+    def __init__(self):
+        super(Input_index, self).__init__
+        layout = Qt.QFormLayout()
+        self.index = QPushButton("Indices")
+        self.index.clicked.connect(self.getText)
+        self.le =  Qt.QLineEdit()
 
+    def getText(self):
+        text, ok = Qt.QInputDialog.getText(self, "index", "Input the indices")
+        if ok:
+            self.le.setText(str(text))
 def del_continual_value(target_list):
     ret_list = []
     last_value = None
@@ -736,6 +748,20 @@ def main_overlay(output_dir: str = None):
     #    -- *.avi / *.mp4
     # -- transcript
     #    -- diarization
+
+    ####################
+
+
+    demo = Input_index()
+
+
+
+
+
+
+
+
+
 
     # show select output directory dialog when output_dir is not specified
     if output_dir is None:
