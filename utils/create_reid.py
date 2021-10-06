@@ -1,20 +1,23 @@
 import os
+import sys
 import tempfile
 from multiprocessing import Process
 
-from gui.calibrate import adjust_offset, calibrate_video_ffmpeg
-from gui.cropper import select_roi
+from PyQt5.QtWidgets import QApplication
+
+from gui.calibrate import adjust_offset_dialog, calibrate_video_ffmpeg
+from gui.cropper import select_roi_dialog
 from gui.dialogs import get_video_path, get_face_num
 from utils.video_utils import crop_video
 
 
 def create_reid(video_path: str = None, face_num: int = None):
+    _ = QApplication(sys.argv)
     if not video_path:
         video_path = get_video_path()
+    offset = adjust_offset_dialog(video_path)
     if not face_num:
         face_num = get_face_num()
-    offset = adjust_offset(video_path)
-
     with tempfile.TemporaryDirectory() as temp_dirname:
         print("Temporary directory created at", temp_dirname)
         calibrate_path = os.path.join(temp_dirname, "calibrate.mp4")
@@ -23,10 +26,9 @@ def create_reid(video_path: str = None, face_num: int = None):
         output_dir = os.path.join(os.path.dirname(video_path), "reid")
         os.makedirs(output_dir, exist_ok=True)
         post_processes = []
-        # TODO unknown Seg Fault, seems from get_roi
         for i in range(face_num):
             output_path = os.path.join(output_dir, f"reid{i}.mp4")
-            roi = select_roi(video_path, offset)
+            roi = select_roi_dialog(video_path, offset, window_title=f"顔の領域の指定({i + 1}人目)", cancelable=False)
             kwargs = dict(video_path=calibrate_path,
                           output_path=output_path,
                           roi=roi,
@@ -37,6 +39,8 @@ def create_reid(video_path: str = None, face_num: int = None):
             p.start()
             p.join()
 
+    QApplication.quit()
+
 
 if __name__ == "__main__":
-    create_reid(face_num=5)
+    create_reid()

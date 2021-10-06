@@ -6,15 +6,21 @@ from face_utils.face import Face
 from multiprocessing import Process
 import pandas as pd
 
-from gui.calibrate import VideoCaptureWithOffset
-
 
 def get_video_capture(video_path: str) -> cv2.VideoCapture:
     return cv2.VideoCapture(video_path)
 
 
-def get_video_capture_with_offset(video_path: str, offset=0) -> VideoCaptureWithOffset:
-    return VideoCaptureWithOffset(offset, video_path)
+def img_offset(img: np.ndarray, offset: int = 0):
+    img = np.concatenate([img[:, offset:], img[:, :offset]], axis=1)
+    return img
+
+
+def read_video_capture(video_capture: cv2.VideoCapture, offset=0):
+    retval, image = video_capture.read()
+    if retval:
+        image = img_offset(image, offset)
+    return retval, image
 
 
 def get_frame_position(video_capture: cv2.VideoCapture) -> int:
@@ -40,21 +46,6 @@ def get_video_framerate(video_path: str) -> float:
     return float(video_capture.get(cv2.CAP_PROP_FPS))
 
 
-# # TODO move away from here
-# def get_roi(video_path: str, offset=0, **kwargs):
-#     video_capture = get_video_capture_with_offset(video_path, offset)
-#     ret, frame = video_capture.read()
-#     # Custom GUI
-#     from gui.qt_cropper import selectROI
-#     roi = selectROI(frame, **kwargs)
-#     # OpenCV
-#     # roi = cv2.selectROI(frame)
-#     # if roi == (0, 0, 0, 0):
-#     #     roi = None
-#     print("ROI:", roi)
-#     return roi
-
-
 def concat_video(input_video_list, concat_video_path, use_gpu=False):
     import subprocess
     import os
@@ -76,6 +67,7 @@ def concat_video(input_video_list, concat_video_path, use_gpu=False):
 
 
 # TODO: Add offset (ffmpeg)
+# TODO: lossless
 def crop_video(video_path: str, output_path: str, roi, start_time=0, end_time=-1, console_quite=True):
     import time
     import subprocess
@@ -152,7 +144,7 @@ def output_video_emotion(interpolated_result: dict, emotion_csv_path_list: list,
             cv2.putText(img, label, (pt1[0], pt1[1] - 16), cv2.FONT_HERSHEY_SIMPLEX, 0.9, font_color, 2)
         return img
 
-    video_capture = get_video_capture_with_offset(video_path, offset)
+    video_capture = get_video_capture(video_path)
     video_length = get_video_length(video_path)
     divided = video_length // parallel_num  # Frames per process
     frame_range = [[i * divided, (i + 1) * divided] for i in range(parallel_num)]
@@ -173,7 +165,7 @@ def output_video_emotion(interpolated_result: dict, emotion_csv_path_list: list,
     frame_index = start
     set_frame_position(video_capture, start)  # Move position
     while video_capture.isOpened() and get_frame_position(video_capture) in range(start, end):
-        ret, frame = video_capture.read()
+        ret, frame = read_video_capture(video_capture, offset)
         # Progress
         bar.update(1)
         bar.refresh()

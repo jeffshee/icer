@@ -1,18 +1,12 @@
-import faulthandler
-import sys
-
 import cv2
 import numpy as np
-from PyQt5 import QtGui
 from PyQt5.QtCore import Qt, QRectF
 from PyQt5.QtGui import QBrush, QColor, QPen, QPixmap, QPainterPath, QPainter, QImage
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsItem, QGraphicsPathItem, QApplication, QGraphicsView, \
-    QGraphicsScene, QMainWindow, QVBoxLayout, QWidget, QPushButton, QHBoxLayout
+    QGraphicsScene, QVBoxLayout, QDialog, QDialogButtonBox
 
 from gui.dialogs import get_video_path
-from utils.video_utils import get_video_capture_with_offset
-
-faulthandler.enable()
+from utils.video_utils import read_video_capture
 
 
 class HandleItem(QGraphicsRectItem):
@@ -223,12 +217,17 @@ def cv2_to_qpixmap(img: np.ndarray):
     return qpixmap
 
 
-class CropperGUI(QMainWindow):
-    def __init__(self, img: np.ndarray, window_title=None, cancelable=True):
-        super().__init__()
+class CropperDialog(QDialog):
+    def __init__(self, img: np.ndarray, window_title=None, cancelable=True, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        import faulthandler
+        faulthandler.enable()
+        self.setWindowTitle(window_title if window_title else "動画の切取り領域の指定")
+
         self.img = img
         self.img_scale = 0.8
         self.h, self.w, self.c = img.shape
+        self.roi = None
 
         # --view
         # ----scene
@@ -238,8 +237,8 @@ class CropperGUI(QMainWindow):
         scene = QGraphicsScene()
         view.setScene(scene)
 
-        pixmapItem = scene.addPixmap(cv2_to_qpixmap(img))
-        self.cropItem = CropItem(pixmapItem)
+        pixmap_item = scene.addPixmap(cv2_to_qpixmap(img))
+        self.crop_item = CropItem(pixmap_item)
 
         view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -252,128 +251,146 @@ class CropperGUI(QMainWindow):
         layout.addWidget(view)
 
         # Buttons
-        btn_cancel = QPushButton("指定しない")
-        btn_cancel.clicked.connect(lambda _: QApplication.quit())
-        btn_ok = QPushButton("確定")
-        # Default button
-        btn_ok.setDefault(True)
-        btn_ok.setAutoDefault(True)
-        btn_ok.clicked.connect(self.on_clicked_ok)
-
-        btn_layout = QHBoxLayout()
-        # btn_layout.setAlignment(Qt.AlignRight)
         if cancelable:
-            btn_layout.addWidget(btn_cancel)
-        btn_layout.addWidget(btn_ok)
+            btn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        else:
+            btn = QDialogButtonBox(QDialogButtonBox.Ok)
+        btn.accepted.connect(self.accept)
+        btn.rejected.connect(self.reject)
+        layout.addWidget(btn)
 
-        layout.addLayout(btn_layout)
-        widget = QWidget(self)
-        widget.setLayout(layout)
+        self.setLayout(layout)
 
-        self.setCentralWidget(widget)
-        self.setWindowTitle(window_title if window_title else "動画の切取り領域の指定")
-
-        self.roi = None
-
-    def _get_roi(self):
-        self.roi = roi = self.cropItem.rect()
+    def get_result(self):
+        self.roi = roi = self.crop_item.rect()
         roi_x, roi_y, roi_w, roi_h = int(roi.x()), int(roi.y()), int(roi.width()), int(roi.height())
+        print("Raw", roi_x, roi_y, roi_w, roi_h)
         # In-bound check
         roi_x, roi_y = max(0, min(roi_x, self.w)), max(0, min(roi_y, self.h))
-        roi_w, roi_h = max(0, min(roi_w, self.w - roi_x)), max(0, min(self.h, self.h - roi_y))
+        roi_w, roi_h = max(0, min(roi_w, self.w - roi_x)), max(0, min(roi_h, self.h - roi_y))
         return roi_x, roi_y, roi_w, roi_h
 
-    def on_clicked_ok(self):
-        self.roi = self._get_roi()
-        QApplication.quit()
 
-    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
-        if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-            self.roi = self._get_roi()
-            QApplication.quit()
-
-
-def select_roi(video_path: str = None, offset=0):
-    """
-    Launch a GUI for selecting the ROI
-    :param video_path: Video path (Optional)
-    :param offset: Offset
-    :return:
-    """
-
+def select_roi_dialog(video_path: str = None, offset=0, window_title=None, cancelable=True):
     if not video_path:
         video_path = get_video_path()
-    video_capture = get_video_capture_with_offset(video_path, offset)
-    app = QApplication(sys.argv)
-    _, frame = video_capture.read()
-    win = CropperGUI(frame)
-    win.show()
-    app.exec_()
-    roi = win.roi
-    print(f"ROI: {roi}")
-    return roi
+    video_capture = cv2.VideoCapture(video_path)
+    _, frame = read_video_capture(video_capture, offset)
+    dlg = CropperDialog(frame, window_title, cancelable)
+    if dlg.exec_():
+        roi = dlg.get_result()
+        print(f"ROI: {roi}")
+        return roi
+    else:
+        return None
 
 
 if __name__ == "__main__":
-    select_roi()
+    import sys
+
+    app = QApplication(sys.argv)
+    video_path = get_video_path()
+    for i in range(5):
+        print(select_roi_dialog(video_path))
 
 """
 Deprecated
 """
-# class MainWindow(QGraphicsView):
-#     def __init__(self):
+# class CropperGUI(QMainWindow):
+#     def __init__(self, img: np.ndarray, window_title=None, cancelable=True):
 #         super().__init__()
+#         self.img = img
+#         self.img_scale = 0.8
+#         self.h, self.w, self.c = img.shape
 #
-#     def keyPressEvent(self, event):
-#         global enter_flag
-#         if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-#             enter_flag = True
-#             QApplication.quit()
-
-
-# enter_flag = False
+#         # --view
+#         # ----scene
+#         # ------pixmapItem
+#         layout = QVBoxLayout()
+#         view = QGraphicsView()
+#         scene = QGraphicsScene()
+#         view.setScene(scene)
 #
+#         pixmapItem = scene.addPixmap(cv2_to_qpixmap(img))
+#         self.cropItem = CropItem(pixmapItem)
 #
-# def selectROI(img, title="ROI Selector", message=None):
-#     # HIDPI support
-#     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+#         view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+#         view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 #
-#     app = QApplication(sys.argv)
-#     app.setApplicationName(title)
+#         view.setFixedSize(int(1920 * self.img_scale), int(1080 * self.img_scale))
+#         view.fitInView(0, 0, int(1920 * self.img_scale), int(1080 * self.img_scale), Qt.KeepAspectRatio)
+#         # view.fitInView(QRectF(QApplication.desktop().availableGeometry(-1)), Qt.KeepAspectRatio)
+#         # view.setFixedSize(view.size())
 #
-#     view = MainWindow()
-#     scene = QGraphicsScene()
-#     view.setScene(scene)
+#         layout.addWidget(view)
 #
-#     height, width, channel = img.shape
-#     bytesPerLine = 3 * width
-#     qImg = QImage(img.data, width, height, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+#         # Buttons
+#         btn_cancel = QPushButton("指定しない")
+#         # btn_cancel.clicked.connect(lambda _: QApplication.quit())
+#         btn_cancel.clicked.connect(self.on_clicked_cancel)
+#         btn_ok = QPushButton("確定")
+#         # Default button
+#         btn_ok.setDefault(True)
+#         btn_ok.setAutoDefault(True)
+#         btn_ok.clicked.connect(self.on_clicked_ok)
 #
-#     pixmapItem = scene.addPixmap(QPixmap.fromImage(qImg))
-#     cropItem = CropItem(pixmapItem)
+#         btn_layout = QHBoxLayout()
+#         # btn_layout.setAlignment(Qt.AlignRight)
+#         if cancelable:
+#             btn_layout.addWidget(btn_cancel)
+#         btn_layout.addWidget(btn_ok)
 #
-#     # view.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
-#     view.fitInView(QRectF(QApplication.desktop().availableGeometry(-1)), Qt.KeepAspectRatio)
-#     view.show()
-#     view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-#     view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-#     view.setFixedSize(view.size())
+#         layout.addLayout(btn_layout)
+#         widget = QWidget(self)
+#         widget.setLayout(layout)
 #
-#     # Show message
-#     if message is not None:
-#         msg = QMessageBox()
-#         msg.setIcon(QMessageBox.Information)
-#         msg.setText(message)
-#         msg.setStandardButtons(QMessageBox.Ok)
-#         msg.exec_()
+#         self.setCentralWidget(widget)
+#         self.setWindowTitle(window_title if window_title else "動画の切取り領域の指定")
 #
-#     app.exec_()
-#     if enter_flag:
-#         roi = cropItem.rect()
-#         x, y, w, h = int(roi.x()), int(roi.y()), int(roi.width()), int(roi.height())
+#         self.roi = None
+#
+#     def _get_roi(self):
+#         self.roi = roi = self.cropItem.rect()
+#         roi_x, roi_y, roi_w, roi_h = int(roi.x()), int(roi.y()), int(roi.width()), int(roi.height())
 #         # In-bound check
-#         x, y = max(0, min(x, width)), max(0, min(y, height))
-#         w, h = max(0, min(w, width - x)), max(0, min(h, height - y))
-#         return x, y, w, h
-#     else:
-#         return int(0), int(0), width, height
+#         roi_x, roi_y = max(0, min(roi_x, self.w)), max(0, min(roi_y, self.h))
+#         roi_w, roi_h = max(0, min(roi_w, self.w - roi_x)), max(0, min(self.h, self.h - roi_y))
+#         return roi_x, roi_y, roi_w, roi_h
+#
+#     def on_clicked_cancel(self):
+#         self.hide()
+#
+#     def on_clicked_ok(self):
+#         self.roi = self._get_roi()
+#         self.hide()
+#         # QApplication.quit()
+#
+#     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+#         if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+#             self.roi = self._get_roi()
+#             self.hide()
+#             # QApplication.quit()
+
+
+# def select_roi(video_path: str = None, offset=0):
+#     """
+#     Launch a GUI for selecting the ROI
+#     :param video_path: Video path (Optional)
+#     :param offset: Offset
+#     :return:
+#     """
+#
+#     if not video_path:
+#         video_path = get_video_path()
+#     video_capture = get_video_capture_with_offset(video_path, offset)
+#     # app = QApplication(sys.argv)
+#     app = QApplication.instance()
+#     _, frame = video_capture.read()
+#     # segfault
+#     win = CropperGUI(frame)
+#     win.show()
+#     # app.exec_()
+#     # del app
+#     roi = copy.copy(win.roi)
+#     print(f"ROI: {roi}")
+#     return roi

@@ -194,5 +194,5 @@ if __name__ == "__main__":
     # concat_video_path = original_video_path.replace(".", "_concat.")
     # concat_video(input_video_list, concat_video_path)
 
-    video_name = "video/200225_Haga_22.mp4"
-    trim_video(video_name, ["00:00:00", "00:03:00"])
+    video_name = "/home/jeffshee/Developer/icer/datasets/200225_expt22/video.mp4"
+    trim_video(video_name, ["00:00:00", "00:00:30"])
