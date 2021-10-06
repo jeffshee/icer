@@ -670,6 +670,14 @@ def del_continual_value(target_list):
             last_value = x
     return ret_list
 
+def get_inverse_list(list):
+    inverse_list=[]
+    for i in range(len(list)):
+        for j in list:
+            if list[j]==i:
+                inverse_list.append(j)
+    return inverse_list
+
 
 def create_summary(emotion_csv_list: list, df_cache: dict,
                    speaker_num: int, name_list: list = None, index_list: list = None,**kwargs):
@@ -681,12 +689,16 @@ def create_summary(emotion_csv_list: list, df_cache: dict,
     assert len(name_list) == speaker_num
 
     num_of_utterances = collections.Counter(del_continual_value(df_diarization["Speaker"].to_list()))
-    num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in range(speaker_num)])
+    # num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in range(speaker_num)])
+    num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in index_list])
+
+    ##
+    inverse_list=get_inverse_list(index_list)
 
     speech_time = []
     for i in range(speaker_num):
         # cols = df_diarization[df_diarization["Speaker"] == i]
-        cols = df_diarization[df_diarization["Speaker"] == index_list[i]] ## new index
+        cols = df_diarization[df_diarization["Speaker"] == inverse_list[i]] ## new index
 
         speech_time.append((cols["End time(ms)"] - cols["Start time(ms)"]).sum() / 1000)
     speech_time = np.array(speech_time)
@@ -708,7 +720,7 @@ def create_summary(emotion_csv_list: list, df_cache: dict,
     silence_time = []
     for i in range(speaker_num):
         # cols = silence_file[silence_file["Speaker"] == i]
-        cols = silence_file[silence_file["Speaker"] == index_list[i]] ## use the same indices
+        cols = silence_file[silence_file["Speaker"] == inverse_list[i]] ## use the same indices
 
         silence_time.append((cols["End time(ms)"] - cols["Start time(ms)"]).sum() / 1000)
     silence_time = np.array(silence_time)
