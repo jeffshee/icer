@@ -34,12 +34,13 @@ def get_transcript_index(number):
     return trans_list
 
 ## test
-# while(1):
-#    tmp_list= get_transcript_index(5)
-#    # print(tmp_list)
-#    if len(tmp_list)==0:
-#        print(len(tmp_list))
-#        continue
-#    else:
-#        break
-# print("over")
+if __name__ == '__main__':
+    while(1):
+       tmp_list= get_transcript_index(5)
+       # print(tmp_list)
+       if len(tmp_list)==0:
+           print(len(tmp_list))
+           continue
+       else:
+           break
+    print("over")
