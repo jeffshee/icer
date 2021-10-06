@@ -688,12 +688,14 @@ def create_summary(emotion_csv_list: list, df_cache: dict,
         name_list = [f"Speaker {i}" for i in range(speaker_num)]
     assert len(name_list) == speaker_num
 
-    num_of_utterances = collections.Counter(del_continual_value(df_diarization["Speaker"].to_list()))
-    # num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in range(speaker_num)])
-    num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in index_list])
-
     ##
     inverse_list=get_inverse_list(index_list)
+
+    num_of_utterances = collections.Counter(del_continual_value(df_diarization["Speaker"].to_list()))
+    # num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in range(speaker_num)])
+    num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in inverse_list])
+
+
 
     speech_time = []
     for i in range(speaker_num):
