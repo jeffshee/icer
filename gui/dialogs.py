@@ -30,16 +30,16 @@ def get_transcript_index(number):
     else:
         return trans_list
     for j in range(len(i)):
-        trans_list.append(i[j])
+        trans_list.append(int(i[j]))
     return trans_list
 
 ## test
-while(1):
-   tmp_list= get_transcript_index(5)
-   print(tmp_list)
-   if len(tmp_list)==0:
-       print(len(tmp_list))
-       continue
-   else:
-       break
+# while(1):
+#    tmp_list= get_transcript_index(5)
+#    # print(tmp_list)
+#    if len(tmp_list)==0:
+#        print(len(tmp_list))
+#        continue
+#    else:
+#        break
 # print("over")

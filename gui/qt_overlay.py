@@ -674,8 +674,8 @@ def del_continual_value(target_list):
 def get_inverse_list(list):
     inverse_list=[]
     for i in range(len(list)):
-        for j in list:
-            if list[j]==i:
+        for j in range(len(list)):
+            if list[j] == i:
                 inverse_list.append(j)
     return inverse_list
 
@@ -854,13 +854,13 @@ def main_overlay(output_dir: str = None,indices:str= None):
 
 if __name__ == '__main__':
     # indices=[1,2,3,4,0]
-    while (1):
+    flag=True
+    while (flag):
         tmp_list = get_transcript_index(5)
         # print(tmp_list)
         if len(tmp_list) == 0:
             print("illegal index")
-            continue
         else:
-            break
+            flag=False
     print("transcript index is: ",tmp_list)
-    main_overlay("../output/test",tmp_list)
+    main_overlay("../test_0820",tmp_list)
