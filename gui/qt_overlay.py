@@ -22,6 +22,7 @@ from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
 
 from gui.pandas_gui import show_transcript_gui
 from gui.qt_pyvis import show_pyvis
+from dialogs import get_transcript_index
 
 # Disable VLC error messages
 os.environ['VLC_VERBOSE'] = '-1'
@@ -852,5 +853,14 @@ def main_overlay(output_dir: str = None,indices:str= None):
 
 
 if __name__ == '__main__':
-    indices=[1,2,3,4,0]
-    main_overlay("../output/test",indices)
+    # indices=[1,2,3,4,0]
+    while (1):
+        tmp_list = get_transcript_index(5)
+        # print(tmp_list)
+        if len(tmp_list) == 0:
+            print("illegal index")
+            continue
+        else:
+            break
+    print("transcript index is: ",tmp_list)
+    main_overlay("../output/test",tmp_list)
