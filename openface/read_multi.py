@@ -3,7 +3,7 @@ import numpy as np
 import math
 import os
 
-from feature_engineering import feature_grouping
+from feature_engineering import feature_grouping, get_timedata, window_check
 
 def match_face_id(face_coord, face_id_dict):
     min_face_id = None
@@ -71,11 +71,9 @@ def devide_faces(df, csv_name, dir_path):
         df_dict[str(id)] = tmp_df
         id_list.append(str(id))
 
-        print(tmp_df)
-
     return df_dict, id_list
 
-def trans_pandas(data, columns_ori):
+def trans_pandas(data, columns_ori, frames, timestamps):
     """ numpy -> pandas """
     
     # コラム
@@ -86,10 +84,14 @@ def trans_pandas(data, columns_ori):
     columns.extend(columns_y)
     columns.extend(columns_z)
     columns.append("success_rate")
-    # columns.append("label")
+    columns.append("frame_in")
+    columns.append("frame_out") 	
+    columns.append("timestamp_in") 	
+    columns.append("timestamp_out")
 
-    # dataとlabelを結合
-    # data = np.concatenate([data, labels], axis=1)
+    # 時間情報を結合
+    data = np.concatenate([data, frames], axis=1)
+    data = np.concatenate([data, timestamps], axis=1)
 
     # dataframe作成
     out_df = pd.DataFrame(data=data, columns=columns)
@@ -127,8 +129,18 @@ def read_multi(csv_path, dir_path):
         outputs = feature_grouping(df_dict[id])
         feature_dict[id] = outputs
 
-        output_df = trans_pandas(outputs, columns)
-        output_df.to_csv(f"{dir_path}{csv_name}_feature_{id}.csv", index=False)
+        # 時間情報（フレーム, タイムスタンプ）を各ウィンドウに追加
+        frames, timestamps = get_timedata(df_dict[id])
+
+        # pandasに変換
+        output_df = trans_pandas(outputs, columns, frames, timestamps)
+
+        # success_rateで間引き
+        output_remove_df = window_check(output_df, th=0.8)
+        print(f"{output_df.shape} -> {output_remove_df.shape}")
+
+        # 保存
+        output_remove_df.to_csv(f"{dir_path}{csv_name}_{id}_processed.csv", index=False)
 
 
 if __name__ == "__main__":

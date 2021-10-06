@@ -16,4 +16,7 @@ diarization
 
 # honda
 .ipynb_checkpoints
+csv
 *.csv
+*.mp4
+pos
