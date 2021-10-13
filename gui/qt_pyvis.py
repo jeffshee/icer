@@ -45,7 +45,7 @@ class PyVisWindow(QMainWindow):
 
 
 def show_pyvis(networkx_graph=None, title="PyVis Viewer"):
-    app = QApplication(sys.argv)
+    app = QApplication.instance() or QApplication(sys.argv)
     window = PyVisWindow(networkx_graph, title)
     app.exec_()
     window.clean()

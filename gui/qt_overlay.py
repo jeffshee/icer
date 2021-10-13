@@ -273,7 +273,6 @@ class VLCControl(QWidget):
         p.start()
 
     def interaction_gui(self):
-        # TODO pass networkx obj into arg here
         p = Process(target=show_pyvis, args=(None, "Interaction"))
         p.start()
 
@@ -321,7 +320,8 @@ class TranscriptWidget(QScrollArea):
 
 
 class DiarizationWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, df_cache: dict, speaker_num: int, **kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, df_cache: dict, speaker_num: int,
+                 **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
@@ -401,13 +401,13 @@ class DiarizationWidget(QWidget):
         speaker = row["Speaker"].item()
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
-        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
 
     def plot_silence_time(self, row):
         speaker = row["Speaker"].item()
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
-        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
 
 
 class OverviewDiarizationWidget(QWidget):
@@ -496,13 +496,13 @@ class OverviewDiarizationWidget(QWidget):
         speaker = row["Speaker"].item()
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
-        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
 
     def plot_silence_time(self, row):
         speaker = row["Speaker"].item()
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
-        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
+        self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
 
     def get_gesture(self, emotion_list: list):
         gesture_x, gesture_y = [], []
