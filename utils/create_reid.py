@@ -5,10 +5,10 @@ from multiprocessing import Process
 
 from PyQt5.QtWidgets import QApplication
 
-from gui.calibrate import adjust_offset_dialog, calibrate_video_ffmpeg
+from gui.calibrate import adjust_offset_dialog
 from gui.cropper import select_roi_dialog
 from gui.dialogs import get_video_path, get_face_num
-from utils.video_utils import crop_video
+from utils.video_utils import crop_video, calibrate_video
 
 
 def create_reid(video_path: str = None, face_num: int = None):
@@ -21,7 +21,7 @@ def create_reid(video_path: str = None, face_num: int = None):
     with tempfile.TemporaryDirectory() as temp_dirname:
         print("Temporary directory created at", temp_dirname)
         calibrate_path = os.path.join(temp_dirname, "calibrate.mp4")
-        calibrate_video_ffmpeg(video_path, output_path=calibrate_path, offset=offset, end_time=10, remove_audio=True)
+        calibrate_video(video_path, output_path=calibrate_path, offset=offset, end_time=10, remove_audio=True)
 
         output_dir = os.path.join(os.path.dirname(video_path), "reid")
         os.makedirs(output_dir, exist_ok=True)

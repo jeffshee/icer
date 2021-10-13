@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from typing import Tuple
+from typing import Tuple, List
 import matplotlib.pyplot as plt
 from face_utils.face import Face
 from multiprocessing import Process
@@ -46,50 +46,143 @@ def get_video_framerate(video_path: str) -> float:
     return float(video_capture.get(cv2.CAP_PROP_FPS))
 
 
-def concat_video(input_video_list, concat_video_path, use_gpu=False):
+def concat_video(video_path_list: List[str], output_path: str, console_quiet=True, remove_src=True):
+    """
+    Concat video (by using ffmpeg)
+    Note that videos must have same properties (height, width, codec, etc.),
+    as this function doesn't re-encode the videos.
+    :param video_path_list: List of video paths
+    :param output_path: Output path
+    :param console_quiet: Avoid output to console
+    :param remove_src: Remove videos in video_path_list when done
+    :return: 
+    """
     import subprocess
     import os
+    import tempfile
 
-    with open('input_video_list.txt', 'w') as f:
-        for x in input_video_list:
-            f.write("file '" + str(x) + "'\n")
+    with tempfile.TemporaryDirectory() as temp_dirname:
+        print("Temporary directory created at", temp_dirname)
+        list_path = os.path.join(temp_dirname, "video_path_list.txt")
+        with open(list_path, 'w') as f:
+            for input_video in video_path_list:
+                f.write(f"file {input_video}\n")
 
-    common = "ffmpeg -y -safe 0 -f concat -i input_video_list.txt"
-    if use_gpu:
-        flag = "-vcodec h264_nvenc -c:v copy -map 0:v"
-    else:
-        flag = "-c:v copy -map 0:v"
-    quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null"
-    subprocess.call(f"{common} {flag} {concat_video_path} {quiet}", shell=True)
-    for input_video in input_video_list:
-        os.remove(input_video)
-    os.remove('input_video_list.txt')
+        quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null" if console_quiet else ""
+        # -map 0:v is probably a workaround for muted video
+        cmd = f"ffmpeg -y -safe 0 -f concat -i {list_path} -c:v copy -map 0:v {output_path} {quiet}"
+        subprocess.call(cmd, shell=True)
+
+    if remove_src:
+        for input_video in video_path_list:
+            os.remove(input_video)
 
 
-# TODO: Add offset (ffmpeg)
-# TODO: lossless
-def crop_video(video_path: str, output_path: str, roi, start_time=0, end_time=-1, console_quite=True):
+def crop_video(video_path: str, output_path: str, roi, start_time=0, end_time=-1, remove_audio=False,
+               console_quiet=True, use_gpu=True):
+    """
+    Crop video (by using ffmpeg)
+    :param video_path: Video path
+    :param output_path: Output path
+    :param roi: Region to crop
+    :param start_time: Start time (Use to trim the output)
+    :param end_time: End time (Use to trim the output)
+    :param remove_audio: Remove audio track from output
+    :param console_quiet: Avoid output to console
+    :param use_gpu: Use GPU during the encoding
+    :return:
+    """
+
     import time
     import subprocess
+
+    # Trim
+    start_time = time.strftime("%H:%M:%S", time.gmtime(start_time))
+    end_time = time.strftime("%H:%M:%S", time.gmtime(end_time))
+    trim = f"-ss {start_time} -to {end_time}" if end_time != -1 else f"-ss {start_time}"
+
+    # Audio
+    audio = "-an" if remove_audio else "-c:a copy"
+
     x, y, w, h = roi
-    start_time = time.strftime("%H:%M:%S", time.gmtime(start_time))
-    end_time = time.strftime("%H:%M:%S", time.gmtime(end_time))
-    trim = f"-ss {start_time} -to {end_time}" if end_time != -1 else f"-ss {start_time}"
-    quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null" if console_quite else ""
-    command = f'ffmpeg -y -i {video_path} {trim} -filter:v "crop={w}:{h}:{x}:{y}" {output_path} {quiet}'
-    subprocess.call(command, shell=True)
+
+    codec = "h264_nvenc" if use_gpu else "libx264"
+    lossless = "-preset ultrafast -crf 0"
+    quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null" if console_quiet else ""
+
+    cmd = f"""
+            ffmpeg -y -i {video_path} {trim} -filter:v "crop={w}:{h}:{x}:{y}" \
+            -c:v {codec} {lossless} {audio} {output_path} {quiet}
+            """
+    subprocess.call(cmd, shell=True)
 
 
-# TODO: Add offset (ffmpeg)
-def trim_video(video_path: str, output_path: str, start_time=0, end_time=-1):
+def trim_video(video_path: str, output_path: str, start_time=0, end_time=-1, remove_audio=False, console_quiet=True):
+    """
+    Trim video (by using ffmpeg)
+    :param video_path: Video path
+    :param output_path: Output path
+    :param start_time: Start time (Use to trim the output)
+    :param end_time: End time (Use to trim the output)
+    :param remove_audio: Remove audio track from output
+    :param console_quiet: Avoid output to console
+    :return:
+    """
     import time
     import subprocess
+
+    # Trim
     start_time = time.strftime("%H:%M:%S", time.gmtime(start_time))
     end_time = time.strftime("%H:%M:%S", time.gmtime(end_time))
     trim = f"-ss {start_time} -to {end_time}" if end_time != -1 else f"-ss {start_time}"
-    quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null"
-    command = f'ffmpeg -y -i {video_path} {trim} -c copy {output_path}'
-    subprocess.call(command, shell=True)
+
+    # Audio
+    audio = "-an" if remove_audio else "-c:a copy"
+
+    quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null" if console_quiet else ""
+    cmd = f'ffmpeg -y -i {video_path} {trim} -c:v copy {audio} {output_path} {quiet}'
+    subprocess.call(cmd, shell=True)
+
+
+def calibrate_video(video_path: str, output_path: str, offset=0, start_time=0, end_time=-1,
+                    remove_audio=False, console_quiet=True, use_gpu=True):
+    """
+    Calibrate 360-video angle (by using ffmpeg)
+    :param video_path: Video path
+    :param output_path: Output path
+    :param offset: Offset
+    :param start_time: Start time (Use to trim the output)
+    :param end_time: End time (Use to trim the output)
+    :param remove_audio: Remove audio track from output
+    :param console_quiet: Avoid output to console
+    :param use_gpu: Use GPU during the encoding
+    :return:
+    """
+    import time
+    import subprocess
+
+    # Trim
+    start_time = time.strftime("%H:%M:%S", time.gmtime(start_time))
+    end_time = time.strftime("%H:%M:%S", time.gmtime(end_time))
+    trim = f"-ss {start_time} -to {end_time}" if end_time != -1 else f"-ss {start_time}"
+
+    # Audio
+    audio = "-an" if remove_audio else "-c:a copy"
+
+    flip = -1 if offset < 0 else 1
+
+    codec = "h264_nvenc" if use_gpu else "libx264"
+    lossless = "-preset ultrafast -crf 0"
+    quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null" if console_quiet else ""
+
+    cmd = f"""
+            ffmpeg -y -i {video_path} {trim} -filter_complex \
+            "[0:v][0:v]overlay=-{offset}[bg]; \
+            [bg][0:v]overlay={flip}*W-{offset},format=yuv420p[out]" \
+            -map "[out]" -map 0:a? -c:v {codec} {lossless} {audio} {output_path} {quiet}
+            """
+
+    subprocess.call(cmd, shell=True)
 
 
 def output_video_emotion(interpolated_result: dict, emotion_csv_path_list: list, video_path: str, output_path: str,

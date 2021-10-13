@@ -75,64 +75,6 @@ def adjust_offset_dialog(video_path: str = None):
     return 0
 
 
-def calibrate_video_ffmpeg(video_path: str = None, output_path: str = None, offset=None, start_time=0, end_time=-1,
-                           remove_audio=False, console_quite=True, use_gpu=True):
-    """
-    Output calibrated video (by using ffmpeg)
-    :param video_path: Video path (Optional). Launch a file selection dialog if None.
-    :param output_path: Output path (Optional). Outputted to the same directory as video_path if None.
-    :param offset: Offset (Optional). Launch a GUI for adjusting the offset if None.
-    :param start_time: Start time (Use to trim the output)
-    :param end_time: End time (Use to trim the output)
-    :param remove_audio: Remove audio track from output
-    :param console_quite: Avoid output to console
-    :param use_gpu: Use GPU during the encoding
-    :return:
-    """
-    import time
-    import subprocess
-
-    if not video_path:
-        video_path = get_video_path()
-    if not output_path:
-        output_path = video_path[:-4] + "_calibrate" + video_path[-4:]
-
-    # Trim
-    start_time = time.strftime("%H:%M:%S", time.gmtime(start_time))
-    end_time = time.strftime("%H:%M:%S", time.gmtime(end_time))
-    trim = f"-ss {start_time} -to {end_time}" if end_time != -1 else f"-ss {start_time}"
-
-    # Audio
-    audio = "-an" if remove_audio else "-c:a copy"
-
-    # Calibration
-    if offset is None:  # Check is None here since the offset could be specified as 0
-        offset = adjust_offset_dialog(video_path)
-    flip = -1 if offset < 0 else 1
-
-    lossless = "-preset ultrafast -crf 0"
-
-    quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null" if console_quite else ""
-    if use_gpu:
-        """GPU"""
-        cmd = f"""
-                ffmpeg -y -i {video_path} {trim} -filter_complex \
-                "[0:v][0:v]overlay=-{offset}[bg]; \
-                 [bg][0:v]overlay={flip}*W-{offset},format=yuv420p[out]" \
-                -map "[out]" -map 0:a? -codec:v h264_nvenc {lossless} {audio} {output_path} {quiet}
-                """
-    else:
-        """CPU"""
-        cmd = f"""
-                ffmpeg -y -i {video_path} {trim} -filter_complex \
-                "[0:v][0:v]overlay=-{offset}[bg]; \
-                 [bg][0:v]overlay={flip}*W-{offset},format=yuv420p[out]" \
-                -map "[out]" -map 0:a? -codec:v libx264 {lossless} {audio} {output_path} {quiet}
-                """
-
-    subprocess.call(cmd, shell=True)
-
-
 if __name__ == "__main__":
     import sys
 
