@@ -49,7 +49,6 @@ def show_pyvis(networkx_graph=None, title="PyVis Viewer"):
     window = PyVisWindow(networkx_graph, title)
     app.exec_()
     window.clean()
-    sys.exit()
 
 
 if __name__ == "__main__":
