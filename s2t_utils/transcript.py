@@ -6,9 +6,9 @@ import pandas as pd
 import speech_recognition
 from pydub import AudioSegment
 
-from edit_audio import mix_audio, trim_audio
-from split_audio import optimized_segment_audio
-from main_util import cleanup_directory
+from utils.audio_utils import mix_audio, trim_audio
+from s2t_utils.split_audio import optimized_segment_audio
+from utils.main_utils import cleanup_directory
 
 """
 各API使用料金の調査
@@ -98,7 +98,7 @@ def transcript(output_dir, audio_path_list, transcript_config=None):
     """ 1. Diarization """
     if transcript_config['use_run_speaker_diarization']:
         if not transcript_config['skip_run_speaker_diarization']:
-            from run_speaker_diarization_v2 import run_speaker_diarization
+            from s2t_utils.run_speaker_diarization_v2 import run_speaker_diarization
             print("\nRunning speaker diarization")
             run_speaker_diarization(output_dir + os.sep, mixed_audio_name, diarization_dir + os.sep,
                                     people_num=transcript_config['people_num'],
@@ -134,7 +134,6 @@ def transcript(output_dir, audio_path_list, transcript_config=None):
     output_csv = []
     silence_csv = []
     for i, split_path in enumerate(sorted(split_path_list)):
-        # TODO get silence list here
         segment_path_list, segment_split_list, silence_list = optimized_segment_audio(input_path=split_path,
                                                                                       output_dir=segment_audio_dir,
                                                                                       max_duration_sec=
@@ -244,10 +243,10 @@ def split_audio_after_diarization(df_diarization_compact, audio_path_list, outpu
         output_start_time_list.append(start_time)
         output_end_time_list.append(end_time)
         if len(audio_path_list) > 1:
-            trim_audio(input_audio=audio_path_list[speaker_class], output_audio=output_path,
+            trim_audio(audio_path=audio_path_list[speaker_class], output_path=output_path,
                        trim_ms_range=[start_time, end_time])
         else:
-            trim_audio(input_audio=audio_path_list[0], output_audio=output_path, trim_ms_range=[start_time, end_time])
+            trim_audio(audio_path=audio_path_list[0], output_path=output_path, trim_ms_range=[start_time, end_time])
     return output_path_list, output_start_time_list, output_end_time_list
 
 

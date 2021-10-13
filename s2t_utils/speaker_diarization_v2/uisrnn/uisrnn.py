@@ -20,8 +20,8 @@ from torch import nn
 from torch import optim
 import torch.nn.functional as F
 
-from speaker_diarization_v2.uisrnn import loss_func
-from speaker_diarization_v2.uisrnn import utils
+from s2t_utils.speaker_diarization_v2.uisrnn import loss_func
+from s2t_utils.speaker_diarization_v2.uisrnn import utils
 
 _INITIAL_SIGMA2_VALUE = 0.1
 

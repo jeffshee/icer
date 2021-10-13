@@ -1,4 +1,4 @@
-from speaker_diarization_v2.speakerDiarization import main
+from s2t_utils.speaker_diarization_v2.speakerDiarization import main
 import time
 import datetime
 

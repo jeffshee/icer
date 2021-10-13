@@ -16,7 +16,7 @@ import unittest
 
 import numpy as np
 
-from speaker_diarization_v2.uisrnn import utils
+from s2t_utils.speaker_diarization_v2.uisrnn import utils
 
 
 class TestEnforceClusterIdUniqueness(unittest.TestCase):

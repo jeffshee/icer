@@ -17,7 +17,7 @@ import unittest
 
 import numpy as np
 
-from speaker_diarization_v2 import uisrnn
+from s2t_utils.speaker_diarization_v2 import uisrnn
 
 
 class TestUISRNN(unittest.TestCase):

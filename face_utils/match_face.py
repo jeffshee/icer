@@ -8,7 +8,7 @@ from matching.games import StableMarriage
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances_argmin_min
 
-from main_util import cleanup_directory
+from utils.main_utils import cleanup_directory
 from utils.video_utils import *
 
 

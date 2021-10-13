@@ -1,14 +1,11 @@
 from __future__ import absolute_import
 from __future__ import print_function
 import os
-import sys
 import numpy as np
 import librosa
 
-from speaker_diarization_v2.ghostvlad import toolkits
-from speaker_diarization_v2.ghostvlad import utils as ut
+from s2t_utils.speaker_diarization_v2.ghostvlad import toolkits
 
-import pdb
 # ===========================================
 #        Parse the argument
 # ===========================================

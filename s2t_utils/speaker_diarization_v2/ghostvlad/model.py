@@ -4,7 +4,7 @@ import keras
 import tensorflow as tf
 import keras.backend as K
 
-from speaker_diarization_v2.ghostvlad import backbone
+from s2t_utils.speaker_diarization_v2.ghostvlad import backbone
 
 weight_decay = 1e-4
 

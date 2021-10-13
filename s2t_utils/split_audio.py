@@ -1,7 +1,7 @@
 from os.path import join, basename
 from pydub import AudioSegment
 
-from edit_audio import trim_audio
+from utils.audio_utils import trim_audio
 
 
 def optimized_segment_audio(input_path, output_dir, max_duration_sec=60):

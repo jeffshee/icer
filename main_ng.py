@@ -25,6 +25,28 @@ Issue:
 1. Python multiprocessing error 'ForkAwareLocal' object has no attribute 'connection'
 https://stackoverflow.com/questions/60795412/python-multiprocessing-error-forkawarelocal-object-has-no-attribute-connectio
 Perhaps you were using Pycharm with Run with Python console option checked in Run/Debug Configuration. Try uncheck that.
+2. Multiprocessing fail
+GPU#1: 100%|██████████| 20624/20624 [15:31<00:00, 28.07it/s]Traceback (most recent call last):
+  File "/home/jeffshee/Developer/icer/main_ng.py", line 216, in <module>
+    main(**main_kwargs)
+  File "/home/jeffshee/Developer/icer/main_ng.py", line 42, in timed
+    result = method(*args, **kwargs)
+  File "/home/jeffshee/Developer/icer/main_ng.py", line 123, in main
+    capture_face_result = run_capture_face(**kwargs)
+  File "/home/jeffshee/Developer/icer/main_ng.py", line 42, in timed
+    result = method(*args, **kwargs)
+  File "/home/jeffshee/Developer/icer/main_ng.py", line 57, in run_capture_face
+    return main(**kwargs)
+  File "/home/jeffshee/Developer/icer/face_utils/capture_face.py", line 340, in main
+    result = detect_face_multiprocess(video_path, roi=roi, offset=offset, output_dir=output_dir)
+  File "/home/jeffshee/Developer/icer/face_utils/capture_face.py", line 224, in detect_face_multiprocess
+    combined.extend(return_dict[i])
+  File "<string>", line 2, in __getitem__
+  File "/home/jeffshee/anaconda3/envs/icer/lib/python3.8/multiprocessing/managers.py", line 850, in _callmethod
+    raise convert_to_error(kind, result)
+KeyError: 0
+
+Perhaps write the result to multiple csv is better
 """
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = config["tensorflow_log_level"]
@@ -33,7 +55,7 @@ import warnings
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
-from edit_audio import set_audio
+from utils.audio_utils import set_audio
 
 
 def timeit(method):
@@ -85,7 +107,7 @@ def run_emotion_recognition(**kwargs):
 
 @timeit
 def run_transcript(**kwargs):
-    from transcript import transcript
+    from s2t_utils.transcript import transcript
     transcript(**kwargs)
 
 

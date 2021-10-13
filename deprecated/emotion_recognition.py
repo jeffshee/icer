@@ -15,7 +15,7 @@ from keras.models import model_from_json
 from scipy.spatial import distance as dist
 
 from main_util import concat_csv
-from edit_video import concat_video
+from deprecated.edit_video import concat_video
 from main_util import cleanup_directory
 
 

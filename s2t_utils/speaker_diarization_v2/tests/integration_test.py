@@ -19,7 +19,7 @@ import unittest
 import numpy as np
 import torch
 
-from speaker_diarization_v2 import uisrnn
+from s2t_utils.speaker_diarization_v2 import uisrnn
 
 
 def _generate_random_sequence(cluster_id, label_to_center, sigma=0.1):

@@ -15,7 +15,7 @@
 import random
 import unittest
 
-from speaker_diarization_v2.uisrnn import evals
+from s2t_utils.speaker_diarization_v2.uisrnn import evals
 
 
 class TestComputeSequenceMatchAccuracy(unittest.TestCase):

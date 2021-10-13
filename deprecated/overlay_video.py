@@ -12,9 +12,9 @@ import numpy as np
 import pandas as pd
 from PIL import Image, ImageOps, ImageFont, ImageDraw
 
-from edit_audio import wav_to_transcript, split_wave_per_sentence
-from edit_video import concat_video
-from main_util import cleanup_directory, csv_to_text
+from utils.audio_utils import split_wave_per_sentence
+from deprecated.edit_video import concat_video
+from utils.main_utils import cleanup_directory
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -406,7 +406,7 @@ def overlay_all_results(input_video_path, output_video_path, diarization_result_
                         split_video_num, output_dir):
     # df_minutes = pd.read_excel(path_minutes + "{}.xlsx".format(video_name), encoding="shift_jis", header=0, usecols=["name", "ms", "comment"])
 
-    font_path = 'gui/GenYoMinJP-Regular.ttf'
+    font_path = '../gui/GenYoMinJP-Regular.ttf'
 
     # diarization結果を口の開閉とのマッチング結果に置き換える
     df_diarization = pd.read_csv(diarization_result_path, encoding="shift_jis", header=0,

@@ -12,10 +12,11 @@ import pandas as pd
 from spectralcluster import SpectralClusterer
 
 # Modified
-import speaker_diarization_v2.ghostvlad.model as spkModel
-from speaker_diarization_v2.ghostvlad import toolkits
-from speaker_diarization_v2.uisrnn import uisrnn, parse_arguments
-from speaker_diarization_v2.visualization.viewer import PlotDiar
+import s2t_utils.speaker_diarization_v2.ghostvlad.model as spkModel
+from s2t_utils.speaker_diarization_v2.ghostvlad import toolkits
+from s2t_utils.speaker_diarization_v2.uisrnn import parse_arguments
+from s2t_utils.speaker_diarization_v2.uisrnn import uisrnn
+from s2t_utils.speaker_diarization_v2.visualization.viewer import PlotDiar
 
 # Conflicted
 # sys.path.append('speaker_diarization_v2/ghostvlad')

@@ -1,12 +1,10 @@
 from __future__ import absolute_import
 from __future__ import print_function
 import os
-import sys
 import numpy as np
 
-from speaker_diarization_v2.ghostvlad import toolkits, preprocess
+from s2t_utils.speaker_diarization_v2.ghostvlad import preprocess, toolkits
 
-import pdb
 # ===========================================
 #        Parse the argument
 # ===========================================
