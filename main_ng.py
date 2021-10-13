@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import QApplication
 
 from gui.calibrate import adjust_offset_dialog
 from gui.cropper import select_roi_dialog
-from gui.dialogs import get_video_path, get_face_num
+from gui.dialogs import get_face_num
 
 config = {
     # Run mode
@@ -24,6 +24,7 @@ config = {
 Issue:
 1. Python multiprocessing error 'ForkAwareLocal' object has no attribute 'connection'
 https://stackoverflow.com/questions/60795412/python-multiprocessing-error-forkawarelocal-object-has-no-attribute-connectio
+Perhaps you were using Pycharm with Run with Python console option checked in Run/Debug Configuration. Try uncheck that.
 """
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = config["tensorflow_log_level"]
