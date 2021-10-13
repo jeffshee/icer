@@ -87,7 +87,7 @@ def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: 
         model = model_from_json(f.read())
     model.load_weights(os.path.join(model_dir, f"model_{model_name}.h5"))
 
-    video_capture = get_video_capture_with_offset(video_path, offset)
+    video_capture = get_video_capture(video_path)
     video_framerate = get_video_framerate(video_path)
     video_length = get_video_length(video_path)
     divided = video_length // parallel_num
@@ -144,7 +144,7 @@ def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: 
     frame_index = start
     set_frame_position(video_capture, start)
     while video_capture.isOpened() and get_frame_position(video_capture) in range(start, end):
-        ret, frame = video_capture.read()
+        ret, frame = read_video_capture(video_capture, offset)
         # Progress
         bar.update(1)
         bar.refresh()

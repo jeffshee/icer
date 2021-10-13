@@ -12,9 +12,9 @@ from main_util import cleanup_directory
 from utils.video_utils import *
 
 
-def output_face_image(video_capture: cv2.VideoCapture, face: Face, output_path):
+def output_face_image(video_capture: cv2.VideoCapture, face: Face, output_path, offset=0):
     set_frame_position(video_capture, face.frame_number)
-    ret, frame = video_capture.read()
+    ret, frame = read_video_capture(video_capture, offset)
     if ret and face.location is not None:
         top, right, bottom, left = face.location
         face_img = frame[top:bottom, left:right]
@@ -145,7 +145,7 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
         for result in result_from_detect_face:
             face_num = max(len(result), face_num)
 
-    video_capture = get_video_capture_with_offset(video_path, offset)
+    video_capture = get_video_capture(video_path)
 
     if not unattended and not use_old:
         for cluster_index in range(face_num):
@@ -162,7 +162,7 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
                     if not unattended:
                         face_image_path = join(output_path, "{}.png".format(count))
                         if not use_old:
-                            output_face_image(video_capture, face, face_image_path)
+                            output_face_image(video_capture, face, face_image_path, offset)
                         face_image_path_list.append(face_image_path)
                     face_image_encoded_list.append(face.encoding)
                     count += 1

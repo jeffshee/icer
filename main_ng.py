@@ -1,9 +1,13 @@
 import datetime
 import os
+import sys
 import time
 
-from gui.calibrate import adjust_offset
-from utils.video_utils import get_roi
+from PyQt5.QtWidgets import QApplication
+
+from gui.calibrate import adjust_offset_dialog
+from gui.cropper import select_roi_dialog
+from gui.dialogs import get_video_path, get_face_num
 
 config = {
     # Run mode
@@ -86,20 +90,23 @@ def run_transcript(**kwargs):
 
 def run_overlay(**kwargs):
     from gui.qt_overlay import main_overlay
+    # TODO probably need to run as another process
     main_overlay(**kwargs)
 
 
 @timeit
 def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None, face_video_list=None):
-    # TODO get video_path, output_dir and audio_path_list via dialogs
+    app = QApplication(sys.argv)
 
     # Preprocess
     offset = 0
     roi = None
     if config["run_capture_face"] or config["run_emotion_recognition"]:
-        offset = adjust_offset(video_path)
+        offset = adjust_offset_dialog(video_path)
+        if not face_num:
+            face_num = get_face_num()
     if config["run_capture_face"]:
-        roi = get_roi(video_path, offset, message="顔検出を行う領域を指定し、ENTERキーを押してください。指定しない場合はそのままウインドウを閉じてください。")
+        roi = select_roi_dialog(video_path, offset, window_title="顔検出を行う領域の指定")
 
     capture_face_result = None
     if config["run_capture_face"]:

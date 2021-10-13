@@ -70,7 +70,7 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
     from face_utils.encode_face import batch_face_encodings
 
     # Open video file
-    video_capture = get_video_capture_with_offset(video_path, offset)
+    video_capture = get_video_capture(video_path)
     if roi:
         original_w, original_h = roi[2], roi[3]
     else:
@@ -112,7 +112,7 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
         next_pos = current_pos + frame_skip + 1
 
         # Grab a single frame of video
-        ret, frame = video_capture.read()
+        ret, frame = read_video_capture(video_capture, offset)
         if frame_skip != 0 and current_pos % frame_skip != 0:
             continue
 
