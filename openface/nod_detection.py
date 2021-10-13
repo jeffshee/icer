@@ -7,6 +7,8 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, confu
 import cv2
 from typing import Tuple
 import joblib
+import shutil
+import os
 
 
 #  ====== 前処理 ======
@@ -141,14 +143,24 @@ def get_video_framerate(video_path: str) -> float:
 
 
 def output_video_nod_multi(nod_df, video_path: str, output_path: str = "output_video_nod"):
-    video_capture = get_video_capture(video_path)
-    video_length = get_video_length(video_path)
+    tmp_video_path = os.path.dirname(video_path) + "/tmp_" + os.path.basename(video_path)
+    shutil.copy(video_path, tmp_video_path)
 
-    start, end = nod_df['frame'].iloc[0].astype(int), nod_df['frame'].iloc[-1].astype(int)
+    video_capture = get_video_capture(tmp_video_path)
+    video_length = get_video_length(tmp_video_path)
+
+    # 並列処理用
+    # divided = video_length // parallel_num  # Frames per process
+    # frame_range = [[i * divided, (i + 1) * divided] for i in range(parallel_num)]
+    # frame_range[-1][1] = video_length - 1
+    # start, end = frame_range[rank]
+
+    frame_range = (0, video_length - 1)
+    start, end = frame_range
 
     fourcc = cv2.VideoWriter_fourcc(*"XVID")
-    video_writer = cv2.VideoWriter(output_path, fourcc, get_video_framerate(video_path),
-                                   get_video_dimension(video_path))
+    video_writer = cv2.VideoWriter(output_path, fourcc, get_video_framerate(tmp_video_path),
+                                   get_video_dimension(tmp_video_path))
 
     frame_index = start
     set_frame_position(video_capture, start)  # Move position
@@ -160,7 +172,7 @@ def output_video_nod_multi(nod_df, video_path: str, output_path: str = "output_v
             nod = row['pred'].values[0]
             texts = {0: "No", 1: "Nod", 2: "Nod!!!"}
 
-            # Draw circle when nod flag == 1 or 2
+            # when nod flag == 1 or 2 (1: weakly, 2: strongly)
             if nod > 0:
                 mid = (row['face_x'].values[0], row['face_y'].values[0])
                 radius = int(row['face_radius'].values[0])
@@ -177,6 +189,7 @@ def output_video_nod_multi(nod_df, video_path: str, output_path: str = "output_v
 
     video_capture.release()
     video_writer.release()
+    os.remove(tmp_video_path)
 
 
 # ====== モデル ======
@@ -199,6 +212,7 @@ def train(
     """
     モデルの訓練
     """
+    print("====== Training ======")
 
     # train/validデータの前処理
     print(f"before drop_na: {len(trvl_df.columns)}")
@@ -246,6 +260,8 @@ def test(
     output_csv_dir: str,
     output_vid_dir: str
 ):
+    print("====== Testing ======")
+
     for i, test_df in enumerate(test_dfs):
         # testデータに対する前処理
         test_df = drop_na(test_df, axis=0)  # 欠損のある行を削除
@@ -254,11 +270,17 @@ def test(
 
         pred_test = model.predict(X_test)
         output_csv_path = f"{output_csv_dir}pred_multi_id{i}.csv"
-        output_csv(test_df, pred_test, output_path=output_csv_path)  # 予測結果をCSVに書き出し
+        # output_csv(test_df, pred_test, output_path=output_csv_path)  # 予測結果をCSVに書き出し
 
         nod_df = pd.read_csv(output_csv_path)
-        output_path = f"{output_vid_dir}pred_test_id{i}.mp4"
-        output_video_nod_multi(nod_df, video_path, output_path)
+        # output_path = f"{output_vid_dir}pred_test_id{i}.mp4"
+        # output_video_nod_multi(nod_df, video_path, output_path)
+
+        output_path = f"{output_vid_dir}pred_test.mp4"
+        if i == 0:
+            output_video_nod_multi(nod_df, video_path, output_path)
+        else:
+            output_video_nod_multi(nod_df, output_path, output_path)
 
 
 if __name__ == '__main__':
