@@ -270,7 +270,7 @@ def test(
 
         pred_test = model.predict(X_test)
         output_csv_path = f"{output_csv_dir}pred_multi_id{i}.csv"
-        # output_csv(test_df, pred_test, output_path=output_csv_path)  # 予測結果をCSVに書き出し
+        output_csv(test_df, pred_test, output_path=output_csv_path)  # 予測結果をCSVに書き出し
 
         nod_df = pd.read_csv(output_csv_path)
         # output_path = f"{output_vid_dir}pred_test_id{i}.mp4"
