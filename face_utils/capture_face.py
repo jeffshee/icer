@@ -1,3 +1,4 @@
+import csv
 import pickle
 from multiprocessing import Manager
 import time
@@ -5,6 +6,7 @@ from collections import defaultdict
 import os
 
 from utils.video_utils import *
+from face_utils.face_csv import FaceDataFrameWrapper
 
 config = {
     "debug": False
@@ -40,13 +42,15 @@ def calculate_box_midpoint(top, right, bottom, left):
     return midpoint
 
 
-def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0, batch_size=8,
-                drop_last=True, return_dict=None, roi=None, offset=0):
+def detect_face(video_path: str, output_dir: str, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0,
+                batch_size=8,
+                drop_last=True, roi=None, offset=0):
     """
     Detect all the faces in video, using CNN and CUDA for high accuracy and performance
     Refer to the example of face_recognition below:
     https://github.com/ageitgey/face_recognition/blob/master/examples/find_faces_in_batches.py
     :param video_path: Path to video
+    :param output_dir:
     :param parallel_num: Number of parallel jobs (Multiprocessing on GPUs)
     :param gpu_index: Which GPU to use
     :param batch_size: Batch size
@@ -54,9 +58,8 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
     Workaround for a dlib bug that raise CUDA OOM error, especially when the last incomplete batch size == 1,
     even there are plenty of RAM still available. Refer:
     https://forums.developer.nvidia.com/t/cudamalloc-out-of-memory-although-the-gpu-memory-is-enough/84327
-    :param k_resolution: resize factor, None = original
+    :param k_resolution: resize factor, -1 = original
     :param frame_skip:
-    :param return_dict:
     :param roi: ROI where the face recognition is performed
     :param offset:
     :return:
@@ -77,7 +80,7 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
         original_w, original_h = get_video_dimension(video_path)
 
     # Resize
-    if k_resolution:
+    if k_resolution != -1:
         resize_rate = (1080 * k_resolution) / original_w
     else:
         resize_rate = 1
@@ -97,9 +100,9 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
 
     frame_list = []
     frame_numbers = []
-
     result = []
 
+    face_df_wrapper = FaceDataFrameWrapper()
     bar = tqdm(total=end - start, desc="GPU#{}".format(gpu_index))
 
     set_frame_position(video_capture, start)  # Move position
@@ -121,7 +124,7 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
             frame = frame[int(roi[1]):int(roi[1] + roi[3]), int(roi[0]):int(roi[0] + roi[2])]
 
         # Resize
-        if k_resolution:
+        if k_resolution != -1:
             frame = cv2.resize(frame, (w, h))
 
         # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
@@ -140,43 +143,56 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
 
             for frame_number_in_batch, (face_locations, face_encodings) in enumerate(
                     zip(batch_of_face_locations, batch_of_face_encodings)):
-                temp = []
                 for location, encoding in zip(face_locations, face_encodings):
-                    temp.append(Face(frame_numbers[frame_number_in_batch],
-                                     calculate_original_box(*location, w, h, original_w, original_h, roi),
-                                     np.array(encoding)))
-                if len(temp) != 0:
-                    # Only append if there is any face detected
-                    result.append(temp)
+                    face_df_wrapper.append(
+                        frame_numbers[frame_number_in_batch],
+                        calculate_original_box(*location, w, h, original_w, original_h, roi), True,
+                        np.array(encoding)
+                    )
+
+            # for frame_number_in_batch, (face_locations, face_encodings) in enumerate(
+            #         zip(batch_of_face_locations, batch_of_face_encodings)):
+            #     temp = []
+            #     for location, encoding in zip(face_locations, face_encodings):
+            #         temp.append(Face(frame_numbers[frame_number_in_batch],
+            #                          calculate_original_box(*location, w, h, original_w, original_h, roi),
+            #                          np.array(encoding)))
+            #     if len(temp) != 0:
+            #         # Only append if there is any face detected
+            #         result.append(temp)
+            #     print(gpu_index, temp)
 
             # Clear the frames array to start the next batch
             frame_list = []
             frame_numbers = []
+            face_df_wrapper.write_csv(os.path.join(output_dir, f"result{gpu_index}.csv"))
 
-    if return_dict:
-        return_dict[gpu_index] = result
+    # if return_dict:
+    #     return_dict[gpu_index] = result
+    # face_df_wrapper.write_csv(os.path.join(output_dir, f"result{gpu_index}.csv"))
 
 
 # TODO: Have a possibility causing CUDA OOM, need optimization. (Implemented drop_last as workaround)
 # Consider https://github.com/1adrianb/face-alignment or https://github.com/jacobgil/dlib_facedetector_pytorch
-def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, frame_skip=3, batch_size=8,
-                             roi=None, offset=0, output_dir=".") -> list:
+def detect_face_multiprocess(video_path: str, output_dir: str, parallel_num=3, k_resolution=3, frame_skip=3,
+                             batch_size=8, roi=None, offset=0):
     # Note: Batch size = 8 is about the limitation of current machine
     print(f"\nProcessing {video_path}")
     print("Using", parallel_num, "GPU(s)")
     process_list = []
     manager = Manager()
-    return_dict = manager.dict()
+    # return_dict = manager.dict()
 
     for i in range(parallel_num):
         if roi is None:
             kwargs = {"video_path": video_path,
+                      "output_dir": output_dir,
                       "gpu_index": i,
                       "parallel_num": parallel_num,
                       "k_resolution": k_resolution,
                       "frame_skip": frame_skip,
                       "batch_size": batch_size,
-                      "return_dict": return_dict,
+                      # "return_dict": return_dict,
                       "offset": offset
                       }
         else:
@@ -189,23 +205,25 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
             if int(batch_size * ratio) < 8:
                 # ROI is too large, fallback
                 kwargs = {"video_path": video_path,
+                          "output_dir": output_dir,
                           "gpu_index": i,
                           "parallel_num": parallel_num,
                           "k_resolution": k_resolution,
                           "frame_skip": frame_skip,
                           "batch_size": batch_size,
-                          "return_dict": return_dict,
+                          # "return_dict": return_dict,
                           "offset": offset
                           }
             else:
                 # Proceed with the heuristic
                 kwargs = {"video_path": video_path,
+                          "output_dir": output_dir,
                           "gpu_index": i,
                           "parallel_num": parallel_num,
-                          "k_resolution": None,
+                          "k_resolution": -1,
                           "frame_skip": frame_skip,
                           "batch_size": int(batch_size * ratio),
-                          "return_dict": return_dict,
+                          # "return_dict": return_dict,
                           "roi": roi,
                           "offset": offset
                           }
@@ -218,17 +236,25 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
     for p in process_list:
         p.join()
 
-    # Combine result from multiprocessing
-    combined = []
-    for i in range(parallel_num):
-        combined.extend(return_dict[i])
+    # Combine CSV
+    face_df_wrapper = FaceDataFrameWrapper()
+    csv_path_list = [os.path.join(output_dir, f"result{i}.csv") for i in range(parallel_num)]
+    face_df_wrapper.concat([FaceDataFrameWrapper().read_csv(csv_path) for csv_path in csv_path_list])
+    face_df_wrapper.write_csv(os.path.join(output_dir, "result.csv"))
 
-    # Save result into pickle
-    if config["debug"]:
-        with open(os.path.join(output_dir, f"{get_timestamp()}_detect_face.pt"), "wb") as f:
-            pickle.dump(combined, f)
+    print("done")
 
-    return combined
+    # # Combine result from multiprocessing
+    # combined = []
+    # for i in range(parallel_num):
+    #     combined.extend(return_dict[i])
+    #
+    # # Save result into pickle
+    # if config["debug"]:
+    #     with open(os.path.join(output_dir, f"{get_timestamp()}_detect_face.pt"), "wb") as f:
+    #         pickle.dump(combined, f)
+
+    # return combined
 
 
 def match_result(result_from_detect_face: list, method="cluster_face", **kwargs) -> defaultdict:
@@ -245,7 +271,7 @@ def match_result(result_from_detect_face: list, method="cluster_face", **kwargs)
         face_video_list = kwargs["face_video_list"]
         face_video_result = []
         for face_video in face_video_list:
-            temp = detect_face_multiprocess(face_video, k_resolution=None, batch_size=32)
+            temp = detect_face_multiprocess(face_video, k_resolution=-1, batch_size=32)
             face_video_result.append([t[0] for t in temp])
         from face_utils.match_face import reidentification
         return reidentification(result_from_detect_face, face_video_result)
