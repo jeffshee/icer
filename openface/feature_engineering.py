@@ -1,3 +1,4 @@
+from numpy.core.numeric import outer
 import pandas as pd
 import numpy as np
 from scipy import stats
@@ -63,6 +64,59 @@ def sliding_window(data, success=False, width=32, overlap=16):
         
     return np.array(outputs)
 
+def search_window_frames(frames, window_frames):
+
+    indices = []
+
+    for f in window_frames:
+        # 該当フレーム番号がなければとばす
+        if not (f in frames):
+            continue
+
+        # フレーム番号が該当するインデックスを保存
+        indices.append(frames.index(f))
+
+    return indices
+
+def sliding_window_for_frame_missing(data, frames, success=False, width=32, overlap=16):
+    """
+    スライディングウィンドウ法により特徴抽出
+    """
+    
+    frames = frames.tolist()
+    final_frame = frames[-1]
+
+    # ウィンドウの数
+    n_windows = -(-final_frame//overlap)-1
+    print(len(frames), n_windows)
+    
+    # 各ウィンドウの最終位置を格納
+    windows = []
+    for i in range(n_windows):
+        windows.append(width+i*overlap)
+    
+    # ウィンドウごとに集約特徴量を抽出
+    outputs = []
+    for window in windows:
+
+        # フレーム数ではなく番号をみてウィンドウ決定
+        # trans_data = data[window-width:window]
+        window_frames = list(range(window-width+1, window+1))
+        # indices = list(map(frames.index, window_frames))
+        indices = search_window_frames(frames, window_frames)
+
+        trans_data = data[indices]
+
+        print(f"{window-width+1}:{window} -> {trans_data.shape} ... {indices}")
+
+        if success:
+            outputs.append(window_success(trans_data))
+
+        else:
+            outputs.append(window_feature(trans_data))
+        
+    return np.array(outputs)
+
 def feature_grouping(df):
     """
     集約特徴量の作成
@@ -74,15 +128,22 @@ def feature_grouping(df):
     data_y = df["pose_Ry"].values
     data_z = df["pose_Rz"].values
     success = df["success"].values
+    frames = df["frame"].values.astype(int)
 
     # それぞれスライディングウィンドウ
-    outputs_x = sliding_window(data_x)
-    outputs_y = sliding_window(data_y)
-    outputs_z = sliding_window(data_z)
-    success_rate = sliding_window(success, success=True)
+    # outputs_x = sliding_window(data_x)
+    # outputs_y = sliding_window(data_y)
+    # outputs_z = sliding_window(data_z)
+    outputs_x = sliding_window_for_frame_missing(data_x, frames)
+    outputs_y = sliding_window_for_frame_missing(data_y, frames)
+    outputs_z = sliding_window_for_frame_missing(data_z, frames)
+    # success_rate = sliding_window(success, success=True)
+    success_rate = sliding_window_for_frame_missing(success, frames, success=True)
 
     # 合成
     success_rate = success_rate.reshape(len(success_rate), 1)
+    print(outputs_x.shape, outputs_y.shape, outputs_z.shape, success_rate.shape)
+
     # outputs = np.concatenate([outputs_x, outputs_y, outputs_z], axis=1)
     outputs = np.concatenate([outputs_x, outputs_y, outputs_z, success_rate], axis=1)
 
@@ -92,6 +153,41 @@ def get_timedata(df):
     """
     時間情報（フレーム, タイムスタンプ）を各ウィンドウに追加
     """
+    def sliding_window_times_for_missing_frames(data, frames, width=32, overlap=16):
+        
+        _frames = frames.tolist()
+        final_frame = frames[-1]
+
+        # ウィンドウの数
+        n_windows = -(-final_frame//overlap)-1
+        print(len(frames), n_windows)
+
+        # 各ウィンドウの最終位置を格納
+        windows = []
+        for i in range(n_windows):
+            windows.append(width + i * overlap)
+
+        # ウィンドウごとにtimestamp_in, timestamp_outを取得
+        frames, timestamps = [], []
+        for window in windows:
+
+            # フレーム数ではなく番号をみてウィンドウ決定
+            window_frames = list(range(window-width+1, window+1))
+            indices = search_window_frames(_frames, window_frames)
+
+            frame_in = data["frame"].values[indices][0]
+            frame_out = data["frame"].values[indices][-1]
+            timestamp_in = data["timestamp"].values[indices][0]
+            timestamp_out = data["timestamp"].values[indices][-1]
+
+            print(f"in: {frame_in}, out: {frame_out}")
+
+            frames.append([frame_in, frame_out])
+            timestamps.append([timestamp_in, timestamp_out])
+
+        print(frames)
+        return np.array(frames), np.array(timestamps)
+
     def sliding_window_times(data, width=32, overlap=16):
         
         size = len(data)
@@ -118,7 +214,9 @@ def get_timedata(df):
         return np.array(frames), np.array(timestamps)
 
     # frame_in, frame_out, timestamp_in, timestamp_outを取り出し
-    frames, timestamps = sliding_window_times(df)
+    # frames, timestamps = sliding_window_times(df)
+    frames = df["frame"].values.astype(int)
+    frames, timestamps = sliding_window_times_for_missing_frames(df, frames)
 
     return frames, timestamps
 
@@ -184,7 +282,8 @@ def make_dataset(dir_path, out_path, feature_dim=11):
     columns = ["mean", "std", "mad", "max", "min", "energy", "entropy", "iqr", "range", "skewness", "kurtosis"]
 
     # 各動画のopenface情報から特徴量抽出
-    for csv_path in sorted(glob(dir_path+"*csv*"), key=numericalSort):
+    # for csv_path in sorted(glob(dir_path+"*csv*"), key=numericalSort):
+    for csv_path in [dir_path]:
         input_df = pd.read_csv(csv_path)
 
         # 動画名に"nod" -> 1, ない -> 0
@@ -213,7 +312,7 @@ def make_dataset(dir_path, out_path, feature_dim=11):
         output_df = trans_pandas(outputs, labels, frames, timestamps, columns)
 
         # successの処理
-        output_df = window_check(output_df)
+        # output_df = window_check(output_df)
         print(output_df.shape)
 
         # 保存
@@ -237,7 +336,7 @@ def make_dataset(dir_path, out_path, feature_dim=11):
 
 if __name__ == "__main__":
 
-    DIR_PATH = "../../movie/processed_data/"
-    OUT_PATH = "./csv/"
+    DIR_PATH = "./csv/multi_people_0.csv"
+    OUT_PATH = "./csv/output/"
     make_dataset(DIR_PATH, OUT_PATH)
     
