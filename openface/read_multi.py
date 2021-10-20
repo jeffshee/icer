@@ -60,6 +60,8 @@ def devide_faces(df, csv_name, dir_path):
     output_df["new_face_id"] = output_df["new_face_id"].astype(int)
     df["new_face_id"] = output_df["new_face_id"]
 
+    df.to_csv(f"{dir_path}new_face_id.csv")
+
     # idごとにcsv分割
     df_dict = {}
     id_list = []
@@ -125,6 +127,9 @@ def read_multi(csv_path, dir_path):
     columns = ["mean", "std", "mad", "max", "min", "energy", "entropy", "iqr", "range", "skewness", "kurtosis"]
 
     for id in id_list:
+
+        print(f"id: {id}")
+
         # スライディング法により特徴量抽出
         outputs = feature_grouping(df_dict[id])
         feature_dict[id] = outputs
@@ -132,19 +137,22 @@ def read_multi(csv_path, dir_path):
         # 時間情報（フレーム, タイムスタンプ）を各ウィンドウに追加
         frames, timestamps = get_timedata(df_dict[id])
 
+        print(frames.shape)
+        print(frames)
+
         # pandasに変換
         output_df = trans_pandas(outputs, columns, frames, timestamps)
 
         # success_rateで間引き
-        output_remove_df = window_check(output_df, th=0.8)
-        print(f"{output_df.shape} -> {output_remove_df.shape}")
+        # output_df = window_check(output_df, th=0.8)
+        # print(f"{output_df.shape} -> {output_remove_df.shape}")
 
         # 保存
-        output_remove_df.to_csv(f"{dir_path}{csv_name}_{id}_processed.csv", index=False)
+        output_df.to_csv(f"{dir_path}{csv_name}_{id}_processed.csv", index=False)
 
 
 if __name__ == "__main__":
 
-    CSV_PATH = "../../movie/multi_people.csv"
-    DIR_PATH = "./csv/"
+    CSV_PATH = "../../movie/output.csv"
+    DIR_PATH = "./csv/output/"
     read_multi(CSV_PATH, DIR_PATH)

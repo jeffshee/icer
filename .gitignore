@@ -20,3 +20,4 @@ csv
 *.csv
 *.mp4
 pos
+openface_preprocess
