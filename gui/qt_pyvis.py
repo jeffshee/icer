@@ -8,34 +8,33 @@ import networkx as nx
 
 
 class PyVisWidget(QWebEngineView):
-    def __init__(self, kwargs,networkx_graph=None ):
+    def __init__(self, kwargs,matrix,networkx_graph=None ):
         super().__init__()
         html_path = "networkx.html"
-        if networkx_graph is None:
-            # Generate dummy network graph
-            networkx_graph = nx.complete_graph(5)
-        g = net.Network(directed=True)
-        for i in range(kwargs["speaker_num"]):
-            if i == kwargs["speaker"]:
-                g.add_node(i, color="r")
-            else:
-                g.add_node(i)
-        # g.add_edge(kwargs.s1,kwargs.s2)
+        g = net.Network(directed=False)
+        for i in range(kwargs["speak_num"]):
+            g.add_node(i)
+
+        for i in range(len(matrix)):
+            for j in range(len(matrix[0]) - i - 1):
+                # print(i, j + i + 1)
+                if matrix[i][j + i + 1] != 0:
+                    g.add_edge(i, j + i + 1, value=matrix[i][j + i + 1])
         g.write_html(html_path)
         self.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
 
 class Window(QMainWindow):
-    def __init__(self, kwargs,networkx_graph=None,title="PyVis Viewer"):
+    def __init__(self, kwargs,matrix,networkx_graph=None,title="PyVis Viewer"):
         super().__init__()
         self.setWindowTitle(title)
         self.setGeometry(0, 0, 800, 800)
-        self.setCentralWidget(PyVisWidget(kwargs,networkx_graph))
+        self.setCentralWidget(PyVisWidget(kwargs,matrix,networkx_graph))
         self.show()
 
 
-def show_pyvis(kwargs,networkx_graph=None, title="PyVis Viewer"):
+def show_pyvis(kwargs,matrix,networkx_graph=None, title="PyVis Viewer"):
     app = QApplication(sys.argv)
-    window = Window(kwargs,networkx_graph, title)
+    window = Window(kwargs,matrix,networkx_graph, title)
     sys.exit(app.exec_())
 
 
