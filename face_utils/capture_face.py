@@ -1,5 +1,6 @@
 import csv
 import pickle
+from logging import warning
 from multiprocessing import Manager
 import time
 from collections import defaultdict
@@ -145,9 +146,10 @@ def detect_face(video_path: str, output_dir: str, gpu_index=0, parallel_num=1, k
                     zip(batch_of_face_locations, batch_of_face_encodings)):
                 for location, encoding in zip(face_locations, face_encodings):
                     face_df_wrapper.append(
-                        frame_numbers[frame_number_in_batch],
-                        calculate_original_box(*location, w, h, original_w, original_h, roi), True,
-                        np.array(encoding)
+                        frame_number=frame_numbers[frame_number_in_batch],
+                        location=np.array(calculate_original_box(*location, w, h, original_w, original_h, roi)),
+                        encoding=np.array(encoding),
+                        is_detected=True,
                     )
 
             # for frame_number_in_batch, (face_locations, face_encodings) in enumerate(
@@ -165,11 +167,11 @@ def detect_face(video_path: str, output_dir: str, gpu_index=0, parallel_num=1, k
             # Clear the frames array to start the next batch
             frame_list = []
             frame_numbers = []
-            face_df_wrapper.write_csv(os.path.join(output_dir, f"result{gpu_index}.csv"))
+            # face_df_wrapper.write_csv(os.path.join(output_dir, f"result{gpu_index}.csv"))
 
     # if return_dict:
     #     return_dict[gpu_index] = result
-    # face_df_wrapper.write_csv(os.path.join(output_dir, f"result{gpu_index}.csv"))
+    face_df_wrapper.write_csv(os.path.join(output_dir, f"result{gpu_index}.csv"))
 
 
 # TODO: Have a possibility causing CUDA OOM, need optimization. (Implemented drop_last as workaround)
@@ -180,7 +182,8 @@ def detect_face_multiprocess(video_path: str, output_dir: str, parallel_num=3, k
     print(f"\nProcessing {video_path}")
     print("Using", parallel_num, "GPU(s)")
     process_list = []
-    manager = Manager()
+
+    # manager = Manager()
     # return_dict = manager.dict()
 
     for i in range(parallel_num):
@@ -239,10 +242,9 @@ def detect_face_multiprocess(video_path: str, output_dir: str, parallel_num=3, k
     # Combine CSV
     face_df_wrapper = FaceDataFrameWrapper()
     csv_path_list = [os.path.join(output_dir, f"result{i}.csv") for i in range(parallel_num)]
-    face_df_wrapper.concat([FaceDataFrameWrapper().read_csv(csv_path) for csv_path in csv_path_list])
+    face_df_wrapper.concat([FaceDataFrameWrapper(csv_path) for csv_path in csv_path_list])
     face_df_wrapper.write_csv(os.path.join(output_dir, "result.csv"))
-
-    print("done")
+    return face_df_wrapper.get_old_format()
 
     # # Combine result from multiprocessing
     # combined = []
@@ -270,8 +272,12 @@ def match_result(result_from_detect_face: list, method="cluster_face", **kwargs)
         assert kwargs["face_video_list"]
         face_video_list = kwargs["face_video_list"]
         face_video_result = []
-        for face_video in face_video_list:
-            temp = detect_face_multiprocess(face_video, k_resolution=-1, batch_size=32)
+        for i, face_video in enumerate(face_video_list):
+            reid_output_dir = os.path.join(kwargs["output_dir"], f"reid{i}")
+            os.makedirs(reid_output_dir, exist_ok=True)
+            temp = detect_face_multiprocess(face_video, reid_output_dir, k_resolution=-1, batch_size=32, parallel_num=1)
+            if not temp:
+                warning(f"No face detected in REID video! {face_video}")
             face_video_result.append([t[0] for t in temp])
         from face_utils.match_face import reidentification
         return reidentification(result_from_detect_face, face_video_result)
@@ -368,9 +374,16 @@ def main(video_path: str, output_dir: str, roi=None, offset=0, face_num=None, fa
         result = match_result(result, method="reidentification", face_video_list=face_video_list, output_dir=output_dir)
     else:
         face_cluster_dir = os.path.join(output_dir, "face_cluster")
-        os.makedirs(face_cluster_dir)
+        os.makedirs(face_cluster_dir, exist_ok=True)
         result = match_result(result, method="cluster_face", face_num=face_num, video_path=video_path,
                               output_dir=face_cluster_dir, offset=offset)
     result = interpolate_result(result, video_path=video_path, output_dir=output_dir)
     print('capture_face elapsed time:', time.time() - start, '[sec]')
     return result
+
+
+output_dir = "../output/exp22"
+os.path.join(output_dir, "face_capture")
+face_video_list = ["../datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
+result = FaceDataFrameWrapper("../output/exp22/face_capture/result.csv").get_old_format()
+result = match_result(result, method="reidentification", face_video_list=face_video_list, output_dir=output_dir)

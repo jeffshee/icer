@@ -218,9 +218,18 @@ if __name__ == "__main__":
     #     "face_video_list": ["datasets/200221_expt12/reid/reid{}.mp4".format(i) for i in range(1, 4)]
     # }
 
-    # expt22
+    # # expt22
+    # main_kwargs = {
+    #     "video_path": "datasets/200225_expt22/video.mp4",
+    #     "output_dir": "output/exp22",
+    #     "audio_path_list": ["datasets/200225_expt22/voice{}.wav".format(i) for i in range(1, 6)],
+    #     "face_num": 5,
+    #     "face_video_list": ["datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
+    # }
+
+    # expt22-30sec
     main_kwargs = {
-        "video_path": "datasets/200225_expt22/video.mp4",
+        "video_path": "datasets/200225_expt22/video-30sec.mp4",
         "output_dir": "output/exp22",
         "audio_path_list": ["datasets/200225_expt22/voice{}.wav".format(i) for i in range(1, 6)],
         "face_num": 5,

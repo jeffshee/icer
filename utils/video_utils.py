@@ -6,6 +6,29 @@ from face_utils.face import Face
 from multiprocessing import Process
 import pandas as pd
 
+"""
+Video utils (v2)
+"""
+
+
+# def get_frame_position(video_capture: cv2.VideoCapture) -> int:
+#     return int(video_capture.get(cv2.CAP_PROP_POS_FRAMES)) + 1
+#
+#
+# def set_frame_position(video_capture: cv2.VideoCapture, position: int) -> int:
+#     return int(video_capture.set(cv2.CAP_PROP_POS_FRAMES, position - 1))
+#
+#
+# def get_video_dimension(video_capture: cv2.VideoCapture) -> Tuple[int, int]:
+#     return int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+#
+#
+# def get_video_length(video_capture: cv2.VideoCapture) -> int:
+#     return int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+#
+#
+# def get_video_framerate(video_capture: cv2.VideoCapture) -> float:
+#     return float(video_capture.get(cv2.CAP_PROP_FPS))
 
 def get_video_capture(video_path: str) -> cv2.VideoCapture:
     return cv2.VideoCapture(video_path)
@@ -107,13 +130,14 @@ def crop_video(video_path: str, output_path: str, roi, start_time=0, end_time=-1
     x, y, w, h = roi
 
     codec = "h264_nvenc" if use_gpu else "libx264"
-    lossless = "-preset ultrafast -crf 0"
+    lossless = "-crf 0"
     quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null" if console_quiet else ""
 
     cmd = f"""
             ffmpeg -y -i {video_path} {trim} -filter:v "crop={w}:{h}:{x}:{y}" \
             -c:v {codec} {lossless} {audio} {output_path} {quiet}
             """
+    print(cmd)
     subprocess.call(cmd, shell=True)
 
 
@@ -172,7 +196,7 @@ def calibrate_video(video_path: str, output_path: str, offset=0, start_time=0, e
     flip = -1 if offset < 0 else 1
 
     codec = "h264_nvenc" if use_gpu else "libx264"
-    lossless = "-preset ultrafast -crf 0"
+    lossless = "-crf 0"
     quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null" if console_quiet else ""
 
     cmd = f"""
@@ -181,7 +205,6 @@ def calibrate_video(video_path: str, output_path: str, offset=0, start_time=0, e
             [bg][0:v]overlay={flip}*W-{offset},format=yuv420p[out]" \
             -map "[out]" -map 0:a? -c:v {codec} {lossless} {audio} {output_path} {quiet}
             """
-
     subprocess.call(cmd, shell=True)
 
 

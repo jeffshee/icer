@@ -27,9 +27,11 @@ def my_compare_faces(known_faces, face_encoding_to_check):
         return np.empty(0)
 
     for known_face_list in known_faces:
-        distance_know_face_list = np.linalg.norm(known_face_list - face_encoding_to_check, axis=1)
-        distance_list.append(np.min(distance_know_face_list))
-
+        if known_face_list:
+            distance_know_face_list = np.linalg.norm(known_face_list - face_encoding_to_check, axis=1)
+            distance_list.append(np.min(distance_know_face_list))
+        else:
+            distance_list.append(0)
     return distance_list
 
 

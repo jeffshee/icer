@@ -21,7 +21,7 @@ def create_reid(video_path: str = None, face_num: int = None):
     with tempfile.TemporaryDirectory() as temp_dirname:
         print("Temporary directory created at", temp_dirname)
         calibrate_path = os.path.join(temp_dirname, "calibrate.mp4")
-        calibrate_video(video_path, output_path=calibrate_path, offset=offset, end_time=10, remove_audio=True)
+        calibrate_video(video_path, output_path=calibrate_path, offset=offset, end_time=30, remove_audio=True)
 
         output_dir = os.path.join(os.path.dirname(video_path), "reid")
         os.makedirs(output_dir, exist_ok=True)
@@ -32,11 +32,12 @@ def create_reid(video_path: str = None, face_num: int = None):
             kwargs = dict(video_path=calibrate_path,
                           output_path=output_path,
                           roi=roi,
-                          console_quite=False)
+                          console_quiet=False)
             post_processes.append(Process(target=crop_video, kwargs=kwargs))
 
         for p in post_processes:
             p.start()
+        for p in post_processes:
             p.join()
 
     QApplication.quit()
