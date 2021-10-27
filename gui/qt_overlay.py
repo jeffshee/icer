@@ -211,6 +211,8 @@ class VLCControl(QWidget):
         self.timekeeper = VLCTimeKeeper(vlc_widgets[0])
         self.play_pause()
 
+        ##
+        self.speaker_num=kwargs.speaker_num
     def set_position(self, position):
         """Set the position"""
         # setting the position to where the slider was dragged
@@ -275,7 +277,19 @@ class VLCControl(QWidget):
 
     def interaction_gui(self):
         # TODO pass networkx obj into arg here
-        p = Process(target=show_pyvis, args=(None, "Interaction"))
+        ##
+        cur_time = self.timekeeper.precise_cur_time
+
+        row = self.transcript[
+            (self.transcript["Start time(ms)"] <= cur_time) & (cur_time < self.transcript["End time(ms)"])]
+        if len(row) == 0:
+            self.label.setText("")
+        else:
+            speaker = self._name_list[row["Speaker"].item()]
+        graph_kwargs=dict(speaker_num=self.speaker_num,
+                          speaker=speaker
+        )
+        p = Process(target=show_pyvis, args=(graph_kwargs,None, "Interaction"))
         p.start()
 
 
