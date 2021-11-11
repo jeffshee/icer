@@ -117,6 +117,7 @@ def read_multi(csv_path, dir_path):
     for column_name in input_df.columns:
         columns_dict[column_name] = column_name.lstrip()
     input_df = input_df.rename(columns=columns_dict)
+    print(input_df)
 
     # 人（new_face_id）を見分けてcsvを分割
     df_dict, id_list = devide_faces(input_df, csv_name, dir_path)
@@ -127,6 +128,8 @@ def read_multi(csv_path, dir_path):
 
     for id in id_list:
 
+        print(f"id: {id}")
+
         # スライディング法により特徴量抽出
         outputs = feature_grouping(df_dict[id])
         feature_dict[id] = outputs
@@ -134,7 +137,8 @@ def read_multi(csv_path, dir_path):
         # 時間情報（フレーム, タイムスタンプ）を各ウィンドウに追加
         frames, timestamps = get_timedata(df_dict[id])
 
-        print(f"id {id}: {frames.shape}")
+        print(frames.shape)
+        print(frames)
 
         # pandasに変換
         output_df = trans_pandas(outputs, columns, frames, timestamps)
@@ -146,8 +150,9 @@ def read_multi(csv_path, dir_path):
         # 保存
         output_df.to_csv(f"{dir_path}{csv_name}_{id}_processed.csv", index=False)
 
+
 if __name__ == "__main__":
 
-    CSV_PATH = "./openface/source/multi/test.csv"
-    DIR_PATH = "./openface/preprocessed/multi/"
+    CSV_PATH = "../../movie/output.csv"
+    DIR_PATH = "./csv/output/"
     read_multi(CSV_PATH, DIR_PATH)

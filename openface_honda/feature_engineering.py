@@ -88,6 +88,7 @@ def sliding_window_for_frame_missing(data, frames, success=False, width=32, over
 
     # ウィンドウの数
     n_windows = -(-final_frame//overlap)-1
+    print(len(frames), n_windows)
     
     # 各ウィンドウの最終位置を格納
     windows = []
@@ -105,6 +106,8 @@ def sliding_window_for_frame_missing(data, frames, success=False, width=32, over
         indices = search_window_frames(frames, window_frames)
 
         trans_data = data[indices]
+
+        print(f"{window-width+1}:{window} -> {trans_data.shape} ... {indices}")
 
         if success:
             outputs.append(window_success(trans_data))
@@ -139,6 +142,7 @@ def feature_grouping(df):
 
     # 合成
     success_rate = success_rate.reshape(len(success_rate), 1)
+    print(outputs_x.shape, outputs_y.shape, outputs_z.shape, success_rate.shape)
 
     # outputs = np.concatenate([outputs_x, outputs_y, outputs_z], axis=1)
     outputs = np.concatenate([outputs_x, outputs_y, outputs_z, success_rate], axis=1)
@@ -156,6 +160,7 @@ def get_timedata(df):
 
         # ウィンドウの数
         n_windows = -(-final_frame//overlap)-1
+        print(len(frames), n_windows)
 
         # 各ウィンドウの最終位置を格納
         windows = []
@@ -175,9 +180,12 @@ def get_timedata(df):
             timestamp_in = data["timestamp"].values[indices][0]
             timestamp_out = data["timestamp"].values[indices][-1]
 
+            print(f"in: {frame_in}, out: {frame_out}")
+
             frames.append([frame_in, frame_out])
             timestamps.append([timestamp_in, timestamp_out])
 
+        print(frames)
         return np.array(frames), np.array(timestamps)
 
     def sliding_window_times(data, width=32, overlap=16):
@@ -205,10 +213,8 @@ def get_timedata(df):
 
         return np.array(frames), np.array(timestamps)
 
-    # frame欠損を考慮しない
+    # frame_in, frame_out, timestamp_in, timestamp_outを取り出し
     # frames, timestamps = sliding_window_times(df)
-
-    # frame欠損を考慮する
     frames = df["frame"].values.astype(int)
     frames, timestamps = sliding_window_times_for_missing_frames(df, frames)
 
@@ -257,7 +263,7 @@ def window_check(df, th=0.8, remove_sr=True):
 
     return df
 
-def make_dataset(source_path, out_path):
+def make_dataset(dir_path, out_path, feature_dim=11):
     """
     main
     複数のcsvファイルを読み込んで、スライディングウィンドウ法により
@@ -265,20 +271,19 @@ def make_dataset(source_path, out_path):
 
     label: 1うなづきあり、0うなずきなし
     """
-    # 使用する特徴量の名前
-    features = ["mean", "std", "mad", "max", "min", "energy", "entropy", "iqr", "range", "skewness", "kurtosis"]
-    features_dim = len(features) # 11
 
     # outputs_list = np.empty((0, feature_dim*3))
-    outputs_list = np.empty((0, features_dim*3+1))
+    outputs_list = np.empty((0, feature_dim*3+1))
     labels_list = np.empty((0, 1))
     frames_list = np.empty((0, 2))
     timestamps_list = np.empty((0, 2))
-    
-    # 各動画のopenface情報から特徴量抽出
-    # for csv_path in sorted(glob(source_path+"*csv*"), key=numericalSort):
-    for csv_path in glob(source_path+"*csv*"):
 
+    # 出力するDataFrameのコラム
+    columns = ["mean", "std", "mad", "max", "min", "energy", "entropy", "iqr", "range", "skewness", "kurtosis"]
+
+    # 各動画のopenface情報から特徴量抽出
+    # for csv_path in sorted(glob(dir_path+"*csv*"), key=numericalSort):
+    for csv_path in [dir_path]:
         input_df = pd.read_csv(csv_path)
 
         # 動画名に"nod" -> 1, ない -> 0
@@ -304,18 +309,15 @@ def make_dataset(source_path, out_path):
         frames, timestamps = get_timedata(input_df)
 
         # pandasに変換
-        output_df = trans_pandas(outputs, labels, frames, timestamps, features)
-        before_shape = output_df.shape
+        output_df = trans_pandas(outputs, labels, frames, timestamps, columns)
 
         # successの処理
-        output_df = window_check(output_df)
-        
+        # output_df = window_check(output_df)
+        print(output_df.shape)
+
         # 保存
         csv_name = os.path.splitext(os.path.basename(csv_path))[0] # 拡張子なしファイル名
         output_df.to_csv(f"{out_path}{csv_name}_processed.csv", index=False)
-
-        print(f"Saved {out_path}{csv_name}_processed.csv!")
-        print(f"shape: {before_shape} -> {output_df.shape} (deleted small success rate's data)\n")
 
         # 追加
         outputs_list = np.concatenate([outputs_list, outputs])
@@ -324,17 +326,17 @@ def make_dataset(source_path, out_path):
         labels_list = np.concatenate([labels_list, labels])
 
     # pandasに変換
-    outputs_df = trans_pandas(outputs_list, labels_list, frames_list, timestamps_list, features)
+    outputs_df = trans_pandas(outputs_list, labels_list, frames_list, timestamps_list, columns)
 
     # successの処理
     outputs_df = window_check(outputs_df)
-    # print(outputs_df)
+    print(outputs_df)
 
     outputs_df.to_csv(f"{out_path}entire.csv", index=False)
 
 if __name__ == "__main__":
 
-    SOURCE_PATH = "./openface/source/single/"
-    OUT_PATH = "./openface/preprocessed/single/"
-    make_dataset(SOURCE_PATH, OUT_PATH)
+    DIR_PATH = "./csv/multi_people_0.csv"
+    OUT_PATH = "./csv/output/"
+    make_dataset(DIR_PATH, OUT_PATH)
     
