@@ -8,13 +8,13 @@ from matching.games import StableMarriage
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances_argmin_min
 
-from main_util import cleanup_directory
+from utils.main_utils import cleanup_directory
 from utils.video_utils import *
 
 
-def output_face_image(video_capture: cv2.VideoCapture, face: Face, output_path):
+def output_face_image(video_capture: cv2.VideoCapture, face: Face, output_path, offset=0):
     set_frame_position(video_capture, face.frame_number)
-    ret, frame = video_capture.read()
+    ret, frame = read_video_capture(video_capture, offset)
     if ret and face.location is not None:
         top, right, bottom, left = face.location
         face_img = frame[top:bottom, left:right]
@@ -27,9 +27,11 @@ def my_compare_faces(known_faces, face_encoding_to_check):
         return np.empty(0)
 
     for known_face_list in known_faces:
-        distance_know_face_list = np.linalg.norm(known_face_list - face_encoding_to_check, axis=1)
-        distance_list.append(np.min(distance_know_face_list))
-
+        if known_face_list:
+            distance_know_face_list = np.linalg.norm(known_face_list - face_encoding_to_check, axis=1)
+            distance_list.append(np.min(distance_know_face_list))
+        else:
+            distance_list.append(0)
     return distance_list
 
 
@@ -117,7 +119,7 @@ def match_frame(result_from_detect_face: list, face_num=None):
     return matcher.get_result()
 
 
-def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, output_path="face_cluster",
+def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, output_path="face_cluster", offset=0,
                  target_cluster_size=1000, face_matching_th=0.35, unattended=False, use_old=False):
     """
 
@@ -125,6 +127,7 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
     :param face_num: Specify number of face in the video, otherwise use maximum number of detected face in all frame
     :param video_path: Video path for clustering, required if unattended is False
     :param output_path: Output path to store the cluster for manual revision
+    :param offset:
     :param target_cluster_size: Target cluster size, larger size may produce better result, but require more time
     :param face_matching_th: Face matching threshold, match the faces only if the distance is lower than threshold
     :param unattended: Skip the manual revision process after the clustering (Warn: High possibility of bad result)
@@ -161,7 +164,7 @@ def cluster_face(result_from_detect_face: list, face_num=None, video_path=None, 
                     if not unattended:
                         face_image_path = join(output_path, "{}.png".format(count))
                         if not use_old:
-                            output_face_image(video_capture, face, face_image_path)
+                            output_face_image(video_capture, face, face_image_path, offset)
                         face_image_path_list.append(face_image_path)
                     face_image_encoded_list.append(face.encoding)
                     count += 1

@@ -11,6 +11,8 @@
       <excludeFolder url="file://$MODULE_DIR$/datasets/200225_expt22" />
       <excludeFolder url="file://$MODULE_DIR$/datasets/200225_expt23" />
       <excludeFolder url="file://$MODULE_DIR$/datasets/200309_expt58" />
+      <excludeFolder url="file://$MODULE_DIR$/datasets/sound_only_5min" />
+      <excludeFolder url="file://$MODULE_DIR$/deprecated" />
       <excludeFolder url="file://$MODULE_DIR$/output/transcript/diarization" />
       <excludeFolder url="file://$MODULE_DIR$/output_expt12/transcript/diarization" />
       <excludeFolder url="file://$MODULE_DIR$/test" />
