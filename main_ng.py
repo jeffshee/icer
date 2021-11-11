@@ -155,7 +155,7 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
         os.makedirs(emotion_dir, exist_ok=True)
         kwargs = dict(interpolated_result=capture_face_result,
                       video_path=video_path,
-                      output_dir=output_dir,
+                      output_dir=emotion_dir,
                       offset=offset
                       )
         run_emotion_recognition(**kwargs)

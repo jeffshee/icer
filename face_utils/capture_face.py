@@ -1,13 +1,11 @@
-import csv
+import os
 import pickle
-from logging import warning
-from multiprocessing import Manager
 import time
 from collections import defaultdict
-import os
+from logging import warning
 
-from utils.video_utils import *
 from face_utils.face_csv import FaceDataFrameWrapper
+from utils.video_utils import *
 
 config = {
     "debug": False
@@ -304,7 +302,7 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
     for key, face_list in result_from_match_result.items():
         # Interpolate (top,right,bottom,left) for undetected frames
         # Set to None when interpolation is impossible, e.g. before the first or after the last detected frame
-        face_list_detected = [face for face in face_list if face.is_detected and face.location]
+        face_list_detected = [face for face in face_list if face.is_detected and face.location is not None]
         face_location_median = np.median([calculate_box_midpoint(*face.location) for face in face_list_detected],
                                          axis=0)
         face_list_filtered = []
@@ -382,8 +380,8 @@ def main(video_path: str, output_dir: str, roi=None, offset=0, face_num=None, fa
     return result
 
 
-output_dir = "../output/exp22"
-os.path.join(output_dir, "face_capture")
-face_video_list = ["../datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
-result = FaceDataFrameWrapper("../output/exp22/face_capture/result.csv").get_old_format()
-result = match_result(result, method="reidentification", face_video_list=face_video_list, output_dir=output_dir)
+# output_dir = "../output/exp22"
+# os.path.join(output_dir, "face_capture")
+# face_video_list = ["../datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
+# result = FaceDataFrameWrapper("../output/exp22/face_capture/result.csv").get_old_format()
+# result = match_result(result, method="reidentification", face_video_list=face_video_list, output_dir=output_dir)

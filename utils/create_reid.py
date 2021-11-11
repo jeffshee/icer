@@ -32,7 +32,8 @@ def create_reid(video_path: str = None, face_num: int = None):
             kwargs = dict(video_path=calibrate_path,
                           output_path=output_path,
                           roi=roi,
-                          console_quiet=False)
+                          console_quiet=False,
+                          use_gpu=False)  # Don't use GPU when multi-processing!
             post_processes.append(Process(target=crop_video, kwargs=kwargs))
 
         for p in post_processes:

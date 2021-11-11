@@ -275,6 +275,8 @@ def output_video_emotion(interpolated_result: dict, emotion_csv_path_list: list,
                                    get_video_dimension(video_path))
 
     # Read emotion recognition CSV
+    # TODO: debug pandas: No columns to parse from file
+    print(f"Debug: {emotion_csv_path_list}")
     emotion_df_list = [pd.read_csv(path) for path in emotion_csv_path_list]
     emotion_recognition_k_frame = emotion_df_list[0]["frame_number"][1] - emotion_df_list[0]["frame_number"][0]
 
@@ -341,9 +343,10 @@ def output_video_emotion_multiprocess(interpolated_result: dict, emotion_csv_pat
                       )
         p = Process(target=output_video_emotion, kwargs=kwargs)
         process_list.append(p)
-        p.start()
+        # p.start()
 
     for p in process_list:
+        p.start()
         p.join()
 
     # Concat
@@ -433,3 +436,5 @@ Deprecated
 #
 #     video_capture.release()
 #     video_writer.release()
+
+

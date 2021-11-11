@@ -264,7 +264,6 @@ class CropperDialog(QDialog):
     def get_result(self):
         self.roi = roi = self.crop_item.rect()
         roi_x, roi_y, roi_w, roi_h = int(roi.x()), int(roi.y()), int(roi.width()), int(roi.height())
-        print("Raw", roi_x, roi_y, roi_w, roi_h)
         # In-bound check
         roi_x, roi_y = max(0, min(roi_x, self.w)), max(0, min(roi_y, self.h))
         roi_w, roi_h = max(0, min(roi_w, self.w - roi_x)), max(0, min(roi_h, self.h - roi_y))
