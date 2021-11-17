@@ -78,18 +78,14 @@ def feature_grouping(df):
     data_x = df["pose_Rx"].values
     data_y = df["pose_Ry"].values
     data_z = df["pose_Rz"].values
-    success = df["success"].values
 
     # それぞれスライディングウィンドウ
     outputs_x = sliding_window(data_x)
     outputs_y = sliding_window(data_y)
     outputs_z = sliding_window(data_z)
-    success_rate = sliding_window(success, success=True)
 
     # 合成
-    success_rate = success_rate.reshape(len(success_rate), 1)
-    # outputs = np.concatenate([outputs_x, outputs_y, outputs_z], axis=1)
-    outputs = np.concatenate([outputs_x, outputs_y, outputs_z, success_rate], axis=1)
+    outputs = np.concatenate([outputs_x, outputs_y, outputs_z], axis=1)
 
     return outputs
 
@@ -151,14 +147,13 @@ def get_face_data(df, width=32, overlap=16):
 def trans_pandas(data, labels, frames, timestamps, columns_ori):
     """ numpy -> pandas """
 
-    # コラム
+    # カラム
     columns_x = [s + "_x" for s in columns_ori]
     columns_y = [s + "_y" for s in columns_ori]
     columns_z = [s + "_z" for s in columns_ori]
     columns = columns_x[:]
     columns.extend(columns_y)
     columns.extend(columns_z)
-    columns.append("success_rate")
     columns.append("frame_in")
     columns.append("frame_out")
     columns.append("timestamp_in")
@@ -176,20 +171,15 @@ def trans_pandas(data, labels, frames, timestamps, columns_ori):
     return out_df
 
 
-def window_check(df, th=0.8, remove_sr=True):
+def remove_low_confidence_rows(df, th=0.8):
     """
-    success_rate(各ウィンドウのsuccessの割合)がth(しきい値)以下ならその行を消す処理
+    confidenceがth(しきい値)未満ならその行を消す処理
     """
 
     # th以下の行を削除
-    sr = df["success_rate"].values
+    sr = df["confidence"].values
     index = np.where(sr < th)[0]
     df = df.drop(df.index[index])
-
-    # success_rateコラムも削除
-    if remove_sr:
-        df = df.drop("success_rate", axis=1)
-
     return df
 
 
@@ -208,7 +198,7 @@ def make_dataset(dir_path, out_path, feature_dim=11):
     frames_list = np.empty((0, 2))
     timestamps_list = np.empty((0, 2))
 
-    # 出力するDataFrameのコラム
+    # 出力するDataFrameのカラム
     columns = ["mean", "std", "mad", "max", "min", "energy", "entropy", "iqr", "range", "skewness", "kurtosis"]
 
     # 各動画のopenface情報から特徴量抽出
@@ -241,7 +231,7 @@ def make_dataset(dir_path, out_path, feature_dim=11):
         output_df = trans_pandas(outputs, labels, frames, timestamps, columns)
 
         # successの処理
-        output_df = window_check(output_df)
+        output_df = remove_low_confidence_rows(output_df)
         print(output_df.shape)
 
         # 保存
@@ -258,7 +248,7 @@ def make_dataset(dir_path, out_path, feature_dim=11):
     outputs_df = trans_pandas(outputs_list, labels_list, frames_list, timestamps_list, columns)
 
     # successの処理
-    outputs_df = window_check(outputs_df)
+    outputs_df = remove_low_confidence_rows(outputs_df)
     print(outputs_df)
 
     outputs_df.to_csv(f"{out_path}entire.csv", index=False)
