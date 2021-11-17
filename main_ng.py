@@ -15,8 +15,6 @@ config = {
     "run_emotion_recognition": True,  # 切り出した顔画像の表情・頷き・口の開閉認識
     "run_transcript": True,  # Diarization・音声認識
     "run_overlay": True,  # 表情・頷き・発話情報を動画にまとめて可視化
-
-    "capture_face_pt_path": None,  # Pickle to load when run_capture_face is false
     "tensorflow_log_level": str(2)
 }
 
@@ -25,36 +23,15 @@ Issue:
 1. Python multiprocessing error 'ForkAwareLocal' object has no attribute 'connection'
 https://stackoverflow.com/questions/60795412/python-multiprocessing-error-forkawarelocal-object-has-no-attribute-connectio
 Perhaps you were using Pycharm with Run with Python console option checked in Run/Debug Configuration. Try uncheck that.
-2. Multiprocessing fail
-GPU#1: 100%|██████████| 20624/20624 [15:31<00:00, 28.07it/s]Traceback (most recent call last):
-  File "/home/jeffshee/Developer/icer/main_ng.py", line 216, in <module>
-    main(**main_kwargs)
-  File "/home/jeffshee/Developer/icer/main_ng.py", line 42, in timed
-    result = method(*args, **kwargs)
-  File "/home/jeffshee/Developer/icer/main_ng.py", line 123, in main
-    capture_face_result = run_capture_face(**kwargs)
-  File "/home/jeffshee/Developer/icer/main_ng.py", line 42, in timed
-    result = method(*args, **kwargs)
-  File "/home/jeffshee/Developer/icer/main_ng.py", line 57, in run_capture_face
-    return main(**kwargs)
-  File "/home/jeffshee/Developer/icer/face_utils/capture_face.py", line 340, in main
-    result = detect_face_multiprocess(video_path, roi=roi, offset=offset, output_dir=output_dir)
-  File "/home/jeffshee/Developer/icer/face_utils/capture_face.py", line 224, in detect_face_multiprocess
-    combined.extend(return_dict[i])
-  File "<string>", line 2, in __getitem__
-  File "/home/jeffshee/anaconda3/envs/icer/lib/python3.8/multiprocessing/managers.py", line 850, in _callmethod
-    raise convert_to_error(kind, result)
-KeyError: 0
-
-Perhaps write the result to multiple csv is better
 """
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = config["tensorflow_log_level"]
 import warnings
 
-warnings.filterwarnings("ignore")
-warnings.filterwarnings("ignore", message="numpy.dtype size changed")
-warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
+# warnings.filterwarnings("ignore")
+# warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+# warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
+warnings.filterwarnings("ignore", category=Warning)
 from utils.audio_utils import set_audio
 
 
@@ -93,8 +70,11 @@ def run_emotion_recognition(**kwargs):
     output_dir = kwargs["output_dir"]
     offset = kwargs["offset"]
 
+    # Get file list, keep only csv files
+    emotion_csv_path_list = sorted(filter(lambda f: os.path.isfile(f) and f.endswith(".csv"),
+                                          [os.path.join(output_dir, f) for f in os.listdir(output_dir)]))
     output_kwargs = dict(interpolated_result=capture_face_result,
-                         emotion_csv_path_list=sorted([os.path.join(output_dir, f) for f in os.listdir(output_dir)]),
+                         emotion_csv_path_list=emotion_csv_path_list,
                          video_path=video_path,
                          output_path=os.path.join(output_dir, temp_filename),
                          offset=offset
@@ -102,7 +82,7 @@ def run_emotion_recognition(**kwargs):
     output_video_emotion_multiprocess(**output_kwargs)
     set_audio(os.path.join(output_dir, temp_filename), video_path, os.path.join(output_dir, video_filename))
     # Remove temp
-    os.remove(temp_filename)
+    os.remove(os.path.join(output_dir, temp_filename))
 
 
 @timeit
@@ -143,11 +123,6 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
                       face_video_list=face_video_list,
                       )
         capture_face_result = run_capture_face(**kwargs)
-    else:
-        import pickle
-        if config["capture_face_pt_path"]:
-            with open(config["capture_face_pt_path"], "rb") as f:
-                capture_face_result = pickle.load(f)
 
     if config["run_emotion_recognition"]:
         assert capture_face_result

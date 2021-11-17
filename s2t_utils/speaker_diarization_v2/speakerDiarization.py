@@ -18,17 +18,10 @@ from s2t_utils.speaker_diarization_v2.uisrnn import parse_arguments
 from s2t_utils.speaker_diarization_v2.uisrnn import uisrnn
 from s2t_utils.speaker_diarization_v2.visualization.viewer import PlotDiar
 
-# Conflicted
-# sys.path.append('speaker_diarization_v2/ghostvlad')
-# sys.path.append('speaker_diarization_v2/visualization')
-# from ghostvlad import toolkits
-# import ghostvlad.model as spkModel
-# from visualization.viewer import PlotDiar
-
 parser = argparse.ArgumentParser()
 # set up training configuration.
 parser.add_argument('--gpu', default='', type=str)
-parser.add_argument('--resume', default=r'speaker_diarization_v2/ghostvlad/pretrained/weights.h5', type=str)
+parser.add_argument('--resume', default=r's2t_utils/speaker_diarization_v2/ghostvlad/pretrained/weights.h5', type=str)
 parser.add_argument('--data_path', default='4persons', type=str)
 # set up network configuration.
 parser.add_argument('--net', default='resnet34s', choices=['resnet34s', 'resnet34l'], type=str)
@@ -43,7 +36,7 @@ parser.add_argument('--test_type', default='normal', choices=['normal', 'hard', 
 args = parser.parse_args()
 
 # Modified
-SAVED_MODEL_NAME = 'speaker_diarization_v2/pretrained/saved_model.uisrnn_benchmark'
+SAVED_MODEL_NAME = 's2t_utils/speaker_diarization_v2/pretrained/saved_model.uisrnn_benchmark'
 
 
 def append2dict(speakerSlice, spk_period):
@@ -153,136 +146,136 @@ def load_data(path, win_length=400, sr=16000, hop_length=160, n_fft=512, embeddi
     return utterances_spec, intervals
 
 
-# Merged from master
-def vrew_based_diarization(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1,
-                           max_clusters=100):
-    df = pd.read_table('./vrew/200225_expt22_video.txt', header=None, names=('time', 'txt'))
-    wav_fname = './audio/expt22.wav'
-    wav, sr = librosa.load(wav_fname, sr=None)
-    prev_start = 0
-    dup_df = df.duplicated(subset=['time'])
-    for i, d in enumerate(dup_df):
-        if d:
-            df.iloc[i - 1]['txt'] += df.iloc[i]['txt']
-    df = df.drop_duplicates(subset=['time'])
-    txt_list = []
-    slice_idx = []
-    for start, end, txt in zip(df.time[:-1], df.time[1:], df.txt[:-1]):
-        start_h, start_m, start_s = start.split(':')
-        end_h, end_m, end_s = end.split(':')
-        start_idx = (int(start_h) * 60 ** 2 + int(start_m) * 60 + int(start_s)) * sr
-        end_idx = (int(end_h) * 60 ** 2 + int(end_m) * 60 + int(end_s)) * sr
-        txt_list.append(txt)
-        slice_idx.append([start_idx, end_idx])
-        # cat_wav = wav[start_idx:end_idx]
-
-
-# Merged from master
-def multi_audio_diarization(wav_dpath, wav_base_fpath, path_result, embedding_per_second=1.0, overlap_rate=0.5,
-                            min_clusters=1, max_clusters=100):
-    # gpu configuration
-    toolkits.initialize_GPU(args)
-
-    wav_path_list = [os.path.join(wav_dpath, d) for d in os.listdir(wav_dpath) if
-                     os.path.isfile(os.path.join(wav_dpath, d))]
-    specs_list = []
-    _, intervals = load_data(wav_base_fpath, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate)
-    mapTable, keys = genMap(intervals)
-    for wav_path in wav_path_list:
-        specs, _ = load_data(wav_path, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate,
-                             specific_intervals=intervals)
-        specs_list.append(specs)
-
-    params = {'dim': (257, None, 1),
-              'nfft': 512,
-              'spec_len': 250,
-              'win_length': 400,
-              'hop_length': 160,
-              'n_classes': 5994,
-              'sampling_rate': 16000,
-              'normalize': True,
-              }
-
-    network_eval = spkModel.vggvox_resnet2d_icassp(input_dim=params['dim'],
-                                                   num_class=params['n_classes'],
-                                                   mode='eval', args=args)
-    network_eval.load_weights(args.resume, by_name=True)
-
-    # model_args, _, inference_args = uisrnn.parse_arguments()
-    # model_args.observation_dim = 512
-    # uisrnnModel = uisrnn.UISRNN(model_args)
-    # uisrnnModel.load(SAVED_MODEL_NAME)
-
-    feats_list = []
-    for specs in specs_list:
-        feats = []
-        for spec in specs:
-            spec = np.expand_dims(np.expand_dims(spec, 0), -1)
-            v = network_eval.predict(spec)
-            feats += [v]
-        feats = np.array(feats)[:, 0, :].astype(float)  # [splits, embedding dim]
-        feats_list.append(feats)
-
-    Feats = feats_list[0]
-    for feats in feats_list[1:]:
-        Feats = np.append(Feats, feats, axis=1)
-    print(Feats.shape)
-    return
-    min_clusters = 1
-    max_clusters = 5
-    clusterer = SpectralClusterer(
-        min_clusters=min_clusters,
-        max_clusters=max_clusters,
-        p_percentile=0.95,
-        gaussian_blur_sigma=1)
-    predicted_label = clusterer.predict(feats)
-    # predicted_label = uisrnnModel.predict(feats, inference_args)
-
-    time_spec_rate = 1000 * (1.0 / embedding_per_second) * (
-            1.0 - overlap_rate)  # speaker embedding every time_spec_rate ms
-    speakerSlice = arrangeResult(predicted_label, time_spec_rate)
-
-    for spk, timeDicts in speakerSlice.items():  # time map to orgin wav(contains mute)
-        for tid, timeDict in enumerate(timeDicts):
-            s = 0
-            e = 0
-            for i, key in enumerate(keys):
-                if (s != 0 and e != 0):
-                    break
-                if (s == 0 and key > timeDict['start']):
-                    offset = timeDict['start'] - keys[i - 1]
-                    s = mapTable[keys[i - 1]] + offset
-                if (e == 0 and key > timeDict['stop']):
-                    offset = timeDict['stop'] - keys[i - 1]
-                    e = mapTable[keys[i - 1]] + offset
-
-            speakerSlice[spk][tid]['start'] = s
-            speakerSlice[spk][tid]['stop'] = e
-
-    for spk, timeDicts in speakerSlice.items():
-        print('========= ' + str(spk) + ' =========')
-        for timeDict in timeDicts:
-            s = timeDict['start']
-            e = timeDict['stop']
-            s = fmtTime(s)  # change point moves to the center of the slice
-            e = fmtTime(e)
-            print(s + ' ==> ' + e)
-
-    os.makedirs(path_result, exist_ok=True)
-
-    # 結果を画像として保存
-    p = PlotDiar(map=speakerSlice, wav=wav_path, gui=False, size=(25, 6))
-    p.draw()
-    p.plot.savefig("{}result.png".format(path_result))
-
-    # 結果をCSVファイルに保存
-    with open("{}result.csv".format(path_result), "w", encoding="Shift_jis") as f:
-        writer = csv.writer(f, lineterminator="\n")  # writerオブジェクトの作成 改行記号で行を区切る
-        writer.writerow(["time(ms)", "speaker class"])
-        for spk, timeDicts in speakerSlice.items():
-            for timeDict in timeDicts:
-                for frame_ms in range(timeDict['start'], timeDict['stop']):
-                    writer.writerow([frame_ms, spk])
+# # Merged from master
+# def vrew_based_diarization(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1,
+#                            max_clusters=100):
+#     df = pd.read_table('./vrew/200225_expt22_video.txt', header=None, names=('time', 'txt'))
+#     wav_fname = './audio/expt22.wav'
+#     wav, sr = librosa.load(wav_fname, sr=None)
+#     prev_start = 0
+#     dup_df = df.duplicated(subset=['time'])
+#     for i, d in enumerate(dup_df):
+#         if d:
+#             df.iloc[i - 1]['txt'] += df.iloc[i]['txt']
+#     df = df.drop_duplicates(subset=['time'])
+#     txt_list = []
+#     slice_idx = []
+#     for start, end, txt in zip(df.time[:-1], df.time[1:], df.txt[:-1]):
+#         start_h, start_m, start_s = start.split(':')
+#         end_h, end_m, end_s = end.split(':')
+#         start_idx = (int(start_h) * 60 ** 2 + int(start_m) * 60 + int(start_s)) * sr
+#         end_idx = (int(end_h) * 60 ** 2 + int(end_m) * 60 + int(end_s)) * sr
+#         txt_list.append(txt)
+#         slice_idx.append([start_idx, end_idx])
+#         # cat_wav = wav[start_idx:end_idx]
+#
+#
+# # Merged from master
+# def multi_audio_diarization(wav_dpath, wav_base_fpath, path_result, embedding_per_second=1.0, overlap_rate=0.5,
+#                             min_clusters=1, max_clusters=100):
+#     # gpu configuration
+#     toolkits.initialize_GPU(args)
+#
+#     wav_path_list = [os.path.join(wav_dpath, d) for d in os.listdir(wav_dpath) if
+#                      os.path.isfile(os.path.join(wav_dpath, d))]
+#     specs_list = []
+#     _, intervals = load_data(wav_base_fpath, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate)
+#     mapTable, keys = genMap(intervals)
+#     for wav_path in wav_path_list:
+#         specs, _ = load_data(wav_path, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate,
+#                              specific_intervals=intervals)
+#         specs_list.append(specs)
+#
+#     params = {'dim': (257, None, 1),
+#               'nfft': 512,
+#               'spec_len': 250,
+#               'win_length': 400,
+#               'hop_length': 160,
+#               'n_classes': 5994,
+#               'sampling_rate': 16000,
+#               'normalize': True,
+#               }
+#
+#     network_eval = spkModel.vggvox_resnet2d_icassp(input_dim=params['dim'],
+#                                                    num_class=params['n_classes'],
+#                                                    mode='eval', args=args)
+#     network_eval.load_weights(args.resume, by_name=True)
+#
+#     # model_args, _, inference_args = uisrnn.parse_arguments()
+#     # model_args.observation_dim = 512
+#     # uisrnnModel = uisrnn.UISRNN(model_args)
+#     # uisrnnModel.load(SAVED_MODEL_NAME)
+#
+#     feats_list = []
+#     for specs in specs_list:
+#         feats = []
+#         for spec in specs:
+#             spec = np.expand_dims(np.expand_dims(spec, 0), -1)
+#             v = network_eval.predict(spec)
+#             feats += [v]
+#         feats = np.array(feats)[:, 0, :].astype(float)  # [splits, embedding dim]
+#         feats_list.append(feats)
+#
+#     Feats = feats_list[0]
+#     for feats in feats_list[1:]:
+#         Feats = np.append(Feats, feats, axis=1)
+#     print(Feats.shape)
+#     return
+#     min_clusters = 1
+#     max_clusters = 5
+#     clusterer = SpectralClusterer(
+#         min_clusters=min_clusters,
+#         max_clusters=max_clusters,
+#         p_percentile=0.95,
+#         gaussian_blur_sigma=1)
+#     predicted_label = clusterer.predict(feats)
+#     # predicted_label = uisrnnModel.predict(feats, inference_args)
+#
+#     time_spec_rate = 1000 * (1.0 / embedding_per_second) * (
+#             1.0 - overlap_rate)  # speaker embedding every time_spec_rate ms
+#     speakerSlice = arrangeResult(predicted_label, time_spec_rate)
+#
+#     for spk, timeDicts in speakerSlice.items():  # time map to orgin wav(contains mute)
+#         for tid, timeDict in enumerate(timeDicts):
+#             s = 0
+#             e = 0
+#             for i, key in enumerate(keys):
+#                 if (s != 0 and e != 0):
+#                     break
+#                 if (s == 0 and key > timeDict['start']):
+#                     offset = timeDict['start'] - keys[i - 1]
+#                     s = mapTable[keys[i - 1]] + offset
+#                 if (e == 0 and key > timeDict['stop']):
+#                     offset = timeDict['stop'] - keys[i - 1]
+#                     e = mapTable[keys[i - 1]] + offset
+#
+#             speakerSlice[spk][tid]['start'] = s
+#             speakerSlice[spk][tid]['stop'] = e
+#
+#     for spk, timeDicts in speakerSlice.items():
+#         print('========= ' + str(spk) + ' =========')
+#         for timeDict in timeDicts:
+#             s = timeDict['start']
+#             e = timeDict['stop']
+#             s = fmtTime(s)  # change point moves to the center of the slice
+#             e = fmtTime(e)
+#             print(s + ' ==> ' + e)
+#
+#     os.makedirs(path_result, exist_ok=True)
+#
+#     # 結果を画像として保存
+#     p = PlotDiar(map=speakerSlice, wav=wav_path, gui=False, size=(25, 6))
+#     p.draw()
+#     p.plot.savefig("{}result.png".format(path_result))
+#
+#     # 結果をCSVファイルに保存
+#     with open("{}result.csv".format(path_result), "w", encoding="Shift_jis") as f:
+#         writer = csv.writer(f, lineterminator="\n")  # writerオブジェクトの作成 改行記号で行を区切る
+#         writer.writerow(["time(ms)", "speaker class"])
+#         for spk, timeDicts in speakerSlice.items():
+#             for timeDict in timeDicts:
+#                 for frame_ms in range(timeDict['start'], timeDict['stop']):
+#                     writer.writerow([frame_ms, spk])
 
 
 def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_spectral_cluster=False, min_clusters=1,
@@ -299,7 +292,7 @@ def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_
               'sampling_rate': 16000,
               'normalize': True,
               }
-
+    print("Evaluating using spkModel")
     network_eval = spkModel.vggvox_resnet2d_icassp(input_dim=params['dim'],
                                                    num_class=params['n_classes'],
                                                    mode='eval', args=args)
@@ -316,7 +309,15 @@ def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_
 
     feats = np.array(feats)[:, 0, :].astype(float)  # [splits, embedding dim]
 
+    # Clear and release GPU memory
+    del network_eval
+    from keras import backend as K
+    K.clear_session()
+    from numba import cuda
+    cuda.close()
+
     if use_spectral_cluster:
+        print("Evaluating using SpectralClusterer")
         clusterer = SpectralClusterer(
             min_clusters=min_clusters,
             max_clusters=max_clusters,
@@ -324,12 +325,14 @@ def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_
             gaussian_blur_sigma=1)
         predicted_label = clusterer.predict(feats)
     else:
+        print("Evaluating using UISRNN")
         model_args, _, inference_args = parse_arguments()
         model_args.observation_dim = 512
         uisrnnModel = uisrnn.UISRNN(model_args)
         uisrnnModel.load(SAVED_MODEL_NAME)
         predicted_label = uisrnnModel.predict(feats, inference_args)
 
+    print("Done. Generating result.")
     time_spec_rate = 1000 * (1.0 / embedding_per_second) * (
             1.0 - overlap_rate)  # speaker embedding every time_spec_rate ms
     speakerSlice = arrangeResult(predicted_label, time_spec_rate)
@@ -376,8 +379,7 @@ def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_
                 for frame_ms in range(timeDict['start'], timeDict['stop']):
                     writer.writerow([frame_ms, spk])
 
-
 # Merged from master
-if __name__ == '__main__':
-    # vrew_based_diarization('', '')
-    multi_audio_diarization('./audio/expt22', './audio/expt22.wav', '')
+# if __name__ == '__main__':
+# vrew_based_diarization('', '')
+# multi_audio_diarization('./audio/expt22', './audio/expt22.wav', '')

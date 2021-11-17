@@ -208,7 +208,7 @@ class CropItem(QGraphicsPathItem):
 
 
 def cv2_to_qpixmap(img: np.ndarray):
-    print(img.shape)
+    # print(img.shape)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     height, width, channel = img.shape
     bytes_per_line = 3 * width
