@@ -6,8 +6,8 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, confu
 
 import cv2
 from typing import Tuple
-import joblib
 import shutil
+import joblib
 import os
 
 
@@ -19,7 +19,6 @@ def drop_na(df, axis: int = 0, subset: list=None):
     subset: 削除したいcolumn名のリスト
     """
     df = df.replace([np.inf, -np.inf], np.nan)
-#     print(f"欠損値:\n{df.isnull().sum()}")
     if subset is None:
         dropped_df = df.dropna(axis=axis, how="any")
     else:
@@ -63,13 +62,9 @@ def output_csv(
     pred_result: 判別後の予測結果 (ndarray)
     """
     if mode == "test":
-        # in_columns = ['frame_in', 'frame_out']
-        # out_columns = ['frame', 'pred']
         in_columns = ['frame_in', 'frame_out', 'face_x', 'face_y', 'face_radius']
         out_columns = ['frame', 'face_x', 'face_y', 'face_radius', 'pred']
     else:
-        # in_columns = ['frame_in', 'frame_out', 'label']
-        # out_columns = ['frame', 'label', 'pred']
         in_columns = ['frame_in', 'frame_out', 'face_x', 'face_y', 'face_radius', 'label']
         out_columns = ['frame', 'label', 'face_x', 'face_y', 'face_radius', 'pred']
 
@@ -167,18 +162,31 @@ def output_video_nod_multi(nod_df, video_path: str, output_path: str = "output_v
     while video_capture.isOpened() and get_frame_position(video_capture) in range(start, end + 1):
         ret, frame = video_capture.read()
 
+    #     if (nod_df['frame'] == frame_index).sum() > 0:
+    #         row = nod_df[nod_df['frame'] == frame_index]
+    #         nod = row['pred'].values[0]
+    #         texts = {0: "No", 1: "Nod", 2: "Nod!!!"}
+
+    #         # when nod flag == 1 or 2 (1: weakly, 2: strongly)
+    #         if nod > 0:
+    #             mid = (row['face_x'].values[0], row['face_y'].values[0])
+    #             radius = int(row['face_radius'].values[0])
+    # #             frame = cv2.circle(frame, mid, radius=radius, color=(0, 0, 255), thickness=int(1 * nod))
+
+    #             text = texts[nod]
+    #             font = cv2.FONT_HERSHEY_PLAIN
+    #             textsize = cv2.getTextSize(text, font, 1, 2)[0]
+    #             coord = (int(mid[0] - (textsize[0] * 1.7)), int(mid[1] - (radius * 2)))
+    #             frame = cv2.putText(frame, text, coord, font, 4, (0, 0, 255), 5, cv2.LINE_AA)
+
         if (nod_df['frame'] == frame_index).sum() > 0:
             row = nod_df[nod_df['frame'] == frame_index]
             nod = row['pred'].values[0]
-            texts = {0: "No", 1: "Nod", 2: "Nod!!!"}
 
-            # when nod flag == 1 or 2 (1: weakly, 2: strongly)
-            if nod > 0:
+            if nod > 1:
                 mid = (row['face_x'].values[0], row['face_y'].values[0])
                 radius = int(row['face_radius'].values[0])
-    #             frame = cv2.circle(frame, mid, radius=radius, color=(0, 0, 255), thickness=int(1 * nod))
-
-                text = texts[nod]
+                text = "Nod!!!"
                 font = cv2.FONT_HERSHEY_PLAIN
                 textsize = cv2.getTextSize(text, font, 1, 2)[0]
                 coord = (int(mid[0] - (textsize[0] * 1.7)), int(mid[1] - (radius * 2)))
@@ -212,7 +220,7 @@ def train(
     """
     モデルの訓練
     """
-    print("====== Training ======")
+    print("====== Train ======")
 
     # train/validデータの前処理
     print(f"before drop_na: {len(trvl_df.columns)}")
@@ -251,7 +259,32 @@ def train(
     return model, feature_columns, sc
 
 
-def test(
+def test_single(
+    test_df,
+    model,
+    sc,
+    feature_columns,
+    video_path: str,
+    output_csv_dir: str,
+    output_vid_dir: str,
+    suffix: str,
+):
+    print("====== Test ======")
+    # testデータに対する前処理
+    test_df = drop_na(test_df, axis=0)  # 欠損のある行を削除
+    X_test = test_df.loc[:, feature_columns]  # 訓練に用いた特徴量のみ抽出
+    X_test = sc.transform(X_test)  # 標準化処理
+
+    pred_test = model.predict(X_test)
+    output_csv_path = f"{output_csv_dir}pred_{suffix}.csv"
+    output_csv(test_df, pred_test, output_path=output_csv_path)  # 予測結果をCSVに書き出し
+
+    nod_df = pd.read_csv(output_csv_path)
+    output_path = f"{output_vid_dir}pred_test_{suffix}.mp4"
+    output_video_nod_multi(nod_df, video_path, output_path)
+
+
+def test_multi(
     test_dfs,
     model,
     sc,
@@ -260,9 +293,11 @@ def test(
     output_csv_dir: str,
     output_vid_dir: str
 ):
-    print("====== Testing ======")
+    print("====== Test ======")
 
     for i, test_df in enumerate(test_dfs):
+        print(f"Processing: {id}")
+
         # testデータに対する前処理
         test_df = drop_na(test_df, axis=0)  # 欠損のある行を削除
         X_test = test_df.loc[:, feature_columns]  # 訓練に用いた特徴量のみ抽出
@@ -273,8 +308,8 @@ def test(
         output_csv(test_df, pred_test, output_path=output_csv_path)  # 予測結果をCSVに書き出し
 
         nod_df = pd.read_csv(output_csv_path)
-        # output_path = f"{output_vid_dir}pred_test_id{i}.mp4"
-        # output_video_nod_multi(nod_df, video_path, output_path)
+        output_path = f"{output_vid_dir}pred_test_id{i}.mp4"
+        output_video_nod_multi(nod_df, video_path, output_path)
 
         output_path = f"{output_vid_dir}pred_test.mp4"
         if i == 0:
@@ -284,22 +319,43 @@ def test(
 
 
 if __name__ == '__main__':
+    # ===== Train ===== #
     trvl_csv_path = "/home/icer/Project/icer/openface/data/preprocess_araki.csv"
-    test_csv_dir = "/home/icer/Project/openface_dir/multi_people_data/processed_csv/"
-    test_csv_paths = [
-        test_csv_dir + "multi_people_0_processed.csv",
-        test_csv_dir + "multi_people_1_processed.csv",
-        test_csv_dir + "multi_people_2_processed.csv",
-        test_csv_dir + "multi_people_3_processed.csv",
-    ]
-
-    video_path = "/home/icer/Project/openface_dir/multi_people_data/multi_people.mp4"
-    output_dir = "/home/icer/Project/openface_dir/multi_people_data/result/"
-
     trvl_df = pd.read_csv(trvl_csv_path, engine='python')
-    test_dfs = [pd.read_csv(test_csv_path, engine='python') for test_csv_path in test_csv_paths]
-
     model, feature_columns, sc = train(trvl_df)
     # joblib.dump(model, output_dir + "model.sav")
 
-    test(test_dfs, model, sc, feature_columns, video_path, output_csv_dir=output_dir, output_vid_dir=output_dir)
+    # # ===== Test (multi) ===== #
+    # # test_csv_dir = "/home/icer/Project/openface_dir/multi_people_data/processed_csv/"
+    # # test_csv_paths = [
+    # #     test_csv_dir + "multi_people_0_processed.csv",
+    # #     test_csv_dir + "multi_people_1_processed.csv",
+    # #     test_csv_dir + "multi_people_2_processed.csv",
+    # #     test_csv_dir + "multi_people_3_processed.csv",
+    # # ]
+    # # video_path = "/home/icer/Project/openface_dir/multi_people_data/multi_people.mp4"
+    # # output_dir = "/home/icer/Project/openface_dir/multi_people_data/result/"
+
+    # test_csv_dir = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/processed/"
+    # test_csv_paths = [
+    #     test_csv_dir + "output_0_processed.csv",
+    #     test_csv_dir + "output_1_processed.csv",
+    #     test_csv_dir + "output_2_processed.csv",
+    #     test_csv_dir + "output_3_processed.csv",
+    # ]
+    # test_dfs = [pd.read_csv(test_csv_path, engine='python') for test_csv_path in test_csv_paths]
+    # video_path = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/output.avi"
+    # output_dir = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/processed/"
+    # test_multi(test_dfs, model, sc, feature_columns, video_path, output_csv_dir=output_dir, output_vid_dir=output_dir)
+
+    # ===== Test (single) ===== #
+    name_list = ["reid0", "reid2", "reid3"]
+
+    for name in name_list:
+        test_csv_path = f"/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/processed/{name}_processed.csv"
+        test_df = pd.read_csv(test_csv_path, engine='python')
+
+        video_path = f"/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/{name}.mp4"
+        output_dir = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/processed/"
+        suffix = name
+        test_single(test_df, model, sc, feature_columns, video_path, output_csv_dir=output_dir, output_vid_dir=output_dir, suffix=suffix)
