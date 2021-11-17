@@ -21,8 +21,6 @@ def get_transcript_index(number):
     default_list=[]
     for i in range(number):
         default_list.append(i)
-    i, ret = None, False
-    # while not ret:
     i, ret = QInputDialog.getText(QWidget(), "index修正", "transcriptの対応indexを入力してください")
     if not ret:
         return default_list ##キャンセルの場合(元々二つのインデクスが同じの場合)

@@ -852,7 +852,7 @@ def main_overlay(output_dir: str = None,indices:str= None):
 
 
 if __name__ == '__main__':
-    # indices=[1,2,3,4,0]
+    # default_indices=[1,2,3,4,0]
     flag=True
     while (flag):
         tmp_list = get_transcript_index(5)
