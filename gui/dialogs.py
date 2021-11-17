@@ -18,9 +18,15 @@ def get_face_num():
 def get_transcript_index(number):
     _ = QApplication(sys.argv)
     trans_list = []
+    default_list=[]
+    for i in range(number):
+        default_list.append(i)
     i, ret = None, False
-    while not ret:
-        i, ret = QInputDialog.getText(QWidget(), "index修正", "transcriptの対応indexを入力してください")
+    # while not ret:
+    i, ret = QInputDialog.getText(QWidget(), "index修正", "transcriptの対応indexを入力してください")
+    if not ret:
+        return default_list ##キャンセルの場合(元々二つのインデクスが同じの場合)
+
     if len(i)==number:
         for j in range(number):
             if str(j) not in i:
