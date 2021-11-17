@@ -259,8 +259,7 @@ def window_check(df, th=0.8, remove_sr=True):
 
 def make_dataset(source_path, out_path):
     """
-    main
-    複数のcsvファイルを読み込んで、スライディングウィンドウ法により
+    sourth_path内の複数のcsvファイルを読み込んで、スライディングウィンドウ法により
     約1秒間のopenfaceのデータから集約特徴量生成
 
     label: 1うなづきあり、0うなずきなし
@@ -333,6 +332,13 @@ def make_dataset(source_path, out_path):
     outputs_df.to_csv(f"{out_path}entire.csv", index=False)
 
 if __name__ == "__main__":
+
+    """
+    SOURCE_PATH：処理する複数のcsvファイルがあるフォルダのパス
+    OUT_PATH: 出力先のパス
+
+    頷き動画のcsvファイル名には"nod"をつけておく
+    """
 
     SOURCE_PATH = "./openface/source/single/"
     OUT_PATH = "./openface/preprocessed/single/"

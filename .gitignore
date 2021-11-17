@@ -15,10 +15,9 @@ diarization
 /utils/test.mp4
 
 # honda
-.ipynb_checkpoints
-csv
-*.csv
 *.mp4
-pos
-output
+*.avi
+.ipynb_checkpoints
+openface/output
 openface_preprocess/data
+openface_honda

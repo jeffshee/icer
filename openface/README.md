@@ -20,7 +20,7 @@
     - アノテーションを楽にするため、nod_1, nod_2, ... , other_1, other_2, ...のようにずっと頷く/頷かない動画に分けて撮影する
     - 複数人で同時に頷く動画を撮影してもよいが、1人を推奨する
 
-- [`OpenFace service`](https://github.com/jeffshee/icer/tree/honda_openface/openface_preprocess)を利用して、
+- [OpenFace service](https://github.com/jeffshee/icer/tree/honda_openface/openface_preprocess)を利用して、
 各動画でOpenFace情報（csvファイル）を出力
 
 - `feature_engineering.py`によってスライディングウィンドウ法による特徴量（csvファイル）を出力
@@ -31,7 +31,7 @@
 テスト（実際の動画で推論）
 -----
 
-- テスト動画を[`OpenFace service`](https://github.com/jeffshee/icer/tree/honda_openface/openface_preprocess)によって
+- テスト動画を[OpenFace service](https://github.com/jeffshee/icer/tree/honda_openface/openface_preprocess)によって
 OpenFace情報にし、`read_multi.py`によって各話者ごとの特徴量（csvファイル）を出力させる
 
 - `nod_detection_multi.ipynb`で学習・テストを実行

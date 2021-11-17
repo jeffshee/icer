@@ -100,10 +100,10 @@ def trans_pandas(data, columns_ori, frames, timestamps):
 
     return out_df
 
-def read_multi(csv_path, dir_path):
+def read_multi(csv_path, out_path):
     """
     複数人の動画からのopenfaceデータ(csv)を人ごとにわけてスライディングウィンドウし、
-    別々のcsvファイルにしてdir_pathに保存    
+    別々のcsvファイルにしてout_pathに保存    
     """
 
     # csv読み込み
@@ -119,7 +119,7 @@ def read_multi(csv_path, dir_path):
     input_df = input_df.rename(columns=columns_dict)
 
     # 人（new_face_id）を見分けてcsvを分割
-    df_dict, id_list = devide_faces(input_df, csv_name, dir_path)
+    df_dict, id_list = devide_faces(input_df, csv_name, out_path)
 
     # idごとに特徴量抽出
     feature_dict = {}
@@ -144,10 +144,14 @@ def read_multi(csv_path, dir_path):
         # print(f"{output_df.shape} -> {output_remove_df.shape}")
 
         # 保存
-        output_df.to_csv(f"{dir_path}{csv_name}_{id}_processed.csv", index=False)
+        output_df.to_csv(f"{out_path}{csv_name}_{id}_processed.csv", index=False)
 
 if __name__ == "__main__":
+    """
+    CSV_PATH：処理するcsvファイルのパス
+    OUT_PATH: 出力先のパス
+    """
 
     CSV_PATH = "./openface/source/multi/test.csv"
-    DIR_PATH = "./openface/preprocessed/multi/"
-    read_multi(CSV_PATH, DIR_PATH)
+    OUT_PATH = "./openface/preprocessed/multi/"
+    read_multi(CSV_PATH, OUT_PATH)
