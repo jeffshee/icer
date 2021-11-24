@@ -22,18 +22,22 @@ def calculate_original_box(top, right, bottom, left, resized_w, resized_h, origi
         pad_x, pad_y = roi[0], roi[1]
         return [pad_y + top, pad_x + right, pad_y + bottom, pad_x + left]
     else:
-        alpha_top = top / (resized_h - top)
-        alpha_bottom = bottom / (resized_h - bottom)
+        scale_x = resized_w / original_w
+        scale_y = resized_h / original_h
+        return [round(top / scale_y), round(right / scale_x), round(bottom / scale_y), round(left / scale_x)]
 
-        alpha_right = right / (resized_w - right)
-        alpha_left = left / (resized_w - left)
-
-        original_top = alpha_top * original_h / (1 + alpha_top)
-        original_bottom = alpha_bottom * original_h / (1 + alpha_bottom)
-
-        original_right = alpha_right * original_w / (1 + alpha_right)
-        original_left = alpha_left * original_w / (1 + alpha_left)
-        return [round(original_top), round(original_right), round(original_bottom), round(original_left)]
+        # alpha_top = top / (resized_h - top)
+        # alpha_bottom = bottom / (resized_h - bottom)
+        #
+        # alpha_right = right / (resized_w - right)
+        # alpha_left = left / (resized_w - left)
+        #
+        # original_top = alpha_top * original_h / (1 + alpha_top)
+        # original_bottom = alpha_bottom * original_h / (1 + alpha_bottom)
+        #
+        # original_right = alpha_right * original_w / (1 + alpha_right)
+        # original_left = alpha_left * original_w / (1 + alpha_left)
+        # return [round(original_top), round(original_right), round(original_bottom), round(original_left)]
 
 
 def calculate_box_midpoint(top, right, bottom, left):
@@ -230,13 +234,13 @@ def detect_face_multiprocess(video_path: str, output_dir: str, parallel_num=3, k
                           }
             if config["debug"]:
                 print(kwargs)
-        p = Process(target=detect_face, kwargs=kwargs)
-        process_list.append(p)
-        p.start()
-
-    for p in process_list:
-        p.join()
-
+        #     p = Process(target=detect_face, kwargs=kwargs)
+        #     process_list.append(p)
+        #     p.start()
+        #
+        # for p in process_list:
+        #     p.join()
+        detect_face(**kwargs)
     # Combine CSV
     face_df_wrapper = FaceDataFrameWrapper()
     csv_path_list = [os.path.join(output_dir, f"result{i}.csv") for i in range(parallel_num)]
@@ -273,7 +277,8 @@ def match_result(result_from_detect_face: list, method="cluster_face", **kwargs)
         for i, face_video in enumerate(face_video_list):
             reid_output_dir = os.path.join(kwargs["output_dir"], f"reid{i}")
             os.makedirs(reid_output_dir, exist_ok=True)
-            temp = detect_face_multiprocess(face_video, reid_output_dir, k_resolution=-1, batch_size=32, parallel_num=1)
+            temp = detect_face_multiprocess(face_video, reid_output_dir, face_video, reid_output_dir, k_resolution=-1,
+                                            batch_size=32, parallel_num=1)
             if not temp:
                 warning(f"No face detected in REID video! {face_video}")
             face_video_result.append([t[0] for t in temp])
@@ -378,7 +383,6 @@ def main(video_path: str, output_dir: str, roi=None, offset=0, face_num=None, fa
     result = interpolate_result(result, video_path=video_path, output_dir=output_dir)
     print('capture_face elapsed time:', time.time() - start, '[sec]')
     return result
-
 
 # output_dir = "../output/exp22"
 # os.path.join(output_dir, "face_capture")
