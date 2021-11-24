@@ -89,7 +89,7 @@ def concat_video(video_path_list: List[str], output_path: str, console_quiet=Tru
         list_path = os.path.join(temp_dirname, "video_path_list.txt")
         with open(list_path, 'w') as f:
             for input_video in video_path_list:
-                f.write(f"file {input_video}\n")
+                f.write(f"file {os.path.abspath(input_video)}\n")
 
         quiet = "-loglevel quiet > /dev/null 2>&1 < /dev/null" if console_quiet else ""
         # -map 0:v is probably a workaround for muted video
@@ -334,7 +334,7 @@ def output_video_emotion_multiprocess(interpolated_result: dict, emotion_csv_pat
         kwargs = dict(interpolated_result=interpolated_result,
                       emotion_csv_path_list=emotion_csv_path_list,
                       video_path=video_path,
-                      output_path=output_path,
+                      output_path=f"{output_path[:-4]}_{i:02}{output_path[-4:]}",
                       offset=offset,
                       parallel_num=parallel_num,
                       rank=i
@@ -344,6 +344,7 @@ def output_video_emotion_multiprocess(interpolated_result: dict, emotion_csv_pat
         p.start()
 
     for p in process_list:
+        # p.start()
         p.join()
 
     # Concat
