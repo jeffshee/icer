@@ -5,22 +5,19 @@
 import argparse
 import csv
 import os
+import multiprocessing
 
 import librosa
 import numpy as np
-import pandas as pd
 from spectralcluster import SpectralClusterer
 
-# Modified
-import s2t_utils.speaker_diarization_v2.ghostvlad.model as spkModel
-from s2t_utils.speaker_diarization_v2.ghostvlad import toolkits
 from s2t_utils.speaker_diarization_v2.uisrnn import parse_arguments
 from s2t_utils.speaker_diarization_v2.uisrnn import uisrnn
 from s2t_utils.speaker_diarization_v2.visualization.viewer import PlotDiar
 
 parser = argparse.ArgumentParser()
 # set up training configuration.
-parser.add_argument('--gpu', default='', type=str)
+parser.add_argument('--gpu', default='0', type=str)
 parser.add_argument('--resume', default=r's2t_utils/speaker_diarization_v2/ghostvlad/pretrained/weights.h5', type=str)
 parser.add_argument('--data_path', default='4persons', type=str)
 # set up network configuration.
@@ -35,7 +32,6 @@ parser.add_argument('--test_type', default='normal', choices=['normal', 'hard', 
 
 args = parser.parse_args()
 
-# Modified
 SAVED_MODEL_NAME = 's2t_utils/speaker_diarization_v2/pretrained/saved_model.uisrnn_benchmark'
 
 
@@ -146,175 +142,80 @@ def load_data(path, win_length=400, sr=16000, hop_length=160, n_fft=512, embeddi
     return utterances_spec, intervals
 
 
-# # Merged from master
-# def vrew_based_diarization(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, min_clusters=1,
-#                            max_clusters=100):
-#     df = pd.read_table('./vrew/200225_expt22_video.txt', header=None, names=('time', 'txt'))
-#     wav_fname = './audio/expt22.wav'
-#     wav, sr = librosa.load(wav_fname, sr=None)
-#     prev_start = 0
-#     dup_df = df.duplicated(subset=['time'])
-#     for i, d in enumerate(dup_df):
-#         if d:
-#             df.iloc[i - 1]['txt'] += df.iloc[i]['txt']
-#     df = df.drop_duplicates(subset=['time'])
-#     txt_list = []
-#     slice_idx = []
-#     for start, end, txt in zip(df.time[:-1], df.time[1:], df.txt[:-1]):
-#         start_h, start_m, start_s = start.split(':')
-#         end_h, end_m, end_s = end.split(':')
-#         start_idx = (int(start_h) * 60 ** 2 + int(start_m) * 60 + int(start_s)) * sr
-#         end_idx = (int(end_h) * 60 ** 2 + int(end_m) * 60 + int(end_s)) * sr
-#         txt_list.append(txt)
-#         slice_idx.append([start_idx, end_idx])
-#         # cat_wav = wav[start_idx:end_idx]
-#
-#
-# # Merged from master
-# def multi_audio_diarization(wav_dpath, wav_base_fpath, path_result, embedding_per_second=1.0, overlap_rate=0.5,
-#                             min_clusters=1, max_clusters=100):
-#     # gpu configuration
-#     toolkits.initialize_GPU(args)
-#
-#     wav_path_list = [os.path.join(wav_dpath, d) for d in os.listdir(wav_dpath) if
-#                      os.path.isfile(os.path.join(wav_dpath, d))]
-#     specs_list = []
-#     _, intervals = load_data(wav_base_fpath, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate)
-#     mapTable, keys = genMap(intervals)
-#     for wav_path in wav_path_list:
-#         specs, _ = load_data(wav_path, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate,
-#                              specific_intervals=intervals)
-#         specs_list.append(specs)
-#
-#     params = {'dim': (257, None, 1),
-#               'nfft': 512,
-#               'spec_len': 250,
-#               'win_length': 400,
-#               'hop_length': 160,
-#               'n_classes': 5994,
-#               'sampling_rate': 16000,
-#               'normalize': True,
-#               }
-#
-#     network_eval = spkModel.vggvox_resnet2d_icassp(input_dim=params['dim'],
-#                                                    num_class=params['n_classes'],
-#                                                    mode='eval', args=args)
-#     network_eval.load_weights(args.resume, by_name=True)
-#
-#     # model_args, _, inference_args = uisrnn.parse_arguments()
-#     # model_args.observation_dim = 512
-#     # uisrnnModel = uisrnn.UISRNN(model_args)
-#     # uisrnnModel.load(SAVED_MODEL_NAME)
-#
-#     feats_list = []
-#     for specs in specs_list:
-#         feats = []
-#         for spec in specs:
-#             spec = np.expand_dims(np.expand_dims(spec, 0), -1)
-#             v = network_eval.predict(spec)
-#             feats += [v]
-#         feats = np.array(feats)[:, 0, :].astype(float)  # [splits, embedding dim]
-#         feats_list.append(feats)
-#
-#     Feats = feats_list[0]
-#     for feats in feats_list[1:]:
-#         Feats = np.append(Feats, feats, axis=1)
-#     print(Feats.shape)
-#     return
-#     min_clusters = 1
-#     max_clusters = 5
-#     clusterer = SpectralClusterer(
-#         min_clusters=min_clusters,
-#         max_clusters=max_clusters,
-#         p_percentile=0.95,
-#         gaussian_blur_sigma=1)
-#     predicted_label = clusterer.predict(feats)
-#     # predicted_label = uisrnnModel.predict(feats, inference_args)
-#
-#     time_spec_rate = 1000 * (1.0 / embedding_per_second) * (
-#             1.0 - overlap_rate)  # speaker embedding every time_spec_rate ms
-#     speakerSlice = arrangeResult(predicted_label, time_spec_rate)
-#
-#     for spk, timeDicts in speakerSlice.items():  # time map to orgin wav(contains mute)
-#         for tid, timeDict in enumerate(timeDicts):
-#             s = 0
-#             e = 0
-#             for i, key in enumerate(keys):
-#                 if (s != 0 and e != 0):
-#                     break
-#                 if (s == 0 and key > timeDict['start']):
-#                     offset = timeDict['start'] - keys[i - 1]
-#                     s = mapTable[keys[i - 1]] + offset
-#                 if (e == 0 and key > timeDict['stop']):
-#                     offset = timeDict['stop'] - keys[i - 1]
-#                     e = mapTable[keys[i - 1]] + offset
-#
-#             speakerSlice[spk][tid]['start'] = s
-#             speakerSlice[spk][tid]['stop'] = e
-#
-#     for spk, timeDicts in speakerSlice.items():
-#         print('========= ' + str(spk) + ' =========')
-#         for timeDict in timeDicts:
-#             s = timeDict['start']
-#             e = timeDict['stop']
-#             s = fmtTime(s)  # change point moves to the center of the slice
-#             e = fmtTime(e)
-#             print(s + ' ==> ' + e)
-#
-#     os.makedirs(path_result, exist_ok=True)
-#
-#     # 結果を画像として保存
-#     p = PlotDiar(map=speakerSlice, wav=wav_path, gui=False, size=(25, 6))
-#     p.draw()
-#     p.plot.savefig("{}result.png".format(path_result))
-#
-#     # 結果をCSVファイルに保存
-#     with open("{}result.csv".format(path_result), "w", encoding="Shift_jis") as f:
-#         writer = csv.writer(f, lineterminator="\n")  # writerオブジェクトの作成 改行記号で行を区切る
-#         writer.writerow(["time(ms)", "speaker class"])
-#         for spk, timeDicts in speakerSlice.items():
-#             for timeDict in timeDicts:
-#                 for frame_ms in range(timeDict['start'], timeDict['stop']):
-#                     writer.writerow([frame_ms, spk])
+class Predictor(multiprocessing.Process):
+    """
+    Make tensorflow/keras task into a Process, so that the resource will be automatically freed when the task is done.
+    https://github.com/tensorflow/tensorflow/issues/8220
+    The hang was caused by Queue actually, refer below. Use Manager instead.
+    https://stackoverflow.com/questions/31708646/process-join-and-queue-dont-work-with-large-numbers
+    https://stackoverflow.com/questions/33825054/deadlock-with-multiprocessing-module
+    """
+
+    def __init__(self, wav_path, embedding_per_second, overlap_rate, return_dict):
+        multiprocessing.Process.__init__(self)
+        self.wav_path = wav_path
+        self.embedding_per_second = embedding_per_second
+        self.overlap_rate = overlap_rate
+        self.return_dict = return_dict
+        self.gpu_id = args.gpu
+
+    def run(self):
+        # Set GPU id before importing tensorflow!!!!!!!!!!!!!
+        os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(self.gpu_id)
+        # Import tensorflow here
+        import tensorflow as tf
+        if tf.__version__.startswith('2'):
+            sess = tf.compat.v1.Session()
+        else:
+            sess = tf.Session()
+        # print('Using device #%s' % self.gpu_id)
+        # Task
+        import s2t_utils.speaker_diarization_v2.ghostvlad.model as spkModel
+
+        params = {'dim': (257, None, 1),
+                  'nfft': 512,
+                  'spec_len': 250,
+                  'win_length': 400,
+                  'hop_length': 160,
+                  'n_classes': 5994,
+                  'sampling_rate': 16000,
+                  'normalize': True,
+                  }
+        print("Evaluating using spkModel")
+        network_eval = spkModel.vggvox_resnet2d_icassp(input_dim=params['dim'],
+                                                       num_class=params['n_classes'],
+                                                       mode='eval', args=args)
+        network_eval.load_weights(args.resume, by_name=True)
+
+        specs, intervals = load_data(self.wav_path, embedding_per_second=self.embedding_per_second,
+                                     overlap_rate=self.overlap_rate)
+        mapTable, keys = genMap(intervals)
+        self.return_dict["mapTable"] = mapTable
+        self.return_dict["keys"] = keys
+
+        feats = []
+        for spec in specs:
+            spec = np.expand_dims(np.expand_dims(spec, 0), -1)
+            v = network_eval.predict(spec)
+            feats += [v]
+
+        feats = np.array(feats)[:, 0, :].astype(float)  # [splits, embedding dim]
+        self.return_dict["feats"] = feats
+        sess.close()
+        return
 
 
 def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_spectral_cluster=False, min_clusters=1,
          max_clusters=100):
-    # gpu configuration
-    toolkits.initialize_GPU(args)
-
-    params = {'dim': (257, None, 1),
-              'nfft': 512,
-              'spec_len': 250,
-              'win_length': 400,
-              'hop_length': 160,
-              'n_classes': 5994,
-              'sampling_rate': 16000,
-              'normalize': True,
-              }
-    print("Evaluating using spkModel")
-    network_eval = spkModel.vggvox_resnet2d_icassp(input_dim=params['dim'],
-                                                   num_class=params['n_classes'],
-                                                   mode='eval', args=args)
-    network_eval.load_weights(args.resume, by_name=True)
-
-    specs, intervals = load_data(wav_path, embedding_per_second=embedding_per_second, overlap_rate=overlap_rate)
-    mapTable, keys = genMap(intervals)
-
-    feats = []
-    for spec in specs:
-        spec = np.expand_dims(np.expand_dims(spec, 0), -1)
-        v = network_eval.predict(spec)
-        feats += [v]
-
-    feats = np.array(feats)[:, 0, :].astype(float)  # [splits, embedding dim]
-
-    # Clear and release GPU memory
-    del network_eval
-    from keras import backend as K
-    K.clear_session()
-    from numba import cuda
-    cuda.close()
+    manager = multiprocessing.Manager()
+    return_dict = manager.dict()
+    p = Predictor(wav_path, embedding_per_second, overlap_rate, return_dict)
+    p.start()
+    p.join()
+    mapTable = return_dict["mapTable"]
+    keys = return_dict["keys"]
+    feats = return_dict["feats"]
+    print("Done.")
 
     if use_spectral_cluster:
         print("Evaluating using SpectralClusterer")
@@ -378,8 +279,3 @@ def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_
             for timeDict in timeDicts:
                 for frame_ms in range(timeDict['start'], timeDict['stop']):
                     writer.writerow([frame_ms, spk])
-
-# Merged from master
-# if __name__ == '__main__':
-# vrew_based_diarization('', '')
-# multi_audio_diarization('./audio/expt22', './audio/expt22.wav', '')

@@ -86,7 +86,7 @@ def optimized_segment_audio(input_path, output_dir, max_duration_sec=60):
                 split_list += [(prev_point, mid_point)]
                 prev_point = mid_point
                 silence_list += [(start, end)]
-                print((start, end))
+                # print((start, end))
         split_list += [(prev_point, segmentation[-1][2])]
         return split_list
 

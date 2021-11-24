@@ -32,6 +32,14 @@ import warnings
 # warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 # warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
 warnings.filterwarnings("ignore", category=Warning)
+
+# Set multiprocessing start method to "spawn" (to avoid bug)
+# Some GUI will freeze if not set to spawn, Linux default is fork
+# This method should only be called once
+import multiprocessing as mp
+if mp.get_start_method(allow_none=True) is None:
+    mp.set_start_method('spawn')
+
 from utils.audio_utils import set_audio
 
 
@@ -185,13 +193,13 @@ if __name__ == "__main__":
     # }
 
     # expt12
-    # main_kwargs = {
-    #     "video_path": "datasets/200221_expt12/video.mp4",
-    #     "output_dir": "output/exp12_debug",
-    #     "audio_path_list": ["datasets/200221_expt12/voice{}.wav".format(i) for i in range(1, 4)],
-    #     "face_num": 3,
-    #     "face_video_list": ["datasets/200221_expt12/reid/reid{}.mp4".format(i) for i in range(1, 4)]
-    # }
+    main_kwargs = {
+        "video_path": "datasets/200221_expt12/video.mp4",
+        "output_dir": "output/exp12",
+        "audio_path_list": ["datasets/200221_expt12/voice{}.wav".format(i) for i in range(1, 4)],
+        "face_num": 3,
+        "face_video_list": ["datasets/200221_expt12/reid/reid{}.mp4".format(i) for i in range(1, 4)]
+    }
 
     # # expt22
     # main_kwargs = {
@@ -202,14 +210,14 @@ if __name__ == "__main__":
     #     "face_video_list": ["datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
     # }
 
-    # expt22-30sec
-    main_kwargs = {
-        "video_path": "datasets/200225_expt22/video-30sec.mp4",
-        "output_dir": "output/exp22",
-        "audio_path_list": ["datasets/200225_expt22/voice{}.wav".format(i) for i in range(1, 6)],
-        "face_num": 5,
-        "face_video_list": ["datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
-    }
+    # # expt22-30sec
+    # main_kwargs = {
+    #     "video_path": "datasets/200225_expt22/video-30sec.mp4",
+    #     "output_dir": "output/exp22",
+    #     "audio_path_list": ["datasets/200225_expt22/voice{}.wav".format(i) for i in range(1, 6)],
+    #     "face_num": 5,
+    #     "face_video_list": ["datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
+    # }
 
     # # sound only 5 min
     # main_kwargs = {
