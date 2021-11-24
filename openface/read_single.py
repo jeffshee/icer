@@ -36,7 +36,7 @@ def trans_pandas(data, columns_ori, frames, timestamps, faces):
     return out_df
 
 
-def read_single(csv_path, output_dir):
+def extract_feature(csv_path, output_dir):
     # csv読み込み
     input_df = pd.read_csv(csv_path)
 
@@ -75,18 +75,18 @@ def read_single(csv_path, output_dir):
     )
 
     # 保存
-    output_df.to_csv(f"{output_dir}{csv_name}_processed.csv", index=False)
+    output_df.to_csv(os.path.join(output_dir, f"{csv_name}_processed.csv"), index=False)
 
 
 if __name__ == "__main__":
-    # CSV_PATH = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/processed_0/reid0.csv"
-    # DIR_PATH = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/processed_0/"
-    # read_single(CSV_PATH, DIR_PATH)
-
-    DIR_PATH = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/processed/"
-    CSV_PATH = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/processed/reid0.csv"
-    read_single(CSV_PATH, DIR_PATH)
-    CSV_PATH = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/processed/reid2.csv"
-    read_single(CSV_PATH, DIR_PATH)
-    CSV_PATH = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/processed/reid3.csv"
-    read_single(CSV_PATH, DIR_PATH)
+    DIR_PATH = "/home/icer/Project/openface_dir2/2020-01-23_Take01_copycopy_3_3_5people/split_video_0/reid/processed"
+    CSV_PATH = os.path.join(DIR_PATH, "reid0.csv")
+    extract_feature(CSV_PATH, DIR_PATH)
+    CSV_PATH = os.path.join(DIR_PATH, "reid1.csv")
+    extract_feature(CSV_PATH, DIR_PATH)
+    CSV_PATH = os.path.join(DIR_PATH, "reid2.csv")
+    extract_feature(CSV_PATH, DIR_PATH)
+    CSV_PATH = os.path.join(DIR_PATH, "reid3.csv")
+    extract_feature(CSV_PATH, DIR_PATH)
+    CSV_PATH = os.path.join(DIR_PATH, "reid4.csv")
+    extract_feature(CSV_PATH, DIR_PATH)

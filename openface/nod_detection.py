@@ -7,7 +7,6 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, confu
 import cv2
 from typing import Tuple
 import shutil
-import joblib
 import os
 
 
@@ -200,6 +199,47 @@ def output_video_nod_multi(nod_df, video_path: str, output_path: str = "output_v
     os.remove(tmp_video_path)
 
 
+def output_video_nod_merge(nod_df, roi: tuple, video_path: str, output_path: str = "output_video_nod"):
+    tmp_video_path = os.path.dirname(video_path) + "/tmp_" + os.path.basename(video_path)
+    shutil.copy(video_path, tmp_video_path)
+
+    video_capture = get_video_capture(tmp_video_path)
+    video_length = get_video_length(tmp_video_path)
+
+    frame_range = (0, video_length - 1)
+    start, end = frame_range
+
+    fourcc = cv2.VideoWriter_fourcc(*"XVID")
+    video_writer = cv2.VideoWriter(output_path, fourcc, get_video_framerate(tmp_video_path),
+                                   get_video_dimension(tmp_video_path))
+
+    frame_index = start
+    set_frame_position(video_capture, start)  # Move position
+    while video_capture.isOpened() and get_frame_position(video_capture) in range(start, end + 1):
+        ret, frame = video_capture.read()
+
+        if (nod_df['frame'] == frame_index).sum() > 0:
+            row = nod_df[nod_df['frame'] == frame_index]
+            nod = row['pred'].values[0]
+
+            if nod > 1:
+                mid = (row['face_x'].values[0], row['face_y'].values[0])
+                radius = int(row['face_radius'].values[0])
+                text = "Nod!!!"
+                font = cv2.FONT_HERSHEY_PLAIN
+                textsize = cv2.getTextSize(text, font, 1, 2)[0]
+                rel_coord = (int(mid[0] - (textsize[0] * 1.7)), int(mid[1] - (radius * 2)))
+                coord = (int(roi[0] + rel_coord[0]), int(roi[1] + rel_coord[1]))
+                frame = cv2.putText(frame, text, coord, font, 4, (0, 0, 255), 5, cv2.LINE_AA)
+
+        video_writer.write(frame)
+        frame_index += 1
+
+    video_capture.release()
+    video_writer.release()
+    os.remove(tmp_video_path)
+
+
 # ====== モデル ======
 def eval(X, y, model, data_attrib: str="train"):
     pred = model.predict(X)
@@ -276,27 +316,28 @@ def test_single(
     X_test = sc.transform(X_test)  # 標準化処理
 
     pred_test = model.predict(X_test)
-    output_csv_path = f"{output_csv_dir}pred_{suffix}.csv"
+    output_csv_path = os.path.join(output_csv_dir, f"pred_{suffix}.csv")
     output_csv(test_df, pred_test, output_path=output_csv_path)  # 予測結果をCSVに書き出し
 
     nod_df = pd.read_csv(output_csv_path)
-    output_path = f"{output_vid_dir}pred_test_{suffix}.mp4"
+    output_path = os.path.join(output_vid_dir, "pred_test_{suffix}.mp4")
     output_video_nod_multi(nod_df, video_path, output_path)
 
 
 def test_multi(
     test_dfs,
+    rois,
     model,
     sc,
     feature_columns,
     video_path: str,
     output_csv_dir: str,
-    output_vid_dir: str
+    output_vid_dir: str,
 ):
     print("====== Test ======")
 
-    for i, test_df in enumerate(test_dfs):
-        print(f"Processing: {id}")
+    for i, (test_df, roi) in enumerate(zip(test_dfs, rois)):
+        print(f"Processing: {i}")
 
         # testデータに対する前処理
         test_df = drop_na(test_df, axis=0)  # 欠損のある行を削除
@@ -304,18 +345,16 @@ def test_multi(
         X_test = sc.transform(X_test)  # 標準化処理
 
         pred_test = model.predict(X_test)
-        output_csv_path = f"{output_csv_dir}pred_multi_id{i}.csv"
+
+        output_csv_path = os.path.join(output_csv_dir, f"pred_reid{i}.csv")
         output_csv(test_df, pred_test, output_path=output_csv_path)  # 予測結果をCSVに書き出し
 
         nod_df = pd.read_csv(output_csv_path)
-        output_path = f"{output_vid_dir}pred_test_id{i}.mp4"
-        output_video_nod_multi(nod_df, video_path, output_path)
-
-        output_path = f"{output_vid_dir}pred_test.mp4"
+        output_path = os.path.join(output_vid_dir, "pred_test.mp4")
         if i == 0:
-            output_video_nod_multi(nod_df, video_path, output_path)
+            output_video_nod_merge(nod_df, roi, video_path, output_path)
         else:
-            output_video_nod_multi(nod_df, output_path, output_path)
+            output_video_nod_merge(nod_df, roi, output_path, output_path)
 
 
 if __name__ == '__main__':
@@ -323,39 +362,29 @@ if __name__ == '__main__':
     trvl_csv_path = "/home/icer/Project/icer/openface/data/preprocess_araki.csv"
     trvl_df = pd.read_csv(trvl_csv_path, engine='python')
     model, feature_columns, sc = train(trvl_df)
-    # joblib.dump(model, output_dir + "model.sav")
 
-    # # ===== Test (multi) ===== #
-    # # test_csv_dir = "/home/icer/Project/openface_dir/multi_people_data/processed_csv/"
-    # # test_csv_paths = [
-    # #     test_csv_dir + "multi_people_0_processed.csv",
-    # #     test_csv_dir + "multi_people_1_processed.csv",
-    # #     test_csv_dir + "multi_people_2_processed.csv",
-    # #     test_csv_dir + "multi_people_3_processed.csv",
-    # # ]
-    # # video_path = "/home/icer/Project/openface_dir/multi_people_data/multi_people.mp4"
-    # # output_dir = "/home/icer/Project/openface_dir/multi_people_data/result/"
+    # # ===== Test (single) ===== #
+    # name_list = ["reid0", "reid1", "reid2", "reid3", "reid4"]
 
-    # test_csv_dir = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/processed/"
-    # test_csv_paths = [
-    #     test_csv_dir + "output_0_processed.csv",
-    #     test_csv_dir + "output_1_processed.csv",
-    #     test_csv_dir + "output_2_processed.csv",
-    #     test_csv_dir + "output_3_processed.csv",
-    # ]
-    # test_dfs = [pd.read_csv(test_csv_path, engine='python') for test_csv_path in test_csv_paths]
-    # video_path = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/output.avi"
-    # output_dir = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/processed/"
-    # test_multi(test_dfs, model, sc, feature_columns, video_path, output_csv_dir=output_dir, output_vid_dir=output_dir)
+    # for name in name_list:
+    #     test_csv_path = f"/home/icer/Project/openface_dir2/2020-01-23_Take01_copycopy_3_3_5people/split_video_0/reid/processed/{name}_processed.csv"
+    #     test_df = pd.read_csv(test_csv_path, engine='python')
 
-    # ===== Test (single) ===== #
-    name_list = ["reid0", "reid2", "reid3"]
+    #     video_path = f"/home/icer/Project/openface_dir2/2020-01-23_Take01_copycopy_3_3_5people/split_video_0/reid/{name}.mp4"
+    #     output_dir = "/home/icer/Project/openface_dir2/2020-01-23_Take01_copycopy_3_3_5people/split_video_0/reid/processed"
+    #     suffix = name
+    #     test_single(test_df, model, sc, feature_columns, video_path, output_csv_dir=output_dir, output_vid_dir=output_dir, suffix=suffix)
 
+    # ===== Test (multi) ===== #
+    name_list = ["reid0", "reid1", "reid2", "reid3", "reid4"]
+    roi_list = [(407, 661, 389, 388), (802, 683, 350, 347), (1333, 705, 389, 390), (1725, 724, 401, 383), (2176, 744, 316, 335)]
+
+    test_dfs = []
     for name in name_list:
-        test_csv_path = f"/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/processed/{name}_processed.csv"
+        test_csv_path = f"/home/icer/Project/openface_dir2/2020-01-23_Take01_copycopy_3_3_5people/split_video_0/reid/processed/{name}_processed.csv"
         test_df = pd.read_csv(test_csv_path, engine='python')
+        test_dfs.append(test_df)
 
-        video_path = f"/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/{name}.mp4"
-        output_dir = "/home/icer/Project/openface_dir2/2019-11-01_191031_Haga_3_3_4people/split_video_0/reid/processed/"
-        suffix = name
-        test_single(test_df, model, sc, feature_columns, video_path, output_csv_dir=output_dir, output_vid_dir=output_dir, suffix=suffix)
+    video_path = "/home/icer/Project/openface_dir2/2020-01-23_Take01_copycopy_3_3_5people/split_video_0/reid/calibrate.mp4"
+    output_dir = "/home/icer/Project/openface_dir2/2020-01-23_Take01_copycopy_3_3_5people/split_video_0/reid/processed"
+    test_multi(test_dfs, roi_list, model, sc, feature_columns, video_path, output_csv_dir=output_dir, output_vid_dir=output_dir)
