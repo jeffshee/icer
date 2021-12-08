@@ -13,7 +13,7 @@ from spectralcluster import SpectralClusterer
 
 from s2t_utils.speaker_diarization_v2.uisrnn import parse_arguments
 from s2t_utils.speaker_diarization_v2.uisrnn import uisrnn
-from s2t_utils.speaker_diarization_v2.visualization.viewer import PlotDiar
+# from s2t_utils.speaker_diarization_v2.visualization.viewer import PlotDiar
 
 parser = argparse.ArgumentParser()
 # set up training configuration.
@@ -266,10 +266,10 @@ def main(wav_path, path_result, embedding_per_second=1.0, overlap_rate=0.5, use_
 
     os.makedirs(path_result, exist_ok=True)
 
-    # 結果を画像として保存
-    p = PlotDiar(map=speakerSlice, wav=wav_path, gui=False, size=(25, 6))
-    p.draw()
-    p.plot.savefig("{}result.png".format(path_result))
+    # # 結果を画像として保存
+    # p = PlotDiar(map=speakerSlice, wav=wav_path, gui=False, size=(25, 6))
+    # p.draw()
+    # p.plot.savefig("{}result.png".format(path_result))
 
     # 結果をCSVファイルに保存
     with open("{}result.csv".format(path_result), "w", encoding="Shift_jis") as f:

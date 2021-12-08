@@ -30,6 +30,11 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = str(config["tensorflow_log_level"])
 import warnings
 
 warnings.filterwarnings("ignore", category=Warning)
+# Ignore Pydub ResourceWarning
+# https://github.com/jiaaro/pydub/issues/214
+warnings.filterwarnings("ignore", category=ResourceWarning)
+warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
 
 # Set multiprocessing start method to "spawn" (to avoid bug)
 # Some GUI will freeze if not set to spawn, Linux default is fork
@@ -213,13 +218,13 @@ if __name__ == "__main__":
     # }
 
     # expt22-30sec
-    main_kwargs = {
-        "video_path": "datasets/200225_expt22/video-30sec.mp4",
-        "output_dir": "output/exp22",
-        "audio_path_list": ["datasets/200225_expt22/voice{}.wav".format(i) for i in range(1, 6)],
-        "face_num": 5,
-        "face_video_list": ["datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
-    }
+    # main_kwargs = {
+    #     "video_path": "datasets/200225_expt22/video-30sec.mp4",
+    #     "output_dir": "output/exp22",
+    #     "audio_path_list": ["datasets/200225_expt22/voice{}.wav".format(i) for i in range(1, 6)],
+    #     "face_num": 5,
+    #     "face_video_list": ["datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
+    # }
 
     # # sound only 5 min
     # main_kwargs = {
@@ -229,4 +234,13 @@ if __name__ == "__main__":
     #     "face_num": 3,
     #     "face_video_list": None
     # }
+
+    # expt23
+    main_kwargs = {
+        "video_path": "datasets/200225_expt23/video.mp4",
+        "output_dir": "output/exp23",
+        "audio_path_list": ["datasets/200225_expt23/voice{}.wav".format(i) for i in range(1, 7)],
+        "face_num": 6,
+        "face_video_list": ["datasets/200225_expt23/reid/reid{}.mp4".format(i) for i in range(1, 7)]
+    }
     main(**main_kwargs)
