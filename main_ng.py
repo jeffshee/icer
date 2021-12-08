@@ -5,10 +5,6 @@ import time
 
 from PyQt5.QtWidgets import QApplication
 
-from gui.calibrate import adjust_offset_dialog
-from gui.cropper import select_roi_dialog
-from gui.dialogs import get_face_num
-
 # OpenCV2+PyQt5 issue workaround for Linux
 # https://forum.qt.io/topic/119109/using-pyqt5-with-opencv-python-cv2-causes-error-could-not-load-qt-platform-plugin-xcb-even-though-it-was-found/21
 from cv2.version import ci_build, headless
@@ -18,28 +14,21 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
     os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
     os.environ.pop("QT_QPA_FONTDIR")
 
+from constants import constants
+
 config = {
-    # Run mode
-    "run_capture_face": True,  # 動画から顔領域の切り出し
-    "run_emotion_recognition": True,  # 切り出した顔画像の表情・頷き・口の開閉認識
-    "run_transcript": True,  # Diarization・音声認識
-    "run_overlay": True,  # 表情・頷き・発話情報を動画にまとめて可視化
-    "tensorflow_log_level": str(2)
+    "run_capture_face": constants["RUN_CAPTURE_FACE"],  # 動画から顔領域の切り出し
+    "run_emotion_recognition": constants["RUN_EMOTION_RECOGNITION"],  # 切り出した顔画像の表情・頷き・口の開閉認識
+    "run_transcript": constants["RUN_TRANSCRIPT"],  # Diarization・音声認識
+    "run_overlay": constants["RUN_OVERLAY"],  # 表情・頷き・発話情報を動画にまとめて可視化
+    "tensorflow_log_level": constants["TF_LOG_LEVEL"]
 }
 
-"""
-Issue:
-1. Python multiprocessing error 'ForkAwareLocal' object has no attribute 'connection'
-https://stackoverflow.com/questions/60795412/python-multiprocessing-error-forkawarelocal-object-has-no-attribute-connectio
-Perhaps you were using Pycharm with Run with Python console option checked in Run/Debug Configuration. Try uncheck that.
-"""
+# Filter warning
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = str(config["tensorflow_log_level"])
 
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = config["tensorflow_log_level"]
 import warnings
 
-# warnings.filterwarnings("ignore")
-# warnings.filterwarnings("ignore", message="numpy.dtype size changed")
-# warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
 warnings.filterwarnings("ignore", category=Warning)
 
 # Set multiprocessing start method to "spawn" (to avoid bug)
@@ -50,6 +39,9 @@ import multiprocessing as mp
 if mp.get_start_method(allow_none=True) is None:
     mp.set_start_method('spawn')
 
+from gui.calibrate import adjust_offset_dialog
+from gui.cropper import select_roi_dialog
+from gui.dialogs import get_face_num
 from utils.audio_utils import set_audio
 
 
