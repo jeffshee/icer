@@ -10,8 +10,8 @@ from utils.video_utils import *
 from constants import constants
 
 config = {
-    "debug": constants["DEBUG"],
-    "num_gpu": constants["NUM_GPU"]
+    "debug": constants.DEBUG,
+    "num_gpu": constants.NUM_GPU
 }
 
 
