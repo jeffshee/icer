@@ -1,9 +1,7 @@
 import pandas as pd
 import numpy as np
 from scipy import stats
-from glob import glob
 import re
-import os
 
 
 def numericalSort(value):
@@ -61,7 +59,6 @@ def sliding_window(data, success=False, width=32, overlap=16):
 
         if success:
             outputs.append(window_success(trans_data))
-
         else:
             outputs.append(window_feature(trans_data))
 
@@ -181,81 +178,3 @@ def remove_low_confidence_rows(df, th=0.8):
     index = np.where(sr < th)[0]
     df = df.drop(df.index[index])
     return df
-
-
-def make_dataset(dir_path, out_path, feature_dim=11):
-    """
-    main
-    複数のcsvファイルを読み込んで、スライディングウィンドウ法により
-    約1秒間のopenfaceのデータから集約特徴量生成
-
-    label: 1うなづきあり、0うなずきなし
-    """
-
-    # outputs_list = np.empty((0, feature_dim*3))
-    outputs_list = np.empty((0, feature_dim * 3 + 1))
-    labels_list = np.empty((0, 1))
-    frames_list = np.empty((0, 2))
-    timestamps_list = np.empty((0, 2))
-
-    # 出力するDataFrameのカラム
-    columns = ["mean", "std", "mad", "max", "min", "energy", "entropy", "iqr", "range", "skewness", "kurtosis"]
-
-    # 各動画のopenface情報から特徴量抽出
-    for csv_path in sorted(glob(dir_path + "*csv*"), key=numericalSort):
-        input_df = pd.read_csv(csv_path)
-
-        # 動画名に"nod" -> 1, ない -> 0
-        if "nod" in csv_path:
-            label = 1
-        else:
-            label = 0
-
-        print(f"csv: {csv_path}, label: {label}")
-
-        # 元のcsvのカラム名の先頭に空白があるため
-        columns_dict = {}
-        for column_name in input_df.columns:
-            columns_dict[column_name] = column_name.lstrip()
-        input_df = input_df.rename(columns=columns_dict)
-
-        # スライディング法により特徴量抽出
-        outputs = feature_grouping(input_df)
-        labels = np.full(len(outputs), int(label))
-        labels = labels.reshape(len(labels), 1)
-
-        # 時間情報（フレーム, タイムスタンプ）を各ウィンドウに追加
-        frames, timestamps = get_timedata(input_df)
-
-        # pandasに変換
-        output_df = trans_pandas(outputs, labels, frames, timestamps, columns)
-
-        # successの処理
-        output_df = remove_low_confidence_rows(output_df)
-        print(output_df.shape)
-
-        # 保存
-        csv_name = os.path.splitext(os.path.basename(csv_path))[0]  # 拡張子なしファイル名
-        output_df.to_csv(f"{out_path}{csv_name}_processed.csv", index=False)
-
-        # 追加
-        outputs_list = np.concatenate([outputs_list, outputs])
-        frames_list = np.concatenate([frames_list, frames])
-        timestamps_list = np.concatenate([timestamps_list, timestamps])
-        labels_list = np.concatenate([labels_list, labels])
-
-    # pandasに変換
-    outputs_df = trans_pandas(outputs_list, labels_list, frames_list, timestamps_list, columns)
-
-    # successの処理
-    outputs_df = remove_low_confidence_rows(outputs_df)
-    print(outputs_df)
-
-    outputs_df.to_csv(f"{out_path}entire.csv", index=False)
-
-
-if __name__ == "__main__":
-
-    DIR_PATH = "../../movie/processed_data/"
-    OUT_PATH = "./csv/"
-    make_dataset(DIR_PATH, OUT_PATH)
