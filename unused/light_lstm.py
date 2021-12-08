@@ -55,7 +55,7 @@ model.add(Dense(output_dim, activation="sigmoid"))
 model.compile(loss="mean_squared_error", optimizer=Adam(lr=learning_rate))
 model.summary()
 
-save_weight_path = "model/light_lstm.h5"
+save_weight_path = "../model/light_lstm.h5"
 
 # 学習
 mode = "min"

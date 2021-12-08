@@ -18,8 +18,8 @@ rcParams['font.sans-serif'] = ['Hiragino Maru Gothic Pro', 'Yu Gothic', 'Meirio'
 
 np.set_printoptions(threshold=np.inf)
 
-data_dir_path = Path('.').joinpath('co_occurrence/data')
-image_dir_path = Path('.').joinpath('co_occurrence/image')
+data_dir_path = Path('..').joinpath('co_occurrence/data')
+image_dir_path = Path('..').joinpath('co_occurrence/image')
 
 if not data_dir_path.exists():
     data_dir_path.mkdir(parents=True)
@@ -29,7 +29,7 @@ if not image_dir_path.exists():
 
 def read_data(file_name, dir_path=None):
     if dir_path is None:
-        dir_path = Path('.')
+        dir_path = Path('..')
 
     with open(dir_path.joinpath(file_name), 'r', encoding='utf-8') as file:
         lines = file.readlines()
@@ -173,7 +173,7 @@ def get_bag_of_words(splited_sentences, n_word=None, save_file_name=None, save_d
     if save_file_name is not None:
 
         if save_dir_path is None:
-            save_dir_path = Path('.').joinpath('co_occurrence/data')
+            save_dir_path = Path('..').joinpath('co_occurrence/data')
         if not save_dir_path.exists():
             save_dir_path.mkdir(parents=True)
 
