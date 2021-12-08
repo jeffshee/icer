@@ -226,8 +226,7 @@ def match_result(result_from_detect_face: list, method="cluster_face", **kwargs)
         for i, face_video in enumerate(face_video_list):
             reid_output_dir = os.path.join(kwargs["output_dir"], f"reid{i}")
             os.makedirs(reid_output_dir, exist_ok=True)
-            temp = detect_face_multiprocess(face_video, reid_output_dir, face_video, reid_output_dir, k_resolution=-1,
-                                            batch_size=32, parallel_num=1)
+            temp = detect_face_multiprocess(face_video, reid_output_dir, k_resolution=-1, batch_size=32, parallel_num=1)
             if not temp:
                 warning(f"No face detected in REID video! {face_video}")
             face_video_result.append([t[0] for t in temp])
