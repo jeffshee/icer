@@ -5,6 +5,12 @@ from scipy.spatial import distance as dist
 from tqdm import tqdm
 
 from utils.video_utils import *
+from constants import constants
+
+config = {
+    "debug": constants.DEBUG,
+    "num_gpu": constants.NUM_GPU
+}
 
 
 # MAR: Mouse Aspect Ratio
@@ -66,7 +72,6 @@ def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: 
     :param emotion_label: Default ('Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal', 'Normal')
     :return: 
     """
-    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
     gpu_count = 3
     if parallel_num <= gpu_count:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)
@@ -274,7 +279,7 @@ def emotion_recognition(interpolated_result: dict, video_path: str, output_dir: 
 
 
 def emotion_recognition_multiprocess(interpolated_result: dict, video_path: str, output_dir: str, offset=0,
-                                     parallel_num=3,
+                                     parallel_num=config["num_gpu"],
                                      k_frame=3,
                                      emotion_label=(
                                              'Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal',
