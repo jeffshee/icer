@@ -18,15 +18,14 @@ def main(
 ):
     reid_dir = os.path.join(os.path.dirname(input_video_path), "reid")
 
-    # 複数人の動画から各人の領域をcrop
+    # 複数人の動画から各人の領域をcrop (全体のmainルーチンに移行)
     create_reid(input_video_path, face_num)
 
     # 各人の動画をopenfaceで処理 (shell scriptで実行: docker&local)
     subprocess.call(f"chmod +x {script_path}".split(" "))
-    # sp = subprocess.run([script_path, reid_dir], shell=True, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    sp = subprocess.run([f"{script_path} {reid_dir}"], shell=True, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-    print(f"run openface...\n{sp}")
+    # vscode実行時にはcwdの位置に注意！
+    sp = subprocess.run([f"{script_path} {reid_dir}"], shell=True, encoding='utf-8', cwd='./openface_src/', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    print(f"executed openface:\n{sp}")
 
     # openfaceで出力された特徴 (顔のrotation) からsliding windowで特徴量抽出
     processed_dir = os.path.join(reid_dir, "processed")
@@ -35,10 +34,11 @@ def main(
         extract_feature(csv_path, processed_dir)
 
     # ===== SVMモデルのTraining ===== #
-    trvl_csv_path = "/home/icer/Project/icer/openface/data/preprocess_araki.csv"
-    trvl_df = pd.read_csv(trvl_csv_path, engine='python')
-    model, feature_columns, sc = train(trvl_df)
-    # joblib.dump(model, os.path.join(processed_dir + "model.sav"))
+    train_csv_path = "./data/nod_detection_train_data.csv"
+    valid_csv_path = "./data/nod_detection_valid_data.csv"
+    train_df = pd.read_csv(train_csv_path, engine='python')
+    valid_df = pd.read_csv(valid_csv_path, engine='python')
+    model, feature_columns, sc = train(train_df=train_df, valid_df=valid_df)
 
     # ===== 頷き検出とその結果をビデオに反映 ===== #
     # 各人のROI (crop後のビデオにおけるbounding-box) が入ったリストを取得
@@ -58,7 +58,8 @@ def main(
 
 
 if __name__ == '__main__':
-    input_video_path = "/home/icer/Project/openface_dir2/2020-01-23_Take01_copycopy_3_3_5people/split_video_2/output.avi"
+    input_video_path = "/home/icer/Project/openface_dir2/2020-01-23_Take01_copycopy_3_3_5people/split_video_4/output.avi"
     face_num = 5
     script_path = "/home/icer/Project/icer/openface/run.sh"
+    # print(os.getcwd())
     main(input_video_path=input_video_path, face_num=face_num, script_path=script_path)

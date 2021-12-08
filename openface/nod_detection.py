@@ -10,7 +10,7 @@ import shutil
 import os
 
 
-#  ====== 前処理 ======
+#  ====== 前処理用 ======
 def drop_na(df, axis: int = 0, subset: list=None):
     """
     欠損値のある行or列を削除
@@ -41,15 +41,13 @@ def feature_selection(X, y=None, selected_bool_list: list=None):
         # 選択された特徴量を確認
         selected_bool_list = feat_selector.support_
         print('選択された特徴量の数: %d' % np.sum(selected_bool_list))
-        print(selected_bool_list)
         print(X.columns[selected_bool_list])
 
-    print(f"columns: {len(X.columns)}, bool_list: {len(selected_bool_list)}")
     X_selected = X.iloc[:, selected_bool_list]
     return X_selected, selected_bool_list
 
 
-#  ====== 後処理 ======
+#  ====== 後処理用 ======
 def output_csv(
     base_df: pd.core.frame.DataFrame,
     pred_result: np.ndarray,
@@ -254,35 +252,34 @@ def eval(X, y, model, data_attrib: str="train"):
 
 
 def train(
-    trvl_df,
-    random_state=0
+    train_df,
+    valid_df=None,
+    random_state: int=0
 ):
     """
-    モデルの訓練
+    頷き検出モデルの訓練
+
+    train_df: trainデータ (pandas.DataFrame)
+    valid_df: validationデータ (pandas.DataFrame)
+    random_state: SVMカーネル用の乱数
     """
     print("====== Train ======")
 
     # train/validデータの前処理
-    print(f"before drop_na: {len(trvl_df.columns)}")
-    trvl_df = drop_na(trvl_df, axis=1)  # 欠損値のある列を削除
-    print(f"after drop_na: {len(trvl_df.columns)}")
+    print(f"before drop_na: {len(train_df.columns)}")
+    train_df = drop_na(train_df, axis=1)  # 欠損値のある列を削除
+    print(f"after drop_na: {len(train_df.columns)}")
 
-    X_trvl = trvl_df.iloc[:, 1:-5]  # 特徴量を取得
-    print(f"X_trvl.columns: {X_trvl.columns}")
-    y_trvl = trvl_df['label'].astype(int)  # ラベルデータを取得
+    X_train = train_df.iloc[:, 1:-5]  # 特徴量を取得
+    y_train = train_df['label'].astype(int)  # ラベルデータを取得
 
-    X_trvl, _ = feature_selection(X=X_trvl, y=y_trvl)  # 特徴量を選択
-    feature_columns = X_trvl.columns
+    X_train, _ = feature_selection(X=X_train, y=y_train)  # 特徴量を選択
+    feature_columns = X_train.columns
 
     # データの標準化処理
     sc = StandardScaler()
-    sc.fit(X_trvl)
-    X_trvl = sc.transform(X_trvl)
-
-    # trainとvalid用に分割
-    # FIXME: index要修正
-    X_train, X_valid = X_trvl[142:], X_trvl[0:142]
-    y_train, y_valid = y_trvl[142:], y_trvl[0:142]
+    sc.fit(X_train)
+    X_train = sc.transform(X_train)
 
     # kernel SVMのインスタンスを生成
     model = SVC(kernel='rbf', random_state=random_state)
@@ -294,7 +291,13 @@ def train(
     eval(X_train, y_train, model, data_attrib="train")
 
     # validデータに対する評価
-    eval(X_valid, y_valid, model, data_attrib="valid")
+    if valid_df is not None:
+        # t前処理
+        valid_df = drop_na(valid_df, axis=0)  # 欠損のある行を削除
+        y_valid = valid_df['label'].astype(int)  # ラベルデータを取得
+        X_valid = valid_df.loc[:, feature_columns]  # 訓練に用いた特徴量のみ抽出
+        X_valid = sc.transform(X_valid)  # 標準化処理
+        eval(X_valid, y_valid, model, data_attrib="valid")
 
     return model, feature_columns, sc
 
@@ -359,7 +362,7 @@ def test_multi(
 
 if __name__ == '__main__':
     # ===== Train ===== #
-    trvl_csv_path = "/home/icer/Project/icer/openface/data/preprocess_araki.csv"
+    trvl_csv_path = "/home/icer/Project/icer/openface/data/nod_detection_train_data.csv"
     trvl_df = pd.read_csv(trvl_csv_path, engine='python')
     model, feature_columns, sc = train(trvl_df)
 
