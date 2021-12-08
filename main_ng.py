@@ -9,6 +9,15 @@ from gui.calibrate import adjust_offset_dialog
 from gui.cropper import select_roi_dialog
 from gui.dialogs import get_face_num
 
+# OpenCV2+PyQt5 issue workaround for Linux
+# https://forum.qt.io/topic/119109/using-pyqt5-with-opencv-python-cv2-causes-error-could-not-load-qt-platform-plugin-xcb-even-though-it-was-found/21
+from cv2.version import ci_build, headless
+
+ci_and_not_headless = ci_build and not headless
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
+    os.environ.pop("QT_QPA_FONTDIR")
+
 config = {
     # Run mode
     "run_capture_face": True,  # 動画から顔領域の切り出し
@@ -37,6 +46,7 @@ warnings.filterwarnings("ignore", category=Warning)
 # Some GUI will freeze if not set to spawn, Linux default is fork
 # This method should only be called once
 import multiprocessing as mp
+
 if mp.get_start_method(allow_none=True) is None:
     mp.set_start_method('spawn')
 
