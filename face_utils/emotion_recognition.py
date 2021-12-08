@@ -285,7 +285,7 @@ def emotion_recognition_multiprocess(interpolated_result: dict, video_path: str,
                                              'Negative', 'Negative', 'Normal', 'Positive', 'Normal', 'Normal',
                                              'Normal')):
     print("\nEmotion Recognition")
-    print("Using", parallel_num, "Process(es)")
+    print("Using", parallel_num, "GPU(s)")
     process_list = []
     for i in range(parallel_num):
         kwargs = dict(interpolated_result=interpolated_result,

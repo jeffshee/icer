@@ -156,7 +156,7 @@ def detect_face_multiprocess(video_path: str, output_dir: str, parallel_num=conf
     # Note: Batch size = 8 is about the limitation of current machine
     print(f"\nProcessing {video_path}")
     print("Using", parallel_num, "GPU(s)")
-
+    process_list = []
     for i in range(parallel_num):
         if roi is None:
             kwargs = {"video_path": video_path,
@@ -200,7 +200,13 @@ def detect_face_multiprocess(video_path: str, output_dir: str, parallel_num=conf
                           }
             if config["debug"]:
                 print(kwargs)
-        detect_face(**kwargs)
+        p = Process(target=detect_face, kwargs=kwargs)
+        process_list.append(p)
+        p.start()
+        # detect_face(**kwargs)
+
+    for p in process_list:
+        p.join()
 
     # Combine CSV
     face_df_wrapper = FaceDataFrameWrapper()
