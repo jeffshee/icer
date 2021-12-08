@@ -17,11 +17,11 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
 from constants import constants
 
 config = {
-    "run_capture_face": constants["RUN_CAPTURE_FACE"],  # 動画から顔領域の切り出し
-    "run_emotion_recognition": constants["RUN_EMOTION_RECOGNITION"],  # 切り出した顔画像の表情・頷き・口の開閉認識
-    "run_transcript": constants["RUN_TRANSCRIPT"],  # Diarization・音声認識
-    "run_overlay": constants["RUN_OVERLAY"],  # 表情・頷き・発話情報を動画にまとめて可視化
-    "tensorflow_log_level": constants["TF_LOG_LEVEL"]
+    "run_capture_face": constants.RUN_CAPTURE_FACE,  # 動画から顔領域の切り出し
+    "run_emotion_recognition": constants.RUN_EMOTION_RECOGNITION,  # 切り出した顔画像の表情・頷き・口の開閉認識
+    "run_transcript": constants.RUN_TRANSCRIPT,  # Diarization・音声認識
+    "run_overlay": constants.RUN_OVERLAY,  # 表情・頷き・発話情報を動画にまとめて可視化
+    "tensorflow_log_level": constants.TF_LOG_LEVEL
 }
 
 # Filter warning
