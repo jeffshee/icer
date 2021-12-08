@@ -25,10 +25,10 @@ def generate_config():
     config = dict()
     config["CONFIG_VERSION"] = CURRENT_CONFIG_VERSION  # For checking the version of config.json
     # Run mode
-    config["RUN_CAPTURE_FACE"] = True,
-    config["RUN_EMOTION_RECOGNITION"] = True,
-    config["RUN_TRANSCRIPT"] = True,
-    config["RUN_OVERLAY"] = True,
+    config["RUN_CAPTURE_FACE"] = True
+    config["RUN_EMOTION_RECOGNITION"] = True
+    config["RUN_TRANSCRIPT"] = True
+    config["RUN_OVERLAY"] = True
 
     # Settings
     config["NUM_GPU"] = 1
