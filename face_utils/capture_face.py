@@ -57,7 +57,12 @@ def detect_face(video_path: str, output_dir: str, gpu_index=0, parallel_num=1, k
     :return:
     """
     # NOTE: face_recognition MUST NOT imported before dlib, CUDA will fail to initialize otherwise
+    ## check if dlib is usable
     import dlib
+    if dlib.DLIB_USE_CUDA:
+        print("dlib cuda usable, index:",gpu_index)
+    else:
+        print("dlib cuda not used")
     dlib.cuda.set_device(gpu_index)
     import face_recognition
     from tqdm import tqdm

@@ -22,7 +22,7 @@ from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
 
 from gui.pandas_gui import show_transcript_gui
 from gui.qt_pyvis import show_pyvis
-from dialogs import get_transcript_index
+from gui.dialogs import get_transcript_index
 
 # Disable VLC error messages
 os.environ['VLC_VERBOSE'] = '-1'
@@ -277,19 +277,7 @@ class VLCControl(QWidget):
 
     def interaction_gui(self):
         # TODO pass networkx obj into arg here
-        ##
-        cur_time = self.timekeeper.precise_cur_time
-
-        row = self.transcript[
-            (self.transcript["Start time(ms)"] <= cur_time) & (cur_time < self.transcript["End time(ms)"])]
-        if len(row) == 0:
-            self.label.setText("")
-        else:
-            speaker = self._name_list[row["Speaker"].item()]
-        graph_kwargs=dict(speaker_num=self.speaker_num,
-                          speaker=speaker
-        )
-        p = Process(target=show_pyvis, args=(graph_kwargs,None, "Interaction"))
+        p = Process(target=show_pyvis, args=(None, "Interaction"))
         p.start()
 
 
@@ -349,7 +337,7 @@ class DiarizationWidget(QWidget):
         self.fontsize = config["plt_font_size"]
         self.init_flag = True  # for update_ui
         ##
-        self.index_list=index_list
+        # self.index_list=index_list
 
         # settings of matplotlib graph
         self.ax = self.mpl_widget.getFigure().add_subplot(111)
@@ -417,7 +405,7 @@ class DiarizationWidget(QWidget):
     def plot_diarization(self, row):
         speaker = row["Speaker"].item()
         ##
-        speaker=self.index_list[speaker] ##new index
+        # speaker=self.index_list[speaker] ##new index
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
@@ -425,7 +413,7 @@ class DiarizationWidget(QWidget):
     def plot_silence_time(self, row):
         speaker = row["Speaker"].item()
         ##
-        speaker=self.index_list[speaker] ##new index
+        # speaker=self.index_list[speaker] ##new index
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
@@ -447,7 +435,7 @@ class OverviewDiarizationWidget(QWidget):
         self.fontsize = config["plt_font_size"]
         self.init_flag = True
         ##
-        self.index_list=index_list ##new index
+        # self.index_list=index_list ##new index
 
         # get each person's gesture
         self.emotion_list = df_cache["emotion"]
@@ -518,7 +506,7 @@ class OverviewDiarizationWidget(QWidget):
     def plot_diarization(self, row):
         speaker = row["Speaker"].item()
         ##
-        speaker = self.index_list[speaker] ## new index
+        # speaker = self.index_list[speaker] ## new index
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="black", linewidth=4, zorder=1)
@@ -526,7 +514,7 @@ class OverviewDiarizationWidget(QWidget):
     def plot_silence_time(self, row):
         speaker = row["Speaker"].item()
         ##
-        speaker = self.index_list[speaker] ## new index
+        # speaker = self.index_list[speaker] ## new index
         start_time, end_time = row["Start time(ms)"].item(), row["End time(ms)"].item()
         start_time_s, end_time_s = self.ms_to_s(start_time), self.ms_to_s(end_time)
         self.ax.plot([start_time_s, end_time_s], [speaker, speaker], color="blue", linewidth=4, zorder=1)
@@ -685,13 +673,13 @@ def del_continual_value(target_list):
             last_value = x
     return ret_list
 
-def get_inverse_list(list):
-    inverse_list=[]
-    for i in range(len(list)):
-        for j in range(len(list)):
-            if list[j] == i:
-                inverse_list.append(j)
-    return inverse_list
+# def get_inverse_list(list):
+#     inverse_list=[]
+#     for i in range(len(list)):
+#         for j in range(len(list)):
+#             if list[j] == i:
+#                 inverse_list.append(j)
+#     return inverse_list
 
 
 def create_summary(emotion_csv_list: list, df_cache: dict,
@@ -704,18 +692,18 @@ def create_summary(emotion_csv_list: list, df_cache: dict,
     assert len(name_list) == speaker_num
 
     ##
-    inverse_list=get_inverse_list(index_list)
+    # inverse_list=get_inverse_list(index_list)
 
     num_of_utterances = collections.Counter(del_continual_value(df_diarization["Speaker"].to_list()))
-    # num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in range(speaker_num)])
-    num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in inverse_list])
+    num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in range(speaker_num)])
+    # num_of_utterances = np.array([num_of_utterances.get(i, 0) for i in inverse_list])
 
 
 
     speech_time = []
     for i in range(speaker_num):
-        # cols = df_diarization[df_diarization["Speaker"] == i]
-        cols = df_diarization[df_diarization["Speaker"] == inverse_list[i]] ## new index
+        cols = df_diarization[df_diarization["Speaker"] == i]
+        # cols = df_diarization[df_diarization["Speaker"] == inverse_list[i]] ## new index
 
         speech_time.append((cols["End time(ms)"] - cols["Start time(ms)"]).sum() / 1000)
     speech_time = np.array(speech_time)
@@ -736,8 +724,8 @@ def create_summary(emotion_csv_list: list, df_cache: dict,
     # 無音時間
     silence_time = []
     for i in range(speaker_num):
-        # cols = silence_file[silence_file["Speaker"] == i]
-        cols = silence_file[silence_file["Speaker"] == inverse_list[i]] ## use the same indices
+        cols = silence_file[silence_file["Speaker"] == i]
+        # cols = silence_file[silence_file["Speaker"] == inverse_list[i]] ## use the same indices
 
         silence_time.append((cols["End time(ms)"] - cols["Start time(ms)"]).sum() / 1000)
     silence_time = np.array(silence_time)
@@ -781,6 +769,10 @@ def main_overlay(output_dir: str = None,indices:str= None):
     #    -- *.avi / *.mp4
     # -- transcript
     #    -- diarization
+
+    ##
+    # if indices is None:
+    # indices=[0,1,2,3,4]
 
     # show select output directory dialog when output_dir is not specified
     if output_dir is None:
@@ -867,14 +859,15 @@ def main_overlay(output_dir: str = None,indices:str= None):
 
 
 if __name__ == '__main__':
-    # indices=[1,2,3,4,0]
-    flag=True
-    while (flag):
-        tmp_list = get_transcript_index(5)
-        # print(tmp_list)
-        if len(tmp_list) == 0:
-            print("illegal index")
-        else:
-            flag=False
-    print("transcript index is: ",tmp_list)
-    main_overlay("../test_0820",tmp_list)
+    # # indices=[1,2,3,4,0]
+    # flag=True
+    # while (flag):
+    #     tmp_list = get_transcript_index(5)
+    #     # print(tmp_list)
+    #     if len(tmp_list) == 0:
+    #         print("illegal index")
+    #     else:
+    #         flag=False
+    # print("transcript index is: ",tmp_list)
+    # main_overlay("../test_0820")
+    main_overlay("../output1215")
