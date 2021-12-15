@@ -14,8 +14,8 @@ def load_config():
             if config.get("CONFIG_VERSION", -1) < CURRENT_CONFIG_VERSION:
                 print("[Config] Incompatible configuration. A new one will be generated.")
                 return False, None
-            print("[Config] Current configuration")
-            pprint(config)
+            # print("[Config] Current configuration")
+            # pprint(config)
             return True, config
     print("[Config] Configuration not found. A new one will be generated.")
     return False, None
