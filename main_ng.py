@@ -1,6 +1,7 @@
 import datetime
 import os
 import sys
+import tempfile
 import time
 
 from PyQt5.QtWidgets import QApplication
@@ -44,6 +45,7 @@ import multiprocessing as mp
 if mp.get_start_method(allow_none=True) is None:
     mp.set_start_method('spawn')
 
+from main_gui.main import main as main_gui
 from gui.calibrate import adjust_offset_dialog
 from gui.cropper import select_roi_dialog
 from gui.dialogs import get_face_num
@@ -108,23 +110,100 @@ def run_transcript(**kwargs):
 
 def run_overlay(**kwargs):
     from gui.qt_overlay import main_overlay
-    # TODO probably need to run as another process
     main_overlay(**kwargs)
 
 
-@timeit
-def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None, face_video_list=None):
-    app = QApplication(sys.argv)
+def create_face_video(video_path, output_path_list, reid_roi_list, offset=0):
+    from utils.video_utils import crop_video, calibrate_video
 
-    # Preprocess
-    offset = 0
-    roi = None
-    if config["run_capture_face"] or config["run_emotion_recognition"]:
-        offset = adjust_offset_dialog(video_path)
-        if not face_num:
-            face_num = get_face_num()
-    if config["run_capture_face"]:
-        roi = select_roi_dialog(video_path, offset, window_title="顔検出を行う領域の指定")
+    with tempfile.TemporaryDirectory() as temp_dirname:
+        print("Temporary directory created at", temp_dirname)
+        calibrate_path = os.path.join(temp_dirname, "calibrate.mp4")
+        calibrate_video(video_path, output_path=calibrate_path, offset=offset, end_time=30, remove_audio=True)
+
+        for output_path, roi in zip(output_path_list, reid_roi_list):
+            kwargs = dict(video_path=calibrate_path,
+                          output_path=output_path,
+                          roi=roi,
+                          console_quiet=False,
+                          use_gpu=False)  # Don't use GPU when multi-processing!
+            crop_video(**kwargs)
+
+
+def get_outer_roi(reid_roi_list):
+    import numpy as np
+    rois = np.array(reid_roi_list)
+    # (x,y,w,h) -> (x1,y1,x2,y2) for each roi
+    cord = np.concatenate([rois[:, :2], rois[:, :2] + rois[:, 2:]])
+    # Outer ROI
+    (x, y), (w, h) = np.min(cord, axis=0), np.max(cord, axis=0) - np.min(cord, axis=0)
+    return x, y, w, h
+
+
+def get_timestamp():
+    import datetime
+
+    now = datetime.datetime.now()
+    return now.strftime("%Y-%m-%d-%H%M")
+
+
+@timeit
+def main(video_path: str = None, output_dir: str = None, audio_path_list: list = None, face_num=None,
+         face_video_list=None):
+    QApplication(sys.argv)
+
+    """
+    Params example:
+    {'offset': -433,
+ 'result': {'Person01': {'audio_path': '/home/jeffshee/Developers/icer-gui/data/200225_芳賀先生_実験22voice1.wav',
+                         'rgb': (255, 127, 14),
+                         'roi': (296, 842, 381, 455)},
+            'Person02': {'audio_path': '/home/jeffshee/Developers/icer-gui/data/200225_芳賀先生_実験22voice2.wav',
+                         'rgb': (44, 160, 44),
+                         'roi': (728, 948, 315, 379)},
+            'Person03': {'audio_path': '/home/jeffshee/Developers/icer-gui/data/200225_芳賀先生_実験22voice3.wav',
+                         'rgb': (214, 39, 40),
+                         'roi': (1230, 934, 317, 325)},
+            'Person04': {'audio_path': '/home/jeffshee/Developers/icer-gui/data/200225_芳賀先生_実験22voice4.wav',
+                         'rgb': (148, 103, 189),
+                         'roi': (2246, 854, 507, 543)},
+            'Person05': {'audio_path': '/home/jeffshee/Developers/icer-gui/data/200225_芳賀先生_実験22voice5.wav',
+                         'rgb': (140, 86, 75),
+                         'roi': (2838, 806, 425, 519)}},
+ 'video_path': '/home/jeffshee/Developers/icer-gui/data/200225_芳賀先生_実験22video.mp4'}
+ 
+    Note: ROI is in (x,y,w,h) format
+    """
+    params = main_gui()
+    video_path = params["video_path"]
+    basename = os.path.basename(params["video_path"]).split(".")[0]
+    output_dir = os.path.join("output", f"{get_timestamp()}_{basename}")
+    offset = params["offset"]
+    result = params["result"]
+    face_num = len(result)
+    audio_path_list = []
+    face_video_list = []
+    reid_roi_list = []
+
+    reid_dir = os.path.join(output_dir, "reid")
+    os.makedirs(reid_dir, exist_ok=True)
+    for name, item in result.items():
+        audio_path_list.append(item["audio_path"])
+        reid_roi_list.append(item["roi"])
+        face_video_list.append(os.path.join(reid_dir, f"{name}.mp4"))
+
+    create_face_video(video_path, face_video_list, reid_roi_list, offset)
+    roi = get_outer_roi(reid_roi_list)
+
+    # # Preprocess (Old)
+    # offset = 0
+    # roi = None
+    # if config["run_capture_face"] or config["run_emotion_recognition"]:
+    #     offset = adjust_offset_dialog(video_path)
+    #     if not face_num:
+    #         face_num = get_face_num()
+    # if config["run_capture_face"]:
+    #     roi = select_roi_dialog(video_path, offset, window_title="顔検出を行う領域の指定")
 
     capture_face_result = None
     if config["run_capture_face"]:
@@ -162,7 +241,6 @@ def main(video_path: str, output_dir: str, audio_path_list: list, face_num=None,
         run_overlay(output_dir=output_dir)
 
 
-# TODO add file check
 if __name__ == "__main__":
     # show select input directory dialog
     # input_dir = str(QFileDialog.getExistingDirectory(None, "Select Input Directory"))
@@ -236,11 +314,13 @@ if __name__ == "__main__":
     # }
 
     # expt23
-    main_kwargs = {
-        "video_path": "datasets/200225_expt23/video.mp4",
-        "output_dir": "output/exp23",
-        "audio_path_list": ["datasets/200225_expt23/voice{}.wav".format(i) for i in range(1, 7)],
-        "face_num": 6,
-        "face_video_list": ["datasets/200225_expt23/reid/reid{}.mp4".format(i) for i in range(1, 7)]
-    }
-    main(**main_kwargs)
+    # main_kwargs = {
+    #     "video_path": "datasets/200225_expt23/video.mp4",
+    #     "output_dir": "output/exp23",
+    #     "audio_path_list": ["datasets/200225_expt23/voice{}.wav".format(i) for i in range(1, 7)],
+    #     "face_num": 6,
+    #     "face_video_list": ["datasets/200225_expt23/reid/reid{}.mp4".format(i) for i in range(1, 7)]
+    # }
+    # main(**main_kwargs)
+
+    main()
