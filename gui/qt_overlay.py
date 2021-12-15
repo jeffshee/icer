@@ -327,7 +327,8 @@ class TranscriptWidget(QScrollArea):
 
 
 class DiarizationWidget(QWidget):
-    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, df_cache: dict, speaker_num: int, index_list:list,**kwargs):
+    def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, df_cache: dict, speaker_num: int,
+                 index_list: list, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
@@ -424,7 +425,7 @@ class DiarizationWidget(QWidget):
 
 class OverviewDiarizationWidget(QWidget):
     def __init__(self, vlc_widget: VLCWidget, transcript_csv: str, silence_csv: str, emotion_csv_list: list,
-                 df_cache: dict, speaker_num: int,index_list:list, **kwargs):
+                 df_cache: dict, speaker_num: int, index_list: list, **kwargs):
         super().__init__()
         self.vlc_widget = vlc_widget
         self.mpl_widget = MatplotlibWidget()
@@ -676,6 +677,7 @@ def del_continual_value(target_list):
             last_value = x
     return ret_list
 
+
 # def get_inverse_list(list):
 #     inverse_list=[]
 #     for i in range(len(list)):
@@ -686,7 +688,7 @@ def del_continual_value(target_list):
 
 
 def create_summary(emotion_csv_list: list, df_cache: dict,
-                   speaker_num: int, name_list: list = None, index_list: list = None,**kwargs):
+                   speaker_num: int, name_list: list = None, index_list: list = None, **kwargs):
     new_columns_name = ['話者', '発話数', '発話時間 [s]', "発話密度 [s]", '会話占有率 [%]', "頷き回数", "無音時間 [s]"]
     df_diarization = df_cache["transcript"]
     silence_file = df_cache["silence"]
@@ -814,7 +816,7 @@ def get_dialog_direction_networkx(
     return G
 
 
-def main_overlay(output_dir: str = None,indices:str= None):
+def main_overlay(output_dir: str = None, indices: str = None):
     # read dir according to the specific structure
     # -- emotion
     #    -- result*.csv
