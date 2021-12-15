@@ -12,9 +12,11 @@ from main_gui.utils import *
 
 ci_and_not_headless = ci_build and not headless
 if sys.platform.startswith("linux") and ci_and_not_headless:
-    os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
-    os.environ.pop("QT_QPA_FONTDIR")
-
+    try:
+        os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
+        os.environ.pop("QT_QPA_FONTDIR")
+    except KeyError:
+        pass
 import numpy as np
 from PyQt5.QtCore import QPoint, QRect, Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QPixmap, QPainter, QColor, QBrush, QImage, QIcon, QKeySequence
