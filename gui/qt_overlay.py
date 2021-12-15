@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, 
 from pyqtgraph.Qt import QtGui
 from pyqtgraph.dockarea import *
 from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
+import networkx as nx
 
 from gui.pandas_gui import show_transcript_gui
 from gui.qt_pyvis import show_pyvis
@@ -157,11 +158,12 @@ class VLCTimeKeeper:
 
 
 class VLCControl(QWidget):
-    def __init__(self, vlc_widgets: List[VLCWidget], transcript_csv: str, **kwargs):
+    def __init__(self, vlc_widgets: List[VLCWidget], transcript_csv: str, speaker_num: int, **kwargs):
         super(VLCControl, self).__init__()
         self.is_paused = False
         self.vlc_widgets = vlc_widgets
         self.transcript_csv = transcript_csv
+        self.speaker_num = speaker_num
 
         self.slider_position = Slider(Qt.Horizontal, self)
         self.slider_position.setToolTip("Position")
@@ -273,7 +275,12 @@ class VLCControl(QWidget):
         p.start()
 
     def interaction_gui(self):
-        p = Process(target=show_pyvis, args=(None, "Interaction"))
+        # get networkx graph
+        networkx_graph = get_dialog_direction_networkx(
+            transcript_csv_path=self.transcript_csv,
+            speaker_num=self.speaker_num
+        )
+        p = Process(target=show_pyvis, args=(networkx_graph, "Interaction"))
         p.start()
 
 
@@ -729,6 +736,57 @@ def create_summary(emotion_csv_list: list, df_cache: dict,
     return df_summary, df_sum
 
 
+# 個人間の発言方向と回数を表したnetworkxのgraphを取得
+def get_dialog_direction_networkx(
+        transcript_csv_path: str,
+        speaker_num: int
+):
+    # 発言方向とその回数のndarrayを取得
+    def get_directions_num(
+            transcript_csv_path: str,
+            speaker_num: int
+    ):
+        transcript = pd.read_csv(transcript_csv_path)
+        directions_num = np.zeros((speaker_num, speaker_num), dtype=np.int)
+
+        rows = transcript
+        for i in range(len(rows)):
+            row = rows.iloc[i]
+            speaker = row["Speaker"].item()
+
+            if i == 0:
+                start = None
+                end = speaker
+            else:
+                start = end
+                end = speaker
+                if start == end:
+                    continue
+                directions_num[start][end] += 1
+                # print(f"[{i:03d}]: {start} → {end}")
+        # print(directions_num)
+        return directions_num
+
+    directions_num_nd = get_directions_num(
+        transcript_csv_path,
+        speaker_num
+    )
+
+    df_directions_num_nd = pd.DataFrame(directions_num_nd)
+    # edgeの重みが0のものをマスク
+    df_directions_num_nd = df_directions_num_nd.mask(df_directions_num_nd == 0)
+
+    # エッジリストを生成
+    edge_lists = df_directions_num_nd.stack().reset_index().apply(tuple, axis=1).values
+    # float型→int型
+    for i in range(edge_lists.shape[0]):
+        edge_lists[i] = tuple(map(int, edge_lists[i]))
+
+    G = nx.MultiDiGraph()
+    G.add_weighted_edges_from(edge_lists)
+    return G
+
+
 def main_overlay(output_dir: str = None):
     # read dir according to the specific structure
     # -- emotion
@@ -821,4 +879,4 @@ def main_overlay(output_dir: str = None):
 
 
 if __name__ == '__main__':
-    main_overlay("../output/test")
+    main_overlay()

@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import time
+import json
 
 from PyQt5.QtWidgets import QApplication
 
@@ -46,9 +47,9 @@ if mp.get_start_method(allow_none=True) is None:
     mp.set_start_method('spawn')
 
 from main_gui.main import main as main_gui
-from gui.calibrate import adjust_offset_dialog
-from gui.cropper import select_roi_dialog
-from gui.dialogs import get_face_num
+# from gui.calibrate import adjust_offset_dialog
+# from gui.cropper import select_roi_dialog
+# from gui.dialogs import get_face_num
 from utils.audio_utils import set_audio
 
 
@@ -178,6 +179,10 @@ def main(video_path: str = None, output_dir: str = None, audio_path_list: list =
     video_path = params["video_path"]
     basename = os.path.basename(params["video_path"]).split(".")[0]
     output_dir = os.path.join("output", f"{get_timestamp()}_{basename}")
+    # Dump params into json
+    with open(os.path.join(output_dir, "params.json"), "r") as f:
+        json.dump(params, f, indent=3)
+
     offset = params["offset"]
     result = params["result"]
     face_num = len(result)
