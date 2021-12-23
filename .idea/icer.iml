@@ -6,15 +6,19 @@
       <sourceFolder url="file://$MODULE_DIR$/speaker_diarization/ghostvlad" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/speaker_diarization/visualization" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/speaker_diarization/uisrnn" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/LibriMix" />
       <excludeFolder url="file://$MODULE_DIR$/datasets/200221_expt12" />
       <excludeFolder url="file://$MODULE_DIR$/datasets/200225_expt22" />
       <excludeFolder url="file://$MODULE_DIR$/datasets/200225_expt23" />
       <excludeFolder url="file://$MODULE_DIR$/datasets/200309_expt58" />
+      <excludeFolder url="file://$MODULE_DIR$/datasets/sound_only_5min" />
+      <excludeFolder url="file://$MODULE_DIR$/deprecated" />
       <excludeFolder url="file://$MODULE_DIR$/output/transcript/diarization" />
       <excludeFolder url="file://$MODULE_DIR$/output_expt12/transcript/diarization" />
       <excludeFolder url="file://$MODULE_DIR$/test" />
+      <excludeFolder url="file://$MODULE_DIR$/unused" />
     </content>
-    <orderEntry type="inheritedJdk" />
+    <orderEntry type="jdk" jdkName="Python 3.8 (icer)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

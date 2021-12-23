@@ -1,15 +1,3 @@
-./audio
-./video
-./vrew
 __pycache__
-face_image
-result
-diarization
-./pinmic_to_transcript*
-./reports
-./co_occurrence
-./diarization
-./model
 /datasets/*/
-/utils/detect_face_old.csv
-/utils/test.mp4
+/output/

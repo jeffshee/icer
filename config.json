@@ -1,0 +1,10 @@
+{
+   "CONFIG_VERSION": 1,
+   "RUN_CAPTURE_FACE": true,
+   "RUN_EMOTION_RECOGNITION": true,
+   "RUN_TRANSCRIPT": true,
+   "RUN_OVERLAY": true,
+   "NUM_GPU": 1,
+   "TF_LOG_LEVEL": 2,
+   "DEBUG": false
+}

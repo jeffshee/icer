@@ -1,13 +1,17 @@
+import os
 import pickle
-from multiprocessing import Manager
 import time
 from collections import defaultdict
-import os
+from logging import warning
 
+from face_utils.face_csv import FaceDataFrameWrapper
 from utils.video_utils import *
 
+from constants import constants
+
 config = {
-    "debug": False
+    "debug": constants.DEBUG,
+    "num_gpu": constants.NUM_GPU
 }
 
 
@@ -17,22 +21,13 @@ def get_timestamp():
 
 
 def calculate_original_box(top, right, bottom, left, resized_w, resized_h, original_w, original_h, roi=None):
-    if roi is not None:
+    if roi:
         pad_x, pad_y = roi[0], roi[1]
         return [pad_y + top, pad_x + right, pad_y + bottom, pad_x + left]
     else:
-        alpha_top = top / (resized_h - top)
-        alpha_bottom = bottom / (resized_h - bottom)
-
-        alpha_right = right / (resized_w - right)
-        alpha_left = left / (resized_w - left)
-
-        original_top = alpha_top * original_h / (1 + alpha_top)
-        original_bottom = alpha_bottom * original_h / (1 + alpha_bottom)
-
-        original_right = alpha_right * original_w / (1 + alpha_right)
-        original_left = alpha_left * original_w / (1 + alpha_left)
-        return [round(original_top), round(original_right), round(original_bottom), round(original_left)]
+        scale_x = resized_w / original_w
+        scale_y = resized_h / original_h
+        return [round(top / scale_y), round(right / scale_x), round(bottom / scale_y), round(left / scale_x)]
 
 
 def calculate_box_midpoint(top, right, bottom, left):
@@ -40,13 +35,14 @@ def calculate_box_midpoint(top, right, bottom, left):
     return midpoint
 
 
-def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0, batch_size=8,
-                drop_last=True, return_dict=None, roi=None):
+def detect_face(video_path: str, output_dir: str, gpu_index=0, parallel_num=1, k_resolution=3, frame_skip=0,
+                batch_size=8, drop_last=True, roi=None, offset=0):
     """
     Detect all the faces in video, using CNN and CUDA for high accuracy and performance
     Refer to the example of face_recognition below:
     https://github.com/ageitgey/face_recognition/blob/master/examples/find_faces_in_batches.py
     :param video_path: Path to video
+    :param output_dir:
     :param parallel_num: Number of parallel jobs (Multiprocessing on GPUs)
     :param gpu_index: Which GPU to use
     :param batch_size: Batch size
@@ -54,15 +50,19 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
     Workaround for a dlib bug that raise CUDA OOM error, especially when the last incomplete batch size == 1,
     even there are plenty of RAM still available. Refer:
     https://forums.developer.nvidia.com/t/cudamalloc-out-of-memory-although-the-gpu-memory-is-enough/84327
-    :param k_resolution: resize factor, None = original
+    :param k_resolution: resize factor, -1 = original
     :param frame_skip:
-    :param return_dict:
     :param roi: ROI where the face recognition is performed
-
+    :param offset:
     :return:
     """
     # NOTE: face_recognition MUST NOT imported before dlib, CUDA will fail to initialize otherwise
+    ## check if dlib is usable
     import dlib
+    if dlib.DLIB_USE_CUDA:
+        print("dlib cuda usable, index:",gpu_index)
+    else:
+        print("dlib cuda not used")
     dlib.cuda.set_device(gpu_index)
     import face_recognition
     from tqdm import tqdm
@@ -70,14 +70,14 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
     from face_utils.encode_face import batch_face_encodings
 
     # Open video file
-    video_capture = cv2.VideoCapture(video_path)
-    if roi is not None:
+    video_capture = get_video_capture(video_path)
+    if roi:
         original_w, original_h = roi[2], roi[3]
     else:
         original_w, original_h = get_video_dimension(video_path)
 
     # Resize
-    if k_resolution is not None:
+    if k_resolution != -1:
         resize_rate = (1080 * k_resolution) / original_w
     else:
         resize_rate = 1
@@ -98,8 +98,7 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
     frame_list = []
     frame_numbers = []
 
-    result = []
-
+    face_df_wrapper = FaceDataFrameWrapper()
     bar = tqdm(total=end - start, desc="GPU#{}".format(gpu_index))
 
     set_frame_position(video_capture, start)  # Move position
@@ -112,16 +111,16 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
         next_pos = current_pos + frame_skip + 1
 
         # Grab a single frame of video
-        ret, frame = video_capture.read()
+        ret, frame = read_video_capture(video_capture, offset)
         if frame_skip != 0 and current_pos % frame_skip != 0:
             continue
 
         # Crop
-        if roi is not None:
+        if roi:
             frame = frame[int(roi[1]):int(roi[1] + roi[3]), int(roi[0]):int(roi[0] + roi[2])]
 
         # Resize
-        if k_resolution is not None:
+        if k_resolution != -1:
             frame = cv2.resize(frame, (w, h))
 
         # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
@@ -140,43 +139,40 @@ def detect_face(video_path: str, gpu_index=0, parallel_num=1, k_resolution=3, fr
 
             for frame_number_in_batch, (face_locations, face_encodings) in enumerate(
                     zip(batch_of_face_locations, batch_of_face_encodings)):
-                temp = []
                 for location, encoding in zip(face_locations, face_encodings):
-                    temp.append(Face(frame_numbers[frame_number_in_batch],
-                                     calculate_original_box(*location, w, h, original_w, original_h, roi),
-                                     np.array(encoding)))
-                if len(temp) != 0:
-                    # Only append if there is any face detected
-                    result.append(temp)
+                    face_df_wrapper.append(
+                        frame_number=frame_numbers[frame_number_in_batch],
+                        location=np.array(calculate_original_box(*location, w, h, original_w, original_h, roi)),
+                        encoding=np.array(encoding),
+                        is_detected=True,
+                    )
 
             # Clear the frames array to start the next batch
             frame_list = []
             frame_numbers = []
 
-    if return_dict is not None:
-        return_dict[gpu_index] = result
+    face_df_wrapper.write_csv(os.path.join(output_dir, f"result{gpu_index}.csv"))
 
 
 # TODO: Have a possibility causing CUDA OOM, need optimization. (Implemented drop_last as workaround)
 # Consider https://github.com/1adrianb/face-alignment or https://github.com/jacobgil/dlib_facedetector_pytorch
-def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, frame_skip=3, batch_size=8,
-                             roi=None, output_dir=".") -> list:
+def detect_face_multiprocess(video_path: str, output_dir: str, parallel_num=config["num_gpu"], k_resolution=3,
+                             frame_skip=3, batch_size=8, roi=None, offset=0):
     # Note: Batch size = 8 is about the limitation of current machine
     print(f"\nProcessing {video_path}")
     print("Using", parallel_num, "GPU(s)")
     process_list = []
-    manager = Manager()
-    return_dict = manager.dict()
-
     for i in range(parallel_num):
         if roi is None:
             kwargs = {"video_path": video_path,
+                      "output_dir": output_dir,
                       "gpu_index": i,
                       "parallel_num": parallel_num,
                       "k_resolution": k_resolution,
                       "frame_skip": frame_skip,
                       "batch_size": batch_size,
-                      "return_dict": return_dict}
+                      "offset": offset
+                      }
         else:
             four_k_size = 3840 * 2160
             roi_size = int(roi[2] * roi[3])
@@ -187,42 +183,42 @@ def detect_face_multiprocess(video_path: str, parallel_num=3, k_resolution=3, fr
             if int(batch_size * ratio) < 8:
                 # ROI is too large, fallback
                 kwargs = {"video_path": video_path,
+                          "output_dir": output_dir,
                           "gpu_index": i,
                           "parallel_num": parallel_num,
                           "k_resolution": k_resolution,
                           "frame_skip": frame_skip,
                           "batch_size": batch_size,
-                          "return_dict": return_dict}
+                          "offset": offset
+                          }
             else:
                 # Proceed with the heuristic
                 kwargs = {"video_path": video_path,
+                          "output_dir": output_dir,
                           "gpu_index": i,
                           "parallel_num": parallel_num,
-                          "k_resolution": None,
+                          "k_resolution": -1,
                           "frame_skip": frame_skip,
                           "batch_size": int(batch_size * ratio),
-                          "return_dict": return_dict,
-                          "roi": roi}
+                          "roi": roi,
+                          "offset": offset
+                          }
             if config["debug"]:
                 print(kwargs)
         p = Process(target=detect_face, kwargs=kwargs)
         process_list.append(p)
         p.start()
+        # detect_face(**kwargs)
 
     for p in process_list:
         p.join()
 
-    # Combine result from multiprocessing
-    combined = []
-    for i in range(parallel_num):
-        combined.extend(return_dict[i])
-
-    # Save result into pickle
-    if config["debug"]:
-        with open(os.path.join(output_dir, f"{get_timestamp()}_detect_face.pt"), "wb") as f:
-            pickle.dump(combined, f)
-
-    return combined
+    # Combine CSV
+    face_df_wrapper = FaceDataFrameWrapper()
+    csv_path_list = [os.path.join(output_dir, f"result{i}.csv") for i in range(parallel_num)]
+    face_df_wrapper.concat([FaceDataFrameWrapper(csv_path) for csv_path in csv_path_list])
+    face_df_wrapper.write_csv(os.path.join(output_dir, "result.csv"))
+    return face_df_wrapper.get_old_format()
 
 
 def match_result(result_from_detect_face: list, method="cluster_face", **kwargs) -> defaultdict:
@@ -235,11 +231,15 @@ def match_result(result_from_detect_face: list, method="cluster_face", **kwargs)
         return match_frame(result_from_detect_face, **kwargs)
     elif method == "reidentification":
         # Detect face for all single person face video
-        assert kwargs["face_video_list"] is not None
+        assert kwargs["face_video_list"]
         face_video_list = kwargs["face_video_list"]
         face_video_result = []
-        for face_video in face_video_list:
-            temp = detect_face_multiprocess(face_video, k_resolution=None, batch_size=32)
+        for i, face_video in enumerate(face_video_list):
+            reid_output_dir = os.path.join(kwargs["output_dir"], f"reid{i}")
+            os.makedirs(reid_output_dir, exist_ok=True)
+            temp = detect_face_multiprocess(face_video, reid_output_dir, k_resolution=-1, batch_size=32, parallel_num=1)
+            if not temp:
+                warning(f"No face detected in REID video! {face_video}")
             face_video_result.append([t[0] for t in temp])
         from face_utils.match_face import reidentification
         return reidentification(result_from_detect_face, face_video_result)
@@ -252,6 +252,7 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
     :param result_from_match_result: Result from match_result
     :param video_path: Input video path
     :param box_th: ignore boxes that too far from median
+    :param output_dir:
     :return:
     """
     print(f"\nInterpolating result")
@@ -318,35 +319,7 @@ def interpolate_result(result_from_match_result: defaultdict, video_path: str, b
     return result_from_match_result
 
 
-# def main(video_path: str, output_dir: str, face_num=None, face_video_list=None):
-#     """
-#     Main routine
-#     NOTE, format of interpolated result:
-#     Dict{
-#         0: [<Face>, <Face>, ...], # Result of person 0
-#         1: [<Face>, <Face>, ...], # Result of person 1
-#         2: [<Face>, <Face>, ...], # Result of person 2
-#         ...
-#     }
-#     """
-#     # Prepare output_dir
-#     os.makedirs(output_dir, exist_ok=True)
-#     # Capture Face
-#     roi = get_roi(video_path)
-#     start = time.time()
-#     result = interpolate_result(
-#         match_result(detect_face_multiprocess(video_path, roi=roi), method="reidentification",
-#                      face_video_list=face_video_list), video_path=video_path)
-#     # Emotion Recognition
-#     from face_utils.emotion_recognition import emotion_recognition_multiprocess
-#     emotion_recognition_multiprocess(result, video_path, output_dir)
-#     # Output Video
-#     output_video_emotion_multiprocess(result, [os.path.join(output_dir, f"output_emo/result{i}.csv") for i in range(6)],
-#                                       video_path,
-#                                       output_path=os.path.join(output_dir, f"{os.path.basename(video_path)[:-4]}_emotion.avi"))
-#     print('capture_face elapsed time:', time.time() - start, '[sec]')
-
-def main(video_path: str, output_dir: str, face_num=None, face_video_list=None):
+def main(video_path: str, output_dir: str, roi=None, offset=0, face_num=None, face_video_list=None):
     """
     Main routine
     :return: interpolated result
@@ -357,25 +330,15 @@ def main(video_path: str, output_dir: str, face_num=None, face_video_list=None):
         ...
     }
     """
-    roi = get_roi(video_path, message="顔検出を行う領域を指定し、ENTERキーを押してください。指定しない場合はそのままウインドウを閉じてください。")
     start = time.time()
-    result = detect_face_multiprocess(video_path, roi=roi, output_dir=output_dir)
-    if face_video_list is not None:
+    result = detect_face_multiprocess(video_path, roi=roi, offset=offset, output_dir=output_dir)
+    if face_video_list:
         result = match_result(result, method="reidentification", face_video_list=face_video_list, output_dir=output_dir)
     else:
         face_cluster_dir = os.path.join(output_dir, "face_cluster")
-        os.makedirs(face_cluster_dir)
+        os.makedirs(face_cluster_dir, exist_ok=True)
         result = match_result(result, method="cluster_face", face_num=face_num, video_path=video_path,
-                              output_dir=face_cluster_dir)
+                              output_dir=face_cluster_dir, offset=offset)
     result = interpolate_result(result, video_path=video_path, output_dir=output_dir)
     print('capture_face elapsed time:', time.time() - start, '[sec]')
     return result
-
-
-def test():
-    main("../datasets/test/test_video.mp4", "../output/face_capture", 6,
-         ["../datasets/test/reid/reid_{:02d}.mp4".format(i) for i in range(1, 7)])
-
-
-if __name__ == "__main__":
-    test()
