@@ -181,7 +181,7 @@ def main(video_path: str = None, output_dir: str = None, audio_path_list: list =
     output_dir = os.path.join("output", f"{get_timestamp()}_{basename}")
     os.makedirs(output_dir, exist_ok=True)
     # Dump params into json
-    with open(os.path.join(output_dir, "params.json"), "r") as f:
+    with open(os.path.join(output_dir, "params.json"), "w") as f:
         json.dump(params, f, indent=3)
 
     offset = params["offset"]
