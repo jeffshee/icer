@@ -198,6 +198,14 @@ def output_video_nod_multi(nod_df, video_path: str, output_path: str = "output_v
 
 
 def output_video_nod_merge(nod_df, roi: tuple, video_path: str, output_path: str = "output_video_nod"):
+    """
+    頷き検出結果を動画に統合
+
+    nod_df: 1人分の検出結果
+    roi: 顔のROI
+    video_path: 検出結果を統合する動画のpath
+    output_path: 統合した動画を出力するpath
+    """
     tmp_video_path = os.path.dirname(video_path) + "/tmp_" + os.path.basename(video_path)
     shutil.copy(video_path, tmp_video_path)
 
@@ -213,16 +221,19 @@ def output_video_nod_merge(nod_df, roi: tuple, video_path: str, output_path: str
 
     frame_index = start
     set_frame_position(video_capture, start)  # Move position
+    # 1フレームずつ処理
     while video_capture.isOpened() and get_frame_position(video_capture) in range(start, end + 1):
         ret, frame = video_capture.read()
 
         if (nod_df['frame'] == frame_index).sum() > 0:
             row = nod_df[nod_df['frame'] == frame_index]
-            nod = row['pred'].values[0]
+            nod = row['pred'].values[0]  # このフレームの検出結果を取り出す
 
-            if nod > 1:
+            if nod > 1:  # 重複する2つのwindowで共に検出した場合（nod == 2）
+                # textを表示する位置の計算に利用
                 mid = (row['face_x'].values[0], row['face_y'].values[0])
                 radius = int(row['face_radius'].values[0])
+
                 text = "Nod!!!"
                 font = cv2.FONT_HERSHEY_PLAIN
                 textsize = cv2.getTextSize(text, font, 1, 2)[0]
@@ -240,6 +251,9 @@ def output_video_nod_merge(nod_df, roi: tuple, video_path: str, output_path: str
 
 # ====== モデル ======
 def eval(X, y, model, data_attrib: str="train"):
+    """
+    頷き検出モデルの評価
+    """
     pred = model.predict(X)
     accuracy = accuracy_score(y, pred)
     precision = precision_score(y, pred)
@@ -312,6 +326,18 @@ def test_single(
     output_vid_dir: str,
     suffix: str,
 ):
+    """
+    頷き検出モデルのテスト（一人用）
+
+    test_df: 検出結果が保存されているDataFrame（pandas.DataFrame）
+    model: 訓練後のSVMモデル (sklearn.SVC)
+    sc: modelの訓練時に使用した標準化処理用オブジェクト（sklearn.preprocessing.StandardScaler()）
+    feature_columns: modelに入力する特徴量
+    video_path: 頷き結果を反映させる動画のpath
+    output_csv_dir: 頷き結果を出力するcsvのディレクトリ
+    output_vid_dir: 頷き結果を反映した動画を出力するディレクトリ
+    suffix: 出力するファイル名の末尾につける用
+    """
     print("====== Test ======")
     # testデータに対する前処理
     test_df = drop_na(test_df, axis=0)  # 欠損のある行を削除
@@ -328,8 +354,8 @@ def test_single(
 
 
 def test_multi(
-    test_dfs,
-    rois,
+    test_dfs: list,
+    rois: list,
     model,
     sc,
     feature_columns,
@@ -337,6 +363,18 @@ def test_multi(
     output_csv_dir: str,
     output_vid_dir: str,
 ):
+    """
+    頷き検出モデルのテスト（複数人用）
+
+    test_dfs: 各人のtest_df（pandas.DataFrame）が入ったリスト
+    rois: 各人のroiが入ったリスト
+    model: 訓練後のSVMモデル (sklearn.SVC)
+    sc: modelの訓練時に使用した標準化処理用オブジェクト（sklearn.preprocessing.StandardScaler()）
+    feature_columns: modelに入力する特徴量
+    video_path: 頷き結果を反映させる動画のpath
+    output_csv_dir: 頷き結果を出力するcsvのディレクトリ
+    output_vid_dir: 頷き結果を反映した動画を出力するディレクトリ
+    """
     print("====== Test ======")
 
     for i, (test_df, roi) in enumerate(zip(test_dfs, rois)):

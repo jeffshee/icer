@@ -13,16 +13,22 @@ from utils.video_utils import crop_video, calibrate_video
 
 
 def create_reid(video_path: str = None, face_num: int = None):
+    """
+    複数人が映り込む動画から，一人ひとりの顔のROIを指定・保存する
+    """
     _ = QApplication(sys.argv)
     output_dir = os.path.join(os.path.dirname(video_path), "reid")
     os.makedirs(output_dir, exist_ok=True)
     log_path = os.path.join(output_dir, "reid_log.txt")
+
+    # video_pathの指定がなければ，指定するためのポップアップを表示
     if not video_path:
         video_path = get_video_path()
     offset = adjust_offset_dialog(video_path)
     with open(log_path, mode='a') as f:
         f.write(f"\noffset: {offset}")
 
+    # face_numの指定がなければ，入力欄を表示
     if not face_num:
         face_num = get_face_num()
 
@@ -31,6 +37,7 @@ def create_reid(video_path: str = None, face_num: int = None):
 
     post_processes = []
     rois = []
+    # 一人ずつcalibrate.mp4における顔のROIを指定し，リストに保存
     for i in range(face_num):
         output_path = os.path.join(output_dir, f"reid{i}.mp4")
         roi = select_roi_dialog(video_path, offset, window_title=f"顔の領域の指定({i + 1}人目)", cancelable=False)

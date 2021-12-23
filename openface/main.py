@@ -14,7 +14,10 @@ def main(
     input_video_path: str,
     face_num: int,
     script_path: str,
+    train_csv_path: str = "./data/nod_detection_train_data.csv",
+    valid_csv_path: str = "./data/nod_detection_valid_data.csv",
     output_dir: str = None,
+    cwd: str = './openface_src/',
 ):
     reid_dir = os.path.join(os.path.dirname(input_video_path), "reid")
 
@@ -24,7 +27,9 @@ def main(
     # 各人の動画をopenfaceで処理 (shell scriptで実行: docker&local)
     subprocess.call(f"chmod +x {script_path}".split(" "))
     # vscode実行時にはcwdの位置に注意！
-    sp = subprocess.run([f"{script_path} {reid_dir}"], shell=True, encoding='utf-8', cwd='./openface_src/', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if os.path.exists(cwd) is False:
+        cwd = str(os.getcwd()) + "/openface/openface_src/"
+    sp = subprocess.run([f"{script_path} {reid_dir}"], shell=True, encoding='utf-8', cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     print(f"executed openface:\n{sp}")
 
     # openfaceで出力された特徴 (顔のrotation) からsliding windowで特徴量抽出
@@ -34,8 +39,6 @@ def main(
         extract_feature(csv_path, processed_dir)
 
     # ===== SVMモデルのTraining ===== #
-    train_csv_path = "./data/nod_detection_train_data.csv"
-    valid_csv_path = "./data/nod_detection_valid_data.csv"
     train_df = pd.read_csv(train_csv_path, engine='python')
     valid_df = pd.read_csv(valid_csv_path, engine='python')
     model, feature_columns, sc = train(train_df=train_df, valid_df=valid_df)
@@ -61,5 +64,7 @@ if __name__ == '__main__':
     input_video_path = "/home/icer/Project/openface_dir2/2020-01-23_Take01_copycopy_3_3_5people/split_video_4/output.avi"
     face_num = 5
     script_path = "/home/icer/Project/icer/openface/run.sh"
-    # print(os.getcwd())
-    main(input_video_path=input_video_path, face_num=face_num, script_path=script_path)
+    train_csv_path = "/home/icer/Project/icer/openface//data/nod_detection_train_data.csv"
+    valid_csv_path = "/home/icer/Project/icer/openface//data/nod_detection_valid_data.csv"
+    output_dir = "/home/icer/Project/openface_dir2/2020-01-23_Take01_copycopy_3_3_5people/split_video_4/result/"
+    main(input_video_path=input_video_path, face_num=face_num, script_path=script_path, train_csv_path=train_csv_path, valid_csv_path=valid_csv_path, output_dir=output_dir)
