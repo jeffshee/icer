@@ -179,6 +179,7 @@ def main(video_path: str = None, output_dir: str = None, audio_path_list: list =
     video_path = params["video_path"]
     basename = os.path.basename(params["video_path"]).split(".")[0]
     output_dir = os.path.join("output", f"{get_timestamp()}_{basename}")
+    os.makedirs(output_dir, exist_ok=True)
     # Dump params into json
     with open(os.path.join(output_dir, "params.json"), "r") as f:
         json.dump(params, f, indent=3)
