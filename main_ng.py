@@ -248,85 +248,8 @@ def main(video_path: str = None, output_dir: str = None, audio_path_list: list =
 
 
 if __name__ == "__main__":
-    # show select input directory dialog
-    # input_dir = str(QFileDialog.getExistingDirectory(None, "Select Input Directory"))
     # structure of input directory
-    # -- reid
-    #    -- *.avi / *.mp4 (reid videos)
     # -- *.avi / *.mp4 (MTG video)
     # -- *.wav (pin-mic voices)
-
-    # expt12 s2t only
-    # main_kwargs = {
-    #     "video_path": "datasets/200221_expt12/video.mp4",
-    #     "output_dir": "output/exp12_s2t",
-    #     "audio_path_list": ["datasets/200221_expt12/voice{}.wav".format(i) for i in range(1, 4)],
-    #     "face_num": 3,
-    #     "face_video_list": []
-    # }
-
-    # expt22 s2t only
-    # main_kwargs = {
-    #     "video_path": "datasets/200225_expt22/video.mp4",
-    #     "output_dir": "output/exp22_s2t",
-    #     "audio_path_list": ["datasets/200225_expt22/voice{}.wav".format(i) for i in range(1, 6)],
-    #     "face_num": 5,
-    #     "face_video_list": []
-    # }
-
-    # expt58 s2t only
-    # main_kwargs = {
-    #     "video_path": "datasets/200309_expt58/video.mp4",
-    #     "output_dir": "output/exp58_s2t",
-    #     "audio_path_list": ["datasets/200309_expt58/voice{}.wav".format(i) for i in range(1, 4)],
-    #     "face_num": 3,
-    #     "face_video_list": []
-    # }
-
-    # # expt12
-    # main_kwargs = {
-    #     "video_path": "datasets/200221_expt12/video.mp4",
-    #     "output_dir": "output/exp12",
-    #     "audio_path_list": ["datasets/200221_expt12/voice{}.wav".format(i) for i in range(1, 4)],
-    #     "face_num": 3,
-    #     "face_video_list": ["datasets/200221_expt12/reid/reid{}.mp4".format(i) for i in range(1, 4)]
-    # }
-
-    # # expt22
-    # main_kwargs = {
-    #     "video_path": "datasets/200225_expt22/video.mp4",
-    #     "output_dir": "output/exp22",
-    #     "audio_path_list": ["datasets/200225_expt22/voice{}.wav".format(i) for i in range(1, 6)],
-    #     "face_num": 5,
-    #     "face_video_list": ["datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
-    # }
-
-    # expt22-30sec
-    # main_kwargs = {
-    #     "video_path": "datasets/200225_expt22/video-30sec.mp4",
-    #     "output_dir": "output/exp22",
-    #     "audio_path_list": ["datasets/200225_expt22/voice{}.wav".format(i) for i in range(1, 6)],
-    #     "face_num": 5,
-    #     "face_video_list": ["datasets/200225_expt22/reid/reid{}.mp4".format(i) for i in range(1, 6)]
-    # }
-
-    # # sound only 5 min
-    # main_kwargs = {
-    #     "video_path": None,
-    #     "output_dir": "output/sound_only",
-    #     "audio_path_list": ["datasets/sound_only_5min/voice{}_5min.wav".format(i) for i in range(1, 4)],
-    #     "face_num": 3,
-    #     "face_video_list": None
-    # }
-
-    # expt23
-    # main_kwargs = {
-    #     "video_path": "datasets/200225_expt23/video.mp4",
-    #     "output_dir": "output/exp23",
-    #     "audio_path_list": ["datasets/200225_expt23/voice{}.wav".format(i) for i in range(1, 7)],
-    #     "face_num": 6,
-    #     "face_video_list": ["datasets/200225_expt23/reid/reid{}.mp4".format(i) for i in range(1, 7)]
-    # }
-    # main(**main_kwargs)
 
     main()
